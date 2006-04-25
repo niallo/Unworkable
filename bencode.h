@@ -14,21 +14,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <sys/queue.h>
+#ifndef BENCODE_H
+#define BENCODE_H
 
-#include <err.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+/* bencode dictionary structure */
+struct b_dict {
+	char *key, *value;
+	SLIST_ENTRY(b_dict) b_dict_list;
+};
 
-#include "bencode.h"
+/* bencode list structure */
+struct b_list {
+	char *value;
+	SLIST_ENTRY(b_list) b_list;
+};
 
-int
-main(int argc, char **argv)
-{
-
-	printf("hello world\n");
-
-
-	exit(0);
-}
+#endif /* BENCODE_H */
