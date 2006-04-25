@@ -17,6 +17,8 @@
 #ifndef BENCODE_H
 #define BENCODE_H
 
+#include <sys/queue.h>
+
 /* bencode dictionary structure */
 struct b_dict {
 	char *key, *value;
