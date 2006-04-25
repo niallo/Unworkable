@@ -1,3 +1,4 @@
+/* $Id: bencode.c,v 1.4 2006-04-25 17:24:56 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
