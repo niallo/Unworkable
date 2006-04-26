@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.4 2006-04-25 17:24:56 niallo Exp $ */
+/* $Id: bencode.c,v 1.5 2006-04-26 19:12:34 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -22,12 +22,3 @@
 
 #include "bencode.h"
 
-int
-main(int argc, char **argv)
-{
-
-	printf("hello world\n");
-
-
-	exit(0);
-}
