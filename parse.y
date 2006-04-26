@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.1 2006-04-26 00:49:54 niallo Exp $ */
+/* $Id: parse.y,v 1.2 2006-04-26 13:30:36 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -31,10 +31,13 @@ int yyerror(const char *, ...);
 int yyparse(void);
 int yylex(void);
 
+#define B_IN_STR	1
+#define B_DONE		2
 
 static FILE	*fin = NULL;
 static u_long	bstrlen = 0;
-static int	bstrflag = 0;
+static int	bstrflag  = 0;
+static int	bdone 	= 0;
 
 %}
 
@@ -154,6 +157,7 @@ yylex(void)
 				err(1, "yylex: realloc");
 			/* ensure pointers are not invalidated after realloc */
 			p = buf + p_offset;
+			printf("b\n");
 			/* NUL-fill the new memory */
 			memset(p, '\0', 20480);
 		}
@@ -169,49 +173,57 @@ yylex(void)
 			return (0);
 		}
 
-		*p = c;
-		i++;
-
-		/* short circuit for byte string lexical tie-in */
-		if (*p == ':') {
-			free(buf);
-			return (COLON);
-		}
-
-		if (bstrflag == 1) {
-			if (i == bstrlen) {
+		switch (c) {
+		case ':':
+			if (bdone == 0) {
 				yylval.string = buf;
-				bstrlen = bstrflag = 0;
+				bdone = 1;
+				(void)ungetc(c, fin);
 				return (STRING);
-			} else if (bstrlen > 0) {
-				p++;
-				continue;
+			} else {
+				bdone = 0;
+				free(buf);
+				return (COLON);
 			}
-		}
-
-		switch (*p) {
+			break;
 		case 'e':
-			token = END;
+			if (bdone == 0) {
+				yylval.string = buf;
+				bdone = 1;
+				(void)ungetc(c, fin);
+				return (STRING);
+			} else {
+				bdone = 0;
+				free(buf);
+				return (END);
+			}
 			break;
 		case 'i':
-			token = INT_START;
+			free(buf);
+			return (INT_START);
 			break;
 		case 'd':
-			token = DICT_START;
+			free(buf);
+			return (DICT_START);
 			break;
 		case 'l':
-			token = LIST_START;
+			free(buf);
+			return (LIST_START);
 			break;
 		default:
+			*p = c;
+			i++;
 			yylval.string = buf;
-			return (STRING);
+			token = STRING;
 			break;
 		}
 
-		if (token != 0) {
-			free(buf);
-			return (token);
+		if (i == bstrlen && bstrflag == 1) {
+			yylval.string = buf;
+			bstrlen = bstrflag = 0;
+			return (STRING);
 		}
+
 		p++;
 	}
 }
