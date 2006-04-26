@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.4 2006-04-26 13:42:15 niallo Exp $ */
+/* $Id: parse.y,v 1.5 2006-04-26 13:43:23 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -28,9 +28,6 @@
 int yyerror(const char *, ...);
 int yyparse(void);
 int yylex(void);
-
-#define B_IN_STR	1
-#define B_DONE		2
 
 static FILE	*fin     = NULL;
 static u_long	bstrlen  = 0;
