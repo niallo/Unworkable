@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: Makefile,v 1.4 2006-04-26 20:56:03 niallo Exp $
+# $Id: Makefile,v 1.5 2006-04-26 23:13:10 cathcart Exp $
 
 CC?= cc
 YACC?= yacc
@@ -38,9 +38,3 @@ ${PROG}: ${OBJS}
 
 clean:
 	rm -rf *.o ${PROG}
-
-# Yacc
-.y:
-	${YACC} ${.TARGET:R}
-	rm -f ${.TARGET:R}.tab.h
-	rm -f ${.TARGET:R}.tab.c
