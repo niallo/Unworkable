@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.7 2006-04-26 17:54:02 niallo Exp $ */
+/* $Id: parse.y,v 1.8 2006-04-26 18:45:51 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -35,6 +35,7 @@ static FILE	*fin     = NULL;
 static long	bstrlen  = 0;
 static int	bstrflag = 0;
 static int	bdone    = 0;
+static int	bcdone   = 0;
 
 %}
 
@@ -118,12 +119,14 @@ blist		: LIST_START blist_entries END			{
 		;
 
 
-bdict_entries	: bdict_entries STRING COLON STRING		{
-			printf("key: %s val: %s\n", $2, $4);
-		}
-		| bdict_entries STRING COLON STRING COLON {
-			printf("key: %s val: %s\n", $2, $4);
-		}
+bdict_entries	: bdict_entries bstring bint		{ }
+		| bdict_entries bstring bstring		{ }
+		| bdict_entries bstring blist		{ }
+		| bdict_entries bstring bdict		{ }
+		| bstring bint				{ }
+		| bstring bstring			{ }
+		| bstring blist				{ }
+		| bstring bdict				{ }
 		;
 
 bdict		: DICT_START bdict_entries END			{
@@ -173,14 +176,22 @@ yylex(void)
 
 		switch (c) {
 		case ':':
+			/* special handling for bstrings */
+			if (bdone == 0 && bcdone == 1) {
+				*p = c;
+				i++;
+				break;
+			}
 			if (bdone == 0 && i > 0) {
 				yylval.string = buf;
 				bdone = 1;
+				bcdone = 0;
 				(void)ungetc(c, fin);
 				printf("pre-COLON STRING %s\n", buf);
 				return (STRING);
 			} else {
 				bdone = 0;
+				bcdone = 1;
 				free(buf);
 				printf("COLON\n");
 				return (COLON);
@@ -250,8 +261,8 @@ yylex(void)
 
 		if (i == bstrlen && bstrflag == 1) {
 			yylval.string = buf;
-			bstrlen = bstrflag = 0;
-			printf("STRING\n");
+			bstrlen = bstrflag = bcdone = 0;
+			printf("STRING %s\n", buf);
 			return (STRING);
 		}
 
