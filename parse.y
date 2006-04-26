@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.2 2006-04-26 13:30:36 niallo Exp $ */
+/* $Id: parse.y,v 1.3 2006-04-26 13:40:01 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -24,8 +24,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-int atoul(char *, u_long *);
 
 int yyerror(const char *, ...);
 int yyparse(void);
@@ -102,39 +100,23 @@ bint		: INT_START number END				{
 
 
 number		: STRING					{
-			u_long ulval;
-			
-			if (atoul($1, &ulval) == -1) {
-				yyerror("%s is not a number", $1);
+			long lval;
+			const char *errstr;
+			lval = strtonum($1, LONG_MIN, LONG_MAX, &errstr);
+			if (errstr) {
+				yyerror("%s is %s", $1, errstr);
 				free($1);
 				YYERROR;
 			} else {
-				$$ = ulval;
+				$$ = lval;
 				if (bstrflag == 1)
-					bstrlen = ulval;
+					bstrlen = lval;
 			}
 			free($1);
 		}
 		;
 
 %%
-
-int
-atoul(char *s, u_long *ulvalp)
-{
-        u_long   ulval;
-        char    *ep;
-
-        errno = 0;
-        ulval = strtoul(s, &ep, 0);
-        if (s[0] == '\0' || *ep != '\0')
-                return (-1);
-        if (errno == ERANGE && ulval == ULONG_MAX)
-                return (-1);
-        *ulvalp = ulval;
-        return (0);
-}
-
 
 int
 yylex(void)
