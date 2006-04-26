@@ -1,4 +1,4 @@
-/* $Id: bencode.h,v 1.4 2006-04-25 17:28:55 niallo Exp $ */
+/* $Id: bencode.h,v 1.5 2006-04-26 17:55:31 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,16 +20,25 @@
 
 #include <sys/queue.h>
 
+/* bencode string structure */
+struct b_string {
+	char			*string;
+	size_t			len;
+};
+
 /* bencode dictionary structure */
 struct b_dict {
-	char *key, *value;
-	SLIST_ENTRY(b_dict) b_dicts;
+	int			type;
+	struct b_string 	*key;
+	void			*value;
+	SLIST_ENTRY(b_dict)	b_dicts;
 };
 
 /* bencode list structure */
 struct b_list {
-	char *value;
-	SLIST_ENTRY(b_list) b_lists;
+	int			type;
+	void			*value;
+	SLIST_ENTRY(b_list)	b_lists;
 };
 
 #endif /* BENCODE_H */
