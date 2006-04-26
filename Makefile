@@ -13,10 +13,9 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: Makefile,v 1.6 2006-04-26 23:19:12 niallo Exp $
+# $Id: Makefile,v 1.7 2006-04-26 23:20:28 niallo Exp $
 
 CC?= cc
-YACC?= yacc
 CFLAGS+= -Wall
 CFLAGS+= -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS+= -Wmissing-declarations
