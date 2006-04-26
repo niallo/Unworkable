@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.6 2006-04-26 13:47:46 niallo Exp $ */
+/* $Id: parse.y,v 1.7 2006-04-26 17:54:02 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -25,6 +25,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "bencode.h"
+
 int yyerror(const char *, ...);
 int yyparse(void);
 int yylex(void);
@@ -43,12 +45,17 @@ static int	bdone    = 0;
 
 %token COLON
 %token END
-%token INT_START DICT_START LIST_START
+%token INT_START
+%token DICT_START
+%token LIST_START
 %token <string> STRING
 %type  <string> bstring
+%type  <number> bint
 %type  <number> number
 %type  <string> bdict_entries
 %type  <string> blist_entries
+
+%start bencode
 
 %%
 
@@ -59,42 +66,6 @@ bencode		: /* empty */
 		| bencode bdict
 		| bencode blist
 		;
-
-bstrflag	: { bstrflag = 1; }
-		;
-
-bstring		: bstrflag number COLON STRING			{
-			printf("string %s len %d\n", $4, $2);
-		}
-		;
-
-bdict_entries	: bdict_entries STRING COLON STRING		{
-			printf("key: %s val: %s\n", $2, $4);
-		}
-		;
-
-bdict		: DICT_START number COLON bdict_entries END	{
-
-			printf("bdict string %s len %d\n", $4, $2);
-		}
-		;
-
-
-blist		: LIST_START number COLON blist_entries END	{
-			printf("string %s len %d\n", $4, $2);
-		}
-		;
-
-blist_entries	: blist_entries STRING COLON			{
-			printf("entry: %s\n", $2);
-		}
-		;
-
-bint		: INT_START number END				{
-			printf("number: %d\n", $2);
-		}
-		;
-
 
 number		: STRING					{
 			long lval;
@@ -113,6 +84,52 @@ number		: STRING					{
 		}
 		;
 
+/* special hack for bstrings */
+bstrflag	:						{
+			bstrflag = 1;
+		}
+		;
+
+bstring		: bstrflag number COLON STRING			{
+			printf("string %s len %d\n", $4, $2);
+			$$ = $4;
+		}
+		;
+
+bint		: INT_START number END				{
+			printf("number: %d\n", $2);
+			$$ = $2;
+		}
+		;
+
+blist_entries	: blist_entries bint
+		| blist_entries bstring
+		| blist_entries blist
+		| blist_entries bdict
+		| bint						{ }
+		| bstring					{ }
+		| blist						{ }
+		| bdict						{ }
+		;
+
+blist		: LIST_START blist_entries END			{
+			printf("blist found\n");
+		}
+		;
+
+
+bdict_entries	: bdict_entries STRING COLON STRING		{
+			printf("key: %s val: %s\n", $2, $4);
+		}
+		| bdict_entries STRING COLON STRING COLON {
+			printf("key: %s val: %s\n", $2, $4);
+		}
+		;
+
+bdict		: DICT_START bdict_entries END			{
+			printf("bdict found\n");
+		}
+		;
 %%
 
 int
@@ -136,7 +153,6 @@ yylex(void)
 				err(1, "yylex: realloc");
 			/* ensure pointers are not invalidated after realloc */
 			p = buf + p_offset;
-			printf("b\n");
 			/* NUL-fill the new memory */
 			memset(p, '\0', 20480);
 		}
@@ -145,48 +161,83 @@ yylex(void)
 		/* assume STRING if we hit EOF */
 		if (c == EOF) {
 			yyval.string = buf;
+			printf("EOF\n");
 			return (STRING);
 		}
 		if (c == '\n') {
 			free(buf);
+			printf("c is dash n\n");
 			return (0);
 		}
 
+
 		switch (c) {
 		case ':':
-			if (bdone == 0) {
+			if (bdone == 0 && i > 0) {
 				yylval.string = buf;
 				bdone = 1;
 				(void)ungetc(c, fin);
+				printf("pre-COLON STRING %s\n", buf);
 				return (STRING);
 			} else {
 				bdone = 0;
 				free(buf);
+				printf("COLON\n");
 				return (COLON);
 			}
 			break;
 		case 'e':
-			if (bdone == 0) {
+			/* special handling for bstrings */
+			if (bstrflag == 1) {
+				*p = c;
+				i++;
+				break;
+			}
+			/* in other contexts, e is END */
+			if (bdone == 0 && i > 0) {
 				yylval.string = buf;
 				bdone = 1;
 				(void)ungetc(c, fin);
+				printf("pre-END i is %d %s\n", i, buf);
 				return (STRING);
 			} else {
 				bdone = 0;
 				free(buf);
+				printf("END\n");
 				return (END);
 			}
 			break;
 		case 'i':
+			/* special handling for bstrings */
+			if (bstrflag == 1) {
+				*p = c;
+				i++;
+				break;
+			}
 			free(buf);
+			printf("INT_START\n");
 			return (INT_START);
 			break;
 		case 'd':
+			/* special handling for bstrings */
+			if (bstrflag == 1) {
+				*p = c;
+				i++;
+				break;
+			}
 			free(buf);
+			printf("DICT_START\n");
 			return (DICT_START);
 			break;
 		case 'l':
+			/* special handling for bstrings */
+			if (bstrflag == 1) {
+				*p = c;
+				i++;
+				break;
+			}
 			free(buf);
+			printf("LIST_START\n");
 			return (LIST_START);
 			break;
 		default:
@@ -200,6 +251,7 @@ yylex(void)
 		if (i == bstrlen && bstrflag == 1) {
 			yylval.string = buf;
 			bstrlen = bstrflag = 0;
+			printf("STRING\n");
 			return (STRING);
 		}
 
