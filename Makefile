@@ -13,19 +13,22 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: Makefile,v 1.1.1.1 2006-04-24 19:17:31 niallo Exp $
+# $Id: Makefile,v 1.2 2006-04-26 19:11:46 niallo Exp $
 
 CC?= cc
+YACC?= yacc
 CFLAGS+= -Wall
 CFLAGS+= -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS+= -Wmissing-declarations
 CFLAGS+= -Wshadow -Wpointer-arith -Wcast-qual
 CFLAGS+= -Wsign-compare -g -ggdb
 
+.SUFFIXES+= .y
+
 
 PROG= unworkable
 
-SRCS= bencode.c
+SRCS= bencode.c parse.y
 OBJS= ${SRCS:N*.h:N*.sh:R:S/$/.o/g}
 
 all: ${PROG}
@@ -35,3 +38,8 @@ ${PROG}: ${OBJS}
 
 clean:
 	rm -rf *.o ${PROG}
+
+# Yacc
+.y:
+	${YACC} ${.TARGET:R}
+	rm -f ${.TARGET:R}.tab.c
