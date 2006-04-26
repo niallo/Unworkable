@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: Makefile,v 1.5 2006-04-26 23:13:10 cathcart Exp $
+# $Id: Makefile,v 1.6 2006-04-26 23:19:12 niallo Exp $
 
 CC?= cc
 YACC?= yacc
@@ -22,9 +22,6 @@ CFLAGS+= -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS+= -Wmissing-declarations
 CFLAGS+= -Wshadow -Wpointer-arith -Wcast-qual
 CFLAGS+= -Wsign-compare -g -ggdb
-
-.SUFFIXES+= .y
-
 
 PROG= unworkable
 
