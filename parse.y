@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.8 2006-04-26 18:45:51 niallo Exp $ */
+/* $Id: parse.y,v 1.9 2006-04-26 19:12:47 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -32,7 +32,7 @@ int yyparse(void);
 int yylex(void);
 
 static FILE	*fin     = NULL;
-static long	bstrlen  = 0;
+static size_t	bstrlen  = 0;
 static int	bstrflag = 0;
 static int	bdone    = 0;
 static int	bcdone   = 0;
@@ -139,8 +139,8 @@ int
 yylex(void)
 {
 	char	*buf, *p;
-	int	c, i = 0, token = 0;
-	size_t	buflen = 128;
+	int	c, token = 0;
+	size_t	buflen = 128, i = 0;;
 
 	if ((buf = malloc(buflen)) == NULL)
 		err(1, "yylex: malloc");
@@ -209,7 +209,7 @@ yylex(void)
 				yylval.string = buf;
 				bdone = 1;
 				(void)ungetc(c, fin);
-				printf("pre-END i is %d %s\n", i, buf);
+				printf("pre-END i is %d %s\n", (int)i, buf);
 				return (STRING);
 			} else {
 				bdone = 0;
