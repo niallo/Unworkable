@@ -13,25 +13,23 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: test.sh,v 1.2 2006-04-29 19:43:48 niallo Exp $
+# $Id: test.sh,v 1.3 2006-04-29 19:45:49 niallo Exp $
 
 # Zero exit code is success, non-zero is failure.
 function test1 {
-	echo "$1" | ./unworkable 2>&1 > /dev/null
+	echo "$1" | ./unworkable 2>1 > /dev/null
 	if [ $? -ne 0 ]
 	then
 		echo "failure on input: $1"
-		exit 1
 	fi
 }
 
 # Zero exit code is failure, non-zero is success.
 function test2 {
-	echo "$1" | ./unworkable 2>&1 > /dev/null
+	echo "$1" | ./unworkable 2>1 > /dev/null
 	if [ $? -eq 0 ]
 	then
 		echo "failure on input: $1"
-		exit 1
 	fi
 }
 
