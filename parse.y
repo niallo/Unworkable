@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.12 2006-04-29 21:08:59 niallo Exp $ */
+/* $Id: parse.y,v 1.13 2006-04-29 21:11:57 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -119,14 +119,14 @@ blist		: LIST_START blist_entries END			{
 		;
 
 
-bdict_entries	: bdict_entries bstring bint		{ }
-		| bdict_entries bstring bstring		{ }
-		| bdict_entries bstring blist		{ }
-		| bdict_entries bstring bdict		{ }
-		| bstring bint				{ }
-		| bstring bstring			{ }
-		| bstring blist				{ }
-		| bstring bdict				{ }
+bdict_entries	: bdict_entries bstring bint			{ }
+		| bdict_entries bstring bstring			{ }
+		| bdict_entries bstring blist			{ }
+		| bdict_entries bstring bdict			{ }
+		| bstring bint					{ }
+		| bstring bstring				{ }
+		| bstring blist					{ }
+		| bstring bdict					{ }
 		;
 
 bdict		: DICT_START bdict_entries END			{
