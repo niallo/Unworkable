@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: test.sh,v 1.3 2006-04-29 19:45:49 niallo Exp $
+# $Id: test.sh,v 1.4 2006-04-29 21:01:51 niallo Exp $
 
 # Zero exit code is success, non-zero is failure.
 function test1 {
@@ -37,3 +37,8 @@ test1 "li300ee"
 test1 "i300ei450ei-300e"
 test1 "4:h:te"
 test1 "1::"
+test1 "d4:dliei300ee"
+test2 "d4:dlie:i300ee"
+test1 "l5:spameli-350eee"
+test2 "l5:spameli-350ee"
+test1 "l5:spamed6:spamedi-429eee"
