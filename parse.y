@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.9 2006-04-26 19:12:47 niallo Exp $ */
+/* $Id: parse.y,v 1.10 2006-04-29 19:55:07 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -284,8 +284,10 @@ yyerror(const char *fmt, ...)
 
 int
 main(int argc, char **argv) {
-	fin = stdin;
-	yyparse();
+	int ret = 0;
 
-	exit(0);
+	fin = stdin;
+	ret = yyparse();
+
+	exit(ret);
 }
