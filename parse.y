@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.13 2006-04-29 21:11:57 niallo Exp $ */
+/* $Id: parse.y,v 1.14 2006-04-29 21:12:52 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -240,7 +240,8 @@ yyerror(const char *fmt, ...)
 }
 
 int
-main(int argc, char **argv) {
+main(int argc, char **argv)
+{
 	int ret = 0;
 
 	fin = stdin;
