@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.11 2006-04-29 21:01:38 niallo Exp $ */
+/* $Id: parse.y,v 1.12 2006-04-29 21:08:59 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -140,7 +140,7 @@ yylex(void)
 {
 	char	*buf, *p;
 	int	c;
-	size_t	buflen = 128, i = 0;;
+	size_t	buflen = 128, i = 0;
 
 	if ((buf = malloc(buflen)) == NULL)
 		err(1, "yylex: malloc");
