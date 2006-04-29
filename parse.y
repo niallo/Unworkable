@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.10 2006-04-29 19:55:07 niallo Exp $ */
+/* $Id: parse.y,v 1.11 2006-04-29 21:01:38 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -139,7 +139,7 @@ int
 yylex(void)
 {
 	char	*buf, *p;
-	int	c, token = 0;
+	int	c;
 	size_t	buflen = 128, i = 0;;
 
 	if ((buf = malloc(buflen)) == NULL)
@@ -164,105 +164,62 @@ yylex(void)
 		/* assume STRING if we hit EOF */
 		if (c == EOF) {
 			yyval.string = buf;
-			printf("EOF\n");
 			return (STRING);
 		}
 		if (c == '\n') {
 			free(buf);
-			printf("c is dash n\n");
 			return (0);
 		}
 
+		/* if we are in string context, ignore special chars */
+		if ((c == ':' && bdone == 0 && bcdone == 1)
+		    || (c != ':' && bstrflag == 1))
+			goto skip;
 
 		switch (c) {
 		case ':':
-			/* special handling for bstrings */
-			if (bdone == 0 && bcdone == 1) {
-				*p = c;
-				i++;
-				break;
-			}
 			if (bdone == 0 && i > 0) {
 				yylval.string = buf;
 				bdone = 1;
 				bcdone = 0;
 				(void)ungetc(c, fin);
-				printf("pre-COLON STRING %s\n", buf);
 				return (STRING);
 			} else {
 				bdone = 0;
 				bcdone = 1;
 				free(buf);
-				printf("COLON\n");
 				return (COLON);
 			}
-			break;
 		case 'e':
-			/* special handling for bstrings */
-			if (bstrflag == 1) {
-				*p = c;
-				i++;
-				break;
-			}
 			/* in other contexts, e is END */
 			if (bdone == 0 && i > 0) {
 				yylval.string = buf;
 				bdone = 1;
 				(void)ungetc(c, fin);
-				printf("pre-END i is %d %s\n", (int)i, buf);
 				return (STRING);
 			} else {
 				bdone = 0;
 				free(buf);
-				printf("END\n");
 				return (END);
 			}
-			break;
 		case 'i':
-			/* special handling for bstrings */
-			if (bstrflag == 1) {
-				*p = c;
-				i++;
-				break;
-			}
 			free(buf);
-			printf("INT_START\n");
 			return (INT_START);
-			break;
 		case 'd':
-			/* special handling for bstrings */
-			if (bstrflag == 1) {
-				*p = c;
-				i++;
-				break;
-			}
 			free(buf);
-			printf("DICT_START\n");
 			return (DICT_START);
-			break;
 		case 'l':
-			/* special handling for bstrings */
-			if (bstrflag == 1) {
-				*p = c;
-				i++;
-				break;
-			}
 			free(buf);
-			printf("LIST_START\n");
 			return (LIST_START);
-			break;
-		default:
-			*p = c;
-			i++;
-			yylval.string = buf;
-			token = STRING;
-			break;
 		}
+skip:
+		/* add this character to the buffer */
+		*p = c;
+		i++;
 
 		if (i == bstrlen && bstrflag == 1) {
 			yylval.string = buf;
 			bstrlen = bstrflag = bcdone = 0;
-			printf("STRING %s\n", buf);
 			return (STRING);
 		}
 
