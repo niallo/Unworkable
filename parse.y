@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.14 2006-04-29 21:12:52 niallo Exp $ */
+/* $Id: parse.y,v 1.15 2006-04-30 01:56:58 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -32,7 +32,7 @@ int yyparse(void);
 int yylex(void);
 
 static FILE	*fin     = NULL;
-static size_t	bstrlen  = 0;
+static long	bstrlen  = 0;
 static int	bstrflag = 0;
 static int	bdone    = 0;
 static int	bcdone   = 0;
@@ -40,8 +40,9 @@ static int	bcdone   = 0;
 %}
 
 %union {
-	int number;
-	char *string;
+	long		number;
+	char		*string;
+	struct b_node	*b_node;
 }
 
 %token COLON
@@ -49,12 +50,14 @@ static int	bcdone   = 0;
 %token INT_START
 %token DICT_START
 %token LIST_START
-%token <string> STRING
-%type  <string> bstring
-%type  <number> bint
-%type  <number> number
-%type  <string> bdict_entries
-%type  <string> blist_entries
+%token <string>		STRING
+%type  <b_node>		bstring
+%type  <b_node>		bint
+%type  <number>		number
+%type  <b_node>		bdict_entries
+%type  <b_node>		blist_entries
+%type  <b_node>		bdict
+%type  <b_node>		blist
 
 %start bencode
 
@@ -62,10 +65,18 @@ static int	bcdone   = 0;
 
 
 bencode		: /* empty */
-		| bencode bstring
-		| bencode bint
-		| bencode bdict
-		| bencode blist
+		| bencode bstring				{
+			add_node(root, $2);
+		}
+		| bencode bint					{
+			add_node(root, $2);
+		}
+		| bencode bdict					{
+			add_node(root, $2);
+		}
+		| bencode blist					{
+			add_node(root, $2);
+		}
 		;
 
 number		: STRING					{
@@ -92,45 +103,103 @@ bstrflag	:						{
 		;
 
 bstring		: bstrflag number COLON STRING			{
-			printf("string %s len %d\n", $4, $2);
-			$$ = $4;
+			struct b_node *node;
+			
+			node = create_node();
+			node->body.string.len = $2;
+			node->body.string.value = $4;
+			node->type = BSTRING;
+
+			$$ = node;
 		}
 		;
 
 bint		: INT_START number END				{
-			printf("number: %d\n", $2);
-			$$ = $2;
+			struct b_node *node;
+
+			node = create_node();
+			node->body.number = $2;
+			node->type = BINT;
+
+			$$ = node;
 		}
 		;
 
-blist_entries	: blist_entries bint
-		| blist_entries bstring
-		| blist_entries blist
-		| blist_entries bdict
-		| bint						{ }
-		| bstring					{ }
-		| blist						{ }
-		| bdict						{ }
+blist_entries	: blist_entries bint				{
+			add_node($1, $2);
+		}
+		| blist_entries bstring				{
+			add_node($1, $2);
+		}
+		| blist_entries blist				{
+			add_node($1, $2);
+		}
+		| blist_entries bdict				{
+			add_node($1, $2);
+		}
+		| bint						{
+			$$ = $1;
+		}
+		| bstring					{
+			$$ = $1;
+		}
+		| blist						{
+			$$ = $1;
+		}
+		| bdict						{
+			$$ = $1;
+		}
 		;
 
 blist		: LIST_START blist_entries END			{
-			printf("blist found\n");
+			struct b_node *node;
+
+			node = create_node();
+			node->type = BLIST;
+			
+
+			add_node(node, $2);
+
+			$$ = node;
 		}
 		;
 
 
-bdict_entries	: bdict_entries bstring bint			{ }
-		| bdict_entries bstring bstring			{ }
-		| bdict_entries bstring blist			{ }
-		| bdict_entries bstring bdict			{ }
-		| bstring bint					{ }
-		| bstring bstring				{ }
-		| bstring blist					{ }
-		| bstring bdict					{ }
+bdict_entries	: bdict_entries bstring bint			{
+
+		}
+		| bdict_entries bstring bstring			{
+		
+		}
+		| bdict_entries bstring blist			{
+		
+		}
+		| bdict_entries bstring bdict			{
+		
+		}
+		| bstring bint					{
+		
+		}
+		| bstring bstring				{
+		
+		}
+		| bstring blist					{
+		
+		}
+		| bstring bdict					{
+		
+		}
 		;
 
 bdict		: DICT_START bdict_entries END			{
-			printf("bdict found\n");
+			struct b_node *node;
+
+			node = create_node();
+			node->type = BDICT;
+
+			add_node(node, $2);
+
+			$$ = node;
 		}
 		;
 %%
@@ -140,7 +209,7 @@ yylex(void)
 {
 	char	*buf, *p;
 	int	c;
-	size_t	buflen = 128, i = 0;
+	long	buflen = 128, i = 0;
 
 	if ((buf = malloc(buflen)) == NULL)
 		err(1, "yylex: malloc");
@@ -244,8 +313,15 @@ main(int argc, char **argv)
 {
 	int ret = 0;
 
+	root = create_node();
+	root->parent = NULL;
+	root->type = BLIST;
+	SLIST_INIT(&(root->children));
+
 	fin = stdin;
 	ret = yyparse();
+
+	print_tree(root, 0);
 
 	exit(ret);
 }

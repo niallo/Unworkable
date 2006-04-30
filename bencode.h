@@ -1,4 +1,4 @@
-/* $Id: bencode.h,v 1.5 2006-04-26 17:55:31 niallo Exp $ */
+/* $Id: bencode.h,v 1.6 2006-04-30 01:56:58 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,25 +20,35 @@
 
 #include <sys/queue.h>
 
-/* bencode string structure */
-struct b_string {
-	char			*string;
-	size_t			len;
+enum btype { BSTRING, BINT, BDICT, BLIST };
+
+struct b_node {
+	struct b_node				*parent;
+	/*
+	 *  Having this HEAD in every node is slightly wasteful of memory,
+	 *  but I can't figure out how to put it in the union.
+	 */
+	SLIST_HEAD(children, b_node)		children;
+
+	SLIST_ENTRY(b_node)			b_nodes;
+	enum btype				type;
+	union {
+		long				number;
+		struct {
+			char *value;
+			long len;
+		}				string;
+		struct {
+			char *key;
+			struct b_node *value;
+		}				dict_entry;
+	} body;
 };
 
-/* bencode dictionary structure */
-struct b_dict {
-	int			type;
-	struct b_string 	*key;
-	void			*value;
-	SLIST_ENTRY(b_dict)	b_dicts;
-};
+struct b_node		*add_node(struct b_node *, struct b_node *);
+struct b_node		*create_node(void);
 
-/* bencode list structure */
-struct b_list {
-	int			type;
-	void			*value;
-	SLIST_ENTRY(b_list)	b_lists;
-};
+void			print_tree(struct b_node *, int level);
 
+extern struct b_node	*root;
 #endif /* BENCODE_H */
