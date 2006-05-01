@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.30 2006-05-01 22:05:21 niallo Exp $ */
+/* $Id: parse.y,v 1.31 2006-05-01 23:23:19 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -397,29 +397,4 @@ benc_stack_push(struct benc_node *node)
 {
 	bstack[bstackidx] = node;
 	bstackidx++;
-}
-
-
-int
-main(int argc, char **argv)
-{
-	int ret = 0;
-
-	root = benc_node_create();
-	root->flags = BLIST;
-	SLIST_INIT(&(root->children));
-
-	fin = stdin;
-	ret = yyparse();
-
-	if (ret == 0)
-		benc_node_print(root, 0);
-
-	if (benc_node_find(root, "info") == NULL)
-		printf("no info node found\n");
-	else
-		printf("info node found\n");
-	benc_node_free(root);
-
-	exit(ret);
 }
