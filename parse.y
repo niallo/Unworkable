@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.16 2006-05-01 00:56:32 niallo Exp $ */
+/* $Id: parse.y,v 1.17 2006-05-01 00:58:26 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -123,8 +123,6 @@ bstring		: bstrflag number COLON STRING			{
 			node->body.string.len = $2;
 			node->body.string.value = $4;
 			node->flags = BSTRING;
-			if ($4 == NULL)
-				printf("oh no!!!!!!!!!!!!\n");
 			$$ = node;
 		}
 		;
