@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.1 2006-05-01 23:23:19 niallo Exp $ */
+/* $Id: main.c,v 1.2 2006-05-01 23:49:38 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "bencode.h"
 #include "torrent.h"
 
 void usage(void);
@@ -37,6 +38,9 @@ main(int argc, char **argv)
 {
 	int ch, iflag;
 
+	root = benc_node_create();
+	root->flags = BLIST;
+
 	while ((ch = getopt(argc, argv, "i")) != -1) {
 		switch (ch) {
 		case 'i':
@@ -52,6 +56,8 @@ main(int argc, char **argv)
 
 	if (argc == 0)
 		usage();
+	
+	torrent_parse_file(argv[0]);
 
 	exit(0);
 }
