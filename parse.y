@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.19 2006-05-01 01:05:44 niallo Exp $ */
+/* $Id: parse.y,v 1.20 2006-05-01 01:10:09 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -28,31 +28,31 @@
 #include "bencode.h"
 
 /* Assume no more than 16 nested dictionaries/lists. */
-#define  STACK_SIZE 16
+#define  STACK_SIZE 		16
 
-int			yyerror(const char *, ...);
-int			yyparse(void);
-int			yylex(void);
+int				yyerror(const char *, ...);
+int				yyparse(void);
+int				yylex(void);
 
 /* Internal node-stack functions */
-static struct benc_node	*benc_stack_pop(void);
-static struct benc_node	*benc_stack_peek(void);
-static void		benc_stack_push(struct benc_node *);
+static struct benc_node		*benc_stack_pop(void);
+static struct benc_node		*benc_stack_peek(void);
+static void			benc_stack_push(struct benc_node *);
 
-static FILE		*fin     = NULL;
-static long		bstrlen  = 0;
-static int		bstrflag = 0;
-static int		bdone    = 0;
-static int		bcdone   = 0;
+static FILE			*fin     = NULL;
+static long			bstrlen  = 0;
+static int			bstrflag = 0;
+static int			bdone    = 0;
+static int			bcdone   = 0;
 
-static struct benc_node	*bstack[STACK_SIZE];
-static int		bstackidx = 0;
+static struct benc_node		*bstack[STACK_SIZE];
+static int			bstackidx = 0;
 
 %}
 
 %union {
-	long		number;
-	char		*string;
+	long			number;
+	char			*string;
 	struct benc_node	*benc_node;
 }
 
@@ -283,6 +283,7 @@ yylex(void)
 			p = buf + p_offset;
 			/* NUL-fill the new memory */
 			memset(p, '\0', 20480);
+			printf("realloc\n");
 		}
 
 		c = fgetc(fin);
