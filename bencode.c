@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.13 2006-05-01 01:54:49 niallo Exp $ */
+/* $Id: bencode.c,v 1.14 2006-05-01 01:57:00 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -73,7 +73,7 @@ benc_node_free(struct benc_node *node)
 }
 
 void
-print_tree(struct benc_node *node, int level)
+benc_node_print(struct benc_node *node, int level)
 {
 	struct benc_node *cnode;
 	int i;
@@ -83,7 +83,7 @@ print_tree(struct benc_node *node, int level)
 
 	if (node->flags & BDICT_ENTRY) {
 		printf("key: %s", node->body.dict_entry.key);
-		print_tree(node->body.dict_entry.value, level);
+		benc_node_print(node->body.dict_entry.value, level);
 	} else if (node->flags & BSTRING) {
 		printf("string len: %ld value: %s\n", node->body.string.len,
 		    node->body.string.value);
@@ -92,10 +92,10 @@ print_tree(struct benc_node *node, int level)
 	} else if (node->flags & BLIST) {
 		printf("blist\n");
 		SLIST_FOREACH(cnode, &(node->children), benc_nodes)
-			print_tree(cnode, level + 1);
+			benc_node_print(cnode, level + 1);
 	} else if (node->flags & BDICT) {
 		printf("bdict\n");
 		SLIST_FOREACH(cnode, &(node->children), benc_nodes)
-			print_tree(cnode, level + 1);
+			benc_node_print(cnode, level + 1);
 	}
 }

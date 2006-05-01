@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.26 2006-05-01 01:54:49 niallo Exp $ */
+/* $Id: parse.y,v 1.27 2006-05-01 01:57:01 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -416,7 +416,7 @@ main(int argc, char **argv)
 	ret = yyparse();
 
 	if (ret == 0)
-		print_tree(root, 0);
+		benc_node_print(root, 0);
 
 	benc_node_free(root);
 
