@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.22 2006-05-01 01:16:18 niallo Exp $ */
+/* $Id: parse.y,v 1.23 2006-05-01 01:17:27 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -14,6 +14,13 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+
+
+/*
+ * Parser for BitTorrent `bencode' format.
+ * See http://wiki.theory.org/BitTorrentSpecification
+ */
+
 %{
 
 #include <ctype.h>
