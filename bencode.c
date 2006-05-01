@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.7 2006-05-01 00:56:32 niallo Exp $ */
+/* $Id: bencode.c,v 1.8 2006-05-01 01:34:07 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -66,6 +66,28 @@ benc_node_create(void)
 	SLIST_INIT(&(node->children));
 
 	return (node);
+}
+
+/* recursively free a node tree */
+void
+benc_node_free(struct benc_node *node)
+{
+	struct benc_node *childnode;
+
+	if (node->flags & BDICT_ENTRY) {
+		free(node->body.dict_entry.key);
+		free(node->body.dict_entry.value);
+	}
+
+	if (node->flags & BSTRING)
+		free(node->body.string.value);
+	
+	if (IS_CONTAINER_TYPE(node)) {
+		SLIST_FOREACH(childnode, &(node->children), benc_nodes)
+			benc_node_free(childnode);
+		while (!SLIST_EMPTY(&(node->children)))
+			SLIST_REMOVE_HEAD(&(node->children), benc_nodes);
+	}
 }
 
 void
