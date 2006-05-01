@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.14 2006-05-01 01:57:00 niallo Exp $ */
+/* $Id: bencode.c,v 1.15 2006-05-01 02:04:35 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -50,6 +50,24 @@ benc_node_create(void)
 	return (node);
 }
 
+/* find BDICT_ENTRY node with specified key */
+struct benc_node *
+benc_node_find(struct benc_node *node, char *key)
+{
+	struct benc_node *childnode;
+
+	if (node->flags & BDICT_ENTRY
+	    && strcmp(key, node->body.dict_entry.key))
+		return (node);
+
+	if (IS_CONTAINER_TYPE(node)) {
+		SLIST_FOREACH(childnode, &(node->children), benc_nodes)
+			benc_node_find(childnode, key);
+	}
+
+	return (NULL);
+}
+
 /* recursively free a node tree */
 void
 benc_node_free(struct benc_node *node)
@@ -75,7 +93,7 @@ benc_node_free(struct benc_node *node)
 void
 benc_node_print(struct benc_node *node, int level)
 {
-	struct benc_node *cnode;
+	struct benc_node *childnode;
 	int i;
 
 	for (i = 0; i < level; i++)
@@ -91,11 +109,11 @@ benc_node_print(struct benc_node *node, int level)
 		printf("int value: %ld\n", node->body.number);
 	} else if (node->flags & BLIST) {
 		printf("blist\n");
-		SLIST_FOREACH(cnode, &(node->children), benc_nodes)
-			benc_node_print(cnode, level + 1);
+		SLIST_FOREACH(childnode, &(node->children), benc_nodes)
+			benc_node_print(childnode, level + 1);
 	} else if (node->flags & BDICT) {
 		printf("bdict\n");
-		SLIST_FOREACH(cnode, &(node->children), benc_nodes)
-			benc_node_print(cnode, level + 1);
+		SLIST_FOREACH(childnode, &(node->children), benc_nodes)
+			benc_node_print(childnode, level + 1);
 	}
 }
