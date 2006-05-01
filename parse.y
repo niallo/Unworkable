@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.27 2006-05-01 01:57:01 niallo Exp $ */
+/* $Id: parse.y,v 1.28 2006-05-01 13:03:03 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -33,6 +33,7 @@
 #include <string.h>
 
 #include "bencode.h"
+#include "parse.h"
 
 /* Assume no more than 16 nested dictionaries/lists. */
 #define  BENC_STACK_SIZE	16
@@ -41,10 +42,6 @@
 #define  BENC_BUFFER_SIZE	128
 /* How much to grow lexer buffer by. */
 #define  BENC_BUFFER_INCREMENT	20480
-
-int				yyerror(const char *, ...);
-int				yyparse(void);
-int				yylex(void);
 
 /* Internal node-stack functions */
 static struct benc_node		*benc_stack_pop(void);
@@ -418,6 +415,10 @@ main(int argc, char **argv)
 	if (ret == 0)
 		benc_node_print(root, 0);
 
+	if (benc_node_find(root, "info") == NULL)
+		printf("no info node found\n");
+	else
+		printf("info node found\n");
 	benc_node_free(root);
 
 	exit(ret);
