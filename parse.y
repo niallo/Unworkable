@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.25 2006-05-01 01:51:06 niallo Exp $ */
+/* $Id: parse.y,v 1.26 2006-05-01 01:54:49 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -409,7 +409,6 @@ main(int argc, char **argv)
 	int ret = 0;
 
 	root = benc_node_create();
-	root->parent = NULL;
 	root->flags = BLIST;
 	SLIST_INIT(&(root->children));
 

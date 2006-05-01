@@ -1,4 +1,4 @@
-/* $Id: bencode.h,v 1.8 2006-05-01 01:34:07 niallo Exp $ */
+/* $Id: bencode.h,v 1.9 2006-05-01 01:54:49 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -30,7 +30,6 @@ enum btype { BSTRING, BINT, BDICT, BLIST };
 
 
 struct benc_node {
-	struct benc_node			*parent;
 	/*
 	 *  Having this HEAD in every node is slightly wasteful of memory,
 	 *  but I can't figure out how to put it in the union.

@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.12 2006-05-01 01:45:46 niallo Exp $ */
+/* $Id: bencode.c,v 1.13 2006-05-01 01:54:49 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -31,18 +31,7 @@ struct benc_node *root;
 void
 benc_node_add(struct benc_node *node, struct benc_node *new)
 {
-	if (IS_CONTAINER_TYPE(node)) {
-		SLIST_INSERT_HEAD(&(node->children), new, benc_nodes);
-		new->parent = node;
-	}
-	else if (node->parent == NULL) {
-		benc_node_add(root, new);
-		new->parent = root;
-	}
-	else {
-		benc_node_add(node->parent, new);
-		new->parent = node->parent;
-	}
+	SLIST_INSERT_HEAD(&(node->children), new, benc_nodes);
 }
 
 /* create and initialise a benc_node */
