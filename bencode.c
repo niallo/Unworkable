@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.9 2006-05-01 01:36:05 niallo Exp $ */
+/* $Id: bencode.c,v 1.10 2006-05-01 01:41:54 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -72,7 +72,7 @@ benc_node_free(struct benc_node *node)
 		free(node->body.dict_entry.value);
 	}
 
-	if (node->flags & BSTRING)
+	if (node->flags & BSTRING && !(node->flags & BDICT_ENTRY))
 		free(node->body.string.value);
 	
 	if (IS_CONTAINER_TYPE(node)) {
