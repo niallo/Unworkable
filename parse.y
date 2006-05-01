@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.28 2006-05-01 13:03:03 niallo Exp $ */
+/* $Id: parse.y,v 1.29 2006-05-01 21:54:24 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -48,7 +48,6 @@ static struct benc_node		*benc_stack_pop(void);
 static struct benc_node		*benc_stack_peek(void);
 static void			benc_stack_push(struct benc_node *);
 
-static FILE			*fin     = NULL;
 static long			bstrlen  = 0;
 static int			bstrflag = 0;
 static int			bdone    = 0;
