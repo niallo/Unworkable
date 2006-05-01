@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.8 2006-05-01 01:34:07 niallo Exp $ */
+/* $Id: bencode.c,v 1.9 2006-05-01 01:36:05 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -22,31 +22,24 @@
 
 #include "bencode.h"
 
+#define IS_CONTAINER_TYPE(x) \
+	(x->flags & BDICT || x->flags & BLIST)
+
 struct benc_node *root;
 
 /* add new node as child of old and return new node */
 void
 benc_node_add(struct benc_node *node, struct benc_node *new)
 {
-#define IS_CONTAINER_TYPE(x) \
-	(x->flags & BDICT || x->flags & BLIST)
-
-	//printf("adding node of type %s\n", type2string(new));
 	if (IS_CONTAINER_TYPE(node)) {
-		/*
-		printf("inserting as child of node 0x%x\n",
-		    (unsigned int) node);
-		*/
 		SLIST_INSERT_HEAD(&(node->children), new, benc_nodes);
 		new->parent = node;
 	}
 	else if (node->parent == NULL) {
-		printf("adding to root\n");
 		benc_node_add(root, new);
 		new->parent = root;
 	}
 	else {
-		printf("adding to grandparent\n");
 		benc_node_add(node->parent, new);
 		new->parent = node->parent;
 	}
