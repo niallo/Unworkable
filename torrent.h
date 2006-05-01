@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.1 2006-05-01 12:53:33 niallo Exp $ */
+/* $Id: torrent.h,v 1.2 2006-05-01 23:23:45 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -56,6 +56,8 @@ struct torrent {
 	char					*created_by;
 	enum type				type;
 };
+
+struct torrent		*torrent_parse_file(const char *);
 
 /* TORRENT_H */
 #endif
