@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.15 2006-04-30 01:56:58 niallo Exp $ */
+/* $Id: parse.y,v 1.16 2006-05-01 00:56:32 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -27,37 +27,49 @@
 
 #include "bencode.h"
 
-int yyerror(const char *, ...);
-int yyparse(void);
-int yylex(void);
+/* Assume no more than 16 nested dictionaries/lists. */
+#define  STACK_SIZE 16
 
-static FILE	*fin     = NULL;
-static long	bstrlen  = 0;
-static int	bstrflag = 0;
-static int	bdone    = 0;
-static int	bcdone   = 0;
+int			yyerror(const char *, ...);
+int			yyparse(void);
+int			yylex(void);
+
+/* Internal node-stack functions */
+static struct benc_node	*benc_stack_pop(void);
+static struct benc_node	*benc_stack_peek(void);
+static void		benc_stack_push(struct benc_node *);
+
+static FILE		*fin     = NULL;
+static long		bstrlen  = 0;
+static int		bstrflag = 0;
+static int		bdone    = 0;
+static int		bcdone   = 0;
+
+static struct benc_node	*bstack[STACK_SIZE];
+static int		bstackidx = 0;
 
 %}
 
 %union {
 	long		number;
 	char		*string;
-	struct b_node	*b_node;
+	struct benc_node	*benc_node;
 }
 
-%token COLON
-%token END
-%token INT_START
-%token DICT_START
-%token LIST_START
-%token <string>		STRING
-%type  <b_node>		bstring
-%type  <b_node>		bint
-%type  <number>		number
-%type  <b_node>		bdict_entries
-%type  <b_node>		blist_entries
-%type  <b_node>		bdict
-%type  <b_node>		blist
+%token				COLON
+%token				END
+%token				INT_START
+%token				DICT_START
+%token <benc_node>		LIST_START
+%token <string>			STRING
+%type  <benc_node>		bstring
+%type  <benc_node>		bint
+%type  <number>			number
+%type  <benc_node>		bdict_entries
+%type  <benc_node>		bdict_entry
+%type  <benc_node>		blist_entries
+%type  <benc_node>		bdict
+%type  <benc_node>		blist
 
 %start bencode
 
@@ -66,16 +78,16 @@ static int	bcdone   = 0;
 
 bencode		: /* empty */
 		| bencode bstring				{
-			add_node(root, $2);
+			benc_node_add(root, $2);
 		}
 		| bencode bint					{
-			add_node(root, $2);
+			benc_node_add(root, $2);
 		}
 		| bencode bdict					{
-			add_node(root, $2);
+			benc_node_add(root, $2);
 		}
 		| bencode blist					{
-			add_node(root, $2);
+			benc_node_add(root, $2);
 		}
 		;
 
@@ -96,48 +108,62 @@ number		: STRING					{
 		}
 		;
 
-/* special hack for bstrings */
+/*
+ * Special hack for bstrings.
+ */
 bstrflag	:						{
 			bstrflag = 1;
 		}
 		;
 
 bstring		: bstrflag number COLON STRING			{
-			struct b_node *node;
+			struct benc_node *node;
 			
-			node = create_node();
+			node = benc_node_create();
 			node->body.string.len = $2;
 			node->body.string.value = $4;
-			node->type = BSTRING;
-
+			node->flags = BSTRING;
+			if ($4 == NULL)
+				printf("oh no!!!!!!!!!!!!\n");
 			$$ = node;
 		}
 		;
 
 bint		: INT_START number END				{
-			struct b_node *node;
+			struct benc_node *node;
 
-			node = create_node();
+			node = benc_node_create();
 			node->body.number = $2;
-			node->type = BINT;
+			node->flags = BINT;
 
 			$$ = node;
 		}
 		;
 
-blist_entries	: blist_entries bint				{
-			add_node($1, $2);
+blist		: LIST_START					{
+			/*
+			 * Push the list node onto the stack before continuing
+			 * so that sub-elements can add themselves to it.
+			 */
+			struct benc_node *node;
+
+			node = benc_node_create();
+			node->flags = BLIST;
+			benc_stack_push(node);
 		}
-		| blist_entries bstring				{
-			add_node($1, $2);
+		blist_entries END				{
+			/*
+			 * Pop list node and link the remaining sub-element.
+			 */
+			struct benc_node *node;
+
+			node = benc_stack_pop();
+			benc_node_add(node, $3);
+			$$ = node;
 		}
-		| blist_entries blist				{
-			add_node($1, $2);
-		}
-		| blist_entries bdict				{
-			add_node($1, $2);
-		}
-		| bint						{
+		;
+
+blist_entries	: bint						{
 			$$ = $1;
 		}
 		| bstring					{
@@ -149,55 +175,87 @@ blist_entries	: blist_entries bint				{
 		| bdict						{
 			$$ = $1;
 		}
+		| blist_entries bint				{
+			benc_node_add(benc_stack_peek(), $2);
+		}
+		| blist_entries bstring				{
+			benc_node_add(benc_stack_peek(), $2);
+		}
+		| blist_entries blist				{
+			benc_node_add(benc_stack_peek(), $2);
+		}
+		| blist_entries bdict				{
+			benc_node_add(benc_stack_peek(), $2);
+		}
 		;
 
-blist		: LIST_START blist_entries END			{
-			struct b_node *node;
+bdict_entry	: bstring bint					{
+			struct benc_node *node;
 
-			node = create_node();
-			node->type = BLIST;
-			
-
-			add_node(node, $2);
+			node = benc_node_create();
+			node->flags = BINT|BDICT_ENTRY;
+			node->body.dict_entry.key = $1->body.string.value;
+			node->body.dict_entry.value = $2;
 
 			$$ = node;
 		}
-		;
-
-
-bdict_entries	: bdict_entries bstring bint			{
-
-		}
-		| bdict_entries bstring bstring			{
-		
-		}
-		| bdict_entries bstring blist			{
-		
-		}
-		| bdict_entries bstring bdict			{
-		
-		}
-		| bstring bint					{
-		
-		}
 		| bstring bstring				{
-		
+			struct benc_node *node;
+
+			node = benc_node_create();
+			node->flags = BSTRING|BDICT_ENTRY;
+			node->body.dict_entry.key = $1->body.string.value;
+			node->body.dict_entry.value = $2;
+
+			$$ = node;
 		}
 		| bstring blist					{
-		
+			struct benc_node *node;
+
+			node = benc_node_create();
+			node->flags = BLIST|BDICT_ENTRY;
+			node->body.dict_entry.key = $1->body.string.value;
+			node->body.dict_entry.value = $2;
+
+			$$ = node;
 		}
 		| bstring bdict					{
-		
+			struct benc_node *node;
+
+			node = benc_node_create();
+			node->flags = BDICT|BDICT_ENTRY;
+			node->body.dict_entry.key = $1->body.string.value;
+			node->body.dict_entry.value = $2;
+
+			$$ = node;
+		}
+
+
+bdict_entries	: bdict_entry					{
+			$$ = $1;
+		}
+		| bdict_entries bdict_entry			{
+			benc_node_add(benc_stack_peek(), $2);
 		}
 		;
 
-bdict		: DICT_START bdict_entries END			{
-			struct b_node *node;
+bdict		: DICT_START					{
+			/*
+			 * Push the list node onto the stack before continuing
+			 * so that sub-elements can add themselves to it.
+			 */
+			struct benc_node *node;
 
-			node = create_node();
-			node->type = BDICT;
+			node = benc_node_create();
+			node->flags = BDICT;
+			
+			benc_stack_push(node);
+		}
+		bdict_entries END				{
+			struct benc_node *node;
 
-			add_node(node, $2);
+			node = benc_stack_pop();
+			benc_node_add(node, $3);
 
 			$$ = node;
 		}
@@ -235,11 +293,12 @@ yylex(void)
 			yyval.string = buf;
 			return (STRING);
 		}
+		#if 1
 		if (c == '\n') {
 			free(buf);
 			return (0);
 		}
-
+		#endif
 		/* if we are in string context, ignore special chars */
 		if ((c == ':' && bdone == 0 && bcdone == 1)
 		    || (c != ':' && bstrflag == 1))
@@ -308,20 +367,50 @@ yyerror(const char *fmt, ...)
 	return (0);
 }
 
+static struct benc_node*
+benc_stack_pop(void)
+{
+	struct benc_node *node;
+
+	bstackidx--;
+	node = bstack[bstackidx];
+
+	return (node);
+}
+
+static struct benc_node*
+benc_stack_peek(void)
+{
+	struct benc_node *node;
+
+	node = bstack[bstackidx - 1];
+
+	return (node);
+}
+
+static void
+benc_stack_push(struct benc_node *node)
+{
+	bstack[bstackidx] = node;
+	bstackidx++;
+}
+
+
 int
 main(int argc, char **argv)
 {
 	int ret = 0;
 
-	root = create_node();
+	root = benc_node_create();
 	root->parent = NULL;
-	root->type = BLIST;
+	root->flags = BLIST;
 	SLIST_INIT(&(root->children));
 
 	fin = stdin;
 	ret = yyparse();
 
-	print_tree(root, 0);
+	if (ret == 0)
+		print_tree(root, 0);
 
 	exit(ret);
 }

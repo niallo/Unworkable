@@ -1,4 +1,4 @@
-/* $Id: bencode.h,v 1.6 2006-04-30 01:56:58 niallo Exp $ */
+/* $Id: bencode.h,v 1.7 2006-05-01 00:56:32 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -22,16 +22,23 @@
 
 enum btype { BSTRING, BINT, BDICT, BLIST };
 
-struct b_node {
-	struct b_node				*parent;
+#define BSTRING		(1 << 0)
+#define BINT		(1 << 1)
+#define BDICT		(1 << 2)
+#define BLIST		(1 << 3)
+#define BDICT_ENTRY	(1 << 4)
+
+
+struct benc_node {
+	struct benc_node			*parent;
 	/*
 	 *  Having this HEAD in every node is slightly wasteful of memory,
 	 *  but I can't figure out how to put it in the union.
 	 */
-	SLIST_HEAD(children, b_node)		children;
+	SLIST_HEAD(children, benc_node)		children;
 
-	SLIST_ENTRY(b_node)			b_nodes;
-	enum btype				type;
+	SLIST_ENTRY(benc_node)			benc_nodes;
+	unsigned int				flags;
 	union {
 		long				number;
 		struct {
@@ -40,15 +47,15 @@ struct b_node {
 		}				string;
 		struct {
 			char *key;
-			struct b_node *value;
+			struct benc_node *value;
 		}				dict_entry;
 	} body;
 };
 
-struct b_node		*add_node(struct b_node *, struct b_node *);
-struct b_node		*create_node(void);
+void			benc_node_add(struct benc_node *, struct benc_node *);
+struct benc_node	*benc_node_create(void);
 
-void			print_tree(struct b_node *, int level);
+void			print_tree(struct benc_node *, int level);
 
-extern struct b_node	*root;
+extern struct benc_node	*root;
 #endif /* BENCODE_H */

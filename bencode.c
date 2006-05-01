@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.6 2006-04-30 01:56:58 niallo Exp $ */
+/* $Id: bencode.c,v 1.7 2006-05-01 00:56:32 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -22,39 +22,44 @@
 
 #include "bencode.h"
 
-struct b_node *root;
+struct benc_node *root;
 
 /* add new node as child of old and return new node */
-struct b_node *
-add_node(struct b_node *node, struct b_node *new)
+void
+benc_node_add(struct benc_node *node, struct benc_node *new)
 {
 #define IS_CONTAINER_TYPE(x) \
-	(x->type == BDICT || x->type == BLIST)
+	(x->flags & BDICT || x->flags & BLIST)
 
+	//printf("adding node of type %s\n", type2string(new));
 	if (IS_CONTAINER_TYPE(node)) {
-		printf("adding node to children\n");
-		SLIST_INSERT_HEAD(&(node->children), new, b_nodes);
+		/*
+		printf("inserting as child of node 0x%x\n",
+		    (unsigned int) node);
+		*/
+		SLIST_INSERT_HEAD(&(node->children), new, benc_nodes);
+		new->parent = node;
 	}
 	else if (node->parent == NULL) {
-		printf("adding node to root\n");
-		add_node(root, new);
+		printf("adding to root\n");
+		benc_node_add(root, new);
+		new->parent = root;
 	}
 	else {
-		printf("adding node to parent\n");
-		add_node(node->parent, new);
+		printf("adding to grandparent\n");
+		benc_node_add(node->parent, new);
+		new->parent = node->parent;
 	}
-
-	return (new);
 }
 
-/* create and initialise a b_node */
-struct b_node *
-create_node(void)
+/* create and initialise a benc_node */
+struct benc_node *
+benc_node_create(void)
 {
-	struct b_node *node;
+	struct benc_node *node;
 
 	if ((node = malloc(sizeof(*node))) == NULL)
-		err(1, "create_node: malloc");
+		err(1, "benc_create_node: malloc");
 
 	memset(node, 0, sizeof(*node));
 
@@ -63,34 +68,31 @@ create_node(void)
 	return (node);
 }
 
-
 void
-print_tree(struct b_node *node, int level)
+print_tree(struct benc_node *node, int level)
 {
-	struct b_node *cnode;
+	struct benc_node *cnode;
 	int i;
 	/* 64 levels */
 
 	for (i = 0; i < level; i++)
 		printf("\t");
 
-	if (node->parent != NULL && node->parent->type == BDICT) {
+	if (node->parent != NULL && node->parent->flags & BDICT) {
 		printf("key: %s", node->body.dict_entry.key);
 		print_tree(node->body.dict_entry.value, level);
-	}
-
-	if (node->type == BSTRING) {
+	} else if (node->flags & BSTRING) {
 		printf("string len: %ld value: %s\n", node->body.string.len,
 		    node->body.string.value);
-	} else if (node->type == BINT) {
+	} else if (node->flags & BINT) {
 		printf("int value: %ld\n", node->body.number);
-	} else if (node->type == BLIST) {
+	} else if (node->flags & BLIST) {
 		printf("blist\n");
-		SLIST_FOREACH(cnode, &(node->children), b_nodes)
+		SLIST_FOREACH(cnode, &(node->children), benc_nodes)
 			print_tree(cnode, level + 1);
-	} else if (node->type == BDICT) {
+	} else if (node->flags & BDICT) {
 		printf("bdict\n");
-		SLIST_FOREACH(cnode, &(node->children), b_nodes)
+		SLIST_FOREACH(cnode, &(node->children), benc_nodes)
 			print_tree(cnode, level + 1);
 	}
 }
