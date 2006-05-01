@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.21 2006-05-01 01:11:06 niallo Exp $ */
+/* $Id: parse.y,v 1.22 2006-05-01 01:16:18 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -239,7 +239,7 @@ bdict_entries	: bdict_entry					{
 
 bdict		: DICT_START					{
 			/*
-			 * Push the list node onto the stack before continuing
+			 * Push the dict node onto the stack before continuing
 			 * so that sub-elements can add themselves to it.
 			 */
 			struct benc_node *node;
@@ -250,6 +250,9 @@ bdict		: DICT_START					{
 			benc_stack_push(node);
 		}
 		bdict_entries END				{
+			/*
+			 * Pop dict node and link the remaining sub-element.
+			 */
 			struct benc_node *node;
 
 			node = benc_stack_pop();
