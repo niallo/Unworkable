@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.17 2006-05-01 00:58:26 niallo Exp $ */
+/* $Id: parse.y,v 1.18 2006-05-01 01:02:29 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -288,10 +288,10 @@ yylex(void)
 		c = fgetc(fin);
 		/* assume STRING if we hit EOF */
 		if (c == EOF) {
-			yyval.string = buf;
-			return (STRING);
+			free(buf);
+			return (0);
 		}
-		#if 1
+		#if 0
 		if (c == '\n') {
 			free(buf);
 			return (0);
