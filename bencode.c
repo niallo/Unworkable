@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.10 2006-05-01 01:41:54 niallo Exp $ */
+/* $Id: bencode.c,v 1.11 2006-05-01 01:45:08 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -93,7 +93,7 @@ print_tree(struct benc_node *node, int level)
 	for (i = 0; i < level; i++)
 		printf("\t");
 
-	if (node->parent != NULL && node->parent->flags & BDICT) {
+	if (node->flags & BDICT_ENTRY) {
 		printf("key: %s", node->body.dict_entry.key);
 		print_tree(node->body.dict_entry.value, level);
 	} else if (node->flags & BSTRING) {
