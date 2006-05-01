@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.18 2006-05-01 01:02:29 niallo Exp $ */
+/* $Id: parse.y,v 1.19 2006-05-01 01:05:44 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -286,7 +286,6 @@ yylex(void)
 		}
 
 		c = fgetc(fin);
-		/* assume STRING if we hit EOF */
 		if (c == EOF) {
 			free(buf);
 			return (0);
@@ -297,6 +296,7 @@ yylex(void)
 			return (0);
 		}
 		#endif
+
 		/* if we are in string context, ignore special chars */
 		if ((c == ':' && bdone == 0 && bcdone == 1)
 		    || (c != ':' && bstrflag == 1))
