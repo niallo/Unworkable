@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.23 2006-05-01 01:17:27 niallo Exp $ */
+/* $Id: parse.y,v 1.24 2006-05-01 01:18:17 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -293,7 +293,6 @@ yylex(void)
 			p = buf + p_offset;
 			/* NUL-fill the new memory */
 			memset(p, '\0', 20480);
-			printf("realloc\n");
 		}
 
 		c = fgetc(fin);
