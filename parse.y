@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.24 2006-05-01 01:18:17 niallo Exp $ */
+/* $Id: parse.y,v 1.25 2006-05-01 01:51:06 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -35,7 +35,12 @@
 #include "bencode.h"
 
 /* Assume no more than 16 nested dictionaries/lists. */
-#define  STACK_SIZE 		16
+#define  BENC_STACK_SIZE	16
+
+/* Initial size of lexer buffer. */
+#define  BENC_BUFFER_SIZE	128
+/* How much to grow lexer buffer by. */
+#define  BENC_BUFFER_INCREMENT	20480
 
 int				yyerror(const char *, ...);
 int				yyparse(void);
@@ -52,7 +57,7 @@ static int			bstrflag = 0;
 static int			bdone    = 0;
 static int			bcdone   = 0;
 
-static struct benc_node		*bstack[STACK_SIZE];
+static struct benc_node		*bstack[BENC_STACK_SIZE];
 static int			bstackidx = 0;
 
 %}
@@ -275,7 +280,7 @@ yylex(void)
 {
 	char	*buf, *p;
 	int	c;
-	long	buflen = 128, i = 0;
+	long	buflen = BENC_BUFFER_SIZE, i = 0;
 
 	if ((buf = malloc(buflen)) == NULL)
 		err(1, "yylex: malloc");
@@ -286,13 +291,13 @@ yylex(void)
 	for (;;) {
 		if (i == buflen) {
 			size_t p_offset = p - buf;
-			buflen += 20480;
+			buflen += BENC_BUFFER_INCREMENT;
 			if ((buf = realloc(buf, buflen)) == NULL)
 				err(1, "yylex: realloc");
 			/* ensure pointers are not invalidated after realloc */
 			p = buf + p_offset;
 			/* NUL-fill the new memory */
-			memset(p, '\0', 20480);
+			memset(p, '\0', BENC_BUFFER_INCREMENT);
 		}
 
 		c = fgetc(fin);
@@ -413,6 +418,8 @@ main(int argc, char **argv)
 
 	if (ret == 0)
 		print_tree(root, 0);
+
+	benc_node_free(root);
 
 	exit(ret);
 }
