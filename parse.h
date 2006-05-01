@@ -1,4 +1,4 @@
-/* $Id: parse.h,v 1.2 2006-05-01 21:54:24 niallo Exp $ */
+/* $Id: parse.h,v 1.3 2006-05-01 22:05:21 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -22,6 +22,6 @@ int				yyerror(const char *, ...);
 int				yyparse(void);
 int				yylex(void);
 
-FILE				*fin     = NULL;
+extern FILE			*fin;
 /* PARSE_H */
 #endif
