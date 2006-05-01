@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.20 2006-05-01 01:10:09 niallo Exp $ */
+/* $Id: parse.y,v 1.21 2006-05-01 01:11:06 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -291,12 +291,6 @@ yylex(void)
 			free(buf);
 			return (0);
 		}
-		#if 0
-		if (c == '\n') {
-			free(buf);
-			return (0);
-		}
-		#endif
 
 		/* if we are in string context, ignore special chars */
 		if ((c == ':' && bdone == 0 && bcdone == 1)
