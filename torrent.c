@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.2 2006-05-01 23:23:45 niallo Exp $ */
+/* $Id: torrent.c,v 1.3 2006-05-02 00:16:39 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -28,7 +28,7 @@ struct torrent *
 torrent_parse_file(const char *file)
 {
 	struct torrent		*torrent;
-	struct benc_node	*node;
+	struct benc_node	*node, *tnode;
 	FILE			*fp;
 
 	if ((torrent = malloc(sizeof(*torrent))) == NULL)
@@ -42,17 +42,17 @@ torrent_parse_file(const char *file)
 	fin = fp;
 	if (yyparse() > 0) {
 		fclose(fin);
-		err(1, "torrent_parse_file: yyparse");
+		errx(1, "torrent_parse_file: yyparse");
 	}
 
 	fclose(fin);
 
 	if ((node = benc_node_find(root, "announce")) == NULL)
-		err(1, "no announce data found in torrent");
+		errx(1, "no announce data found in torrent");
 
-	torrent->announce = node->body.string.value;
-
-	printf("torrent announce url: %s\n", torrent->announce);
+	tnode = node->body.dict_entry.value;
+	if (tnode->flags & BSTRING)
+		printf("announce url: %s\n", tnode->body.string.value);
 
 	return (torrent);
 }
