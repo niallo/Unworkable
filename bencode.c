@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.18 2006-05-02 00:57:13 niallo Exp $ */
+/* $Id: bencode.c,v 1.19 2006-05-02 00:58:25 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -61,20 +61,16 @@ benc_node_find(struct benc_node *node, char *key)
 		return (node);
 
 	if (node->flags & BDICT_ENTRY
-	    && IS_CONTAINER_TYPE(node)) {
+	    && IS_CONTAINER_TYPE(node))
 		SLIST_FOREACH(childnode,
-		    &(node->body.dict_entry.value->children), benc_nodes) {
+		    &(node->body.dict_entry.value->children), benc_nodes)
 			if ((ret = benc_node_find(childnode, key)) != NULL)
 				return (ret);
-		}
-	}
 
-	if (IS_CONTAINER_TYPE(node)) {
-		SLIST_FOREACH(childnode, &(node->children), benc_nodes) {
+	if (IS_CONTAINER_TYPE(node))
+		SLIST_FOREACH(childnode, &(node->children), benc_nodes)
 			if ((ret = benc_node_find(childnode, key)) != NULL)
 				return (ret);
-		}
-	}
 
 
 	return (NULL);
