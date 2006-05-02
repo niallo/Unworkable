@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.11 2006-05-02 15:26:05 niallo Exp $ */
+/* $Id: torrent.c,v 1.12 2006-05-02 15:29:11 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -104,6 +104,29 @@ torrent_parse_file(const char *file)
 		}
 	} else {
 		torrent->type = MULTIFILE;
+		if ((node = benc_node_find(root, "name")) == NULL)
+			errx(1, "no name field");
+
+		if (!(node->flags & BSTRING))
+			errx(1, "name is not a string");
+
+		torrent->body.multifile.name = node->body.string.value;
+
+		if ((node = benc_node_find(root, "piece length")) == NULL)
+			errx(1, "no piece length field");
+
+		if (!(node->flags & BINT))
+			errx(1, "piece length is not a number");
+
+		torrent->body.multifile.piece_length = node->body.number;
+
+		if ((node = benc_node_find(root, "pieces")) == NULL)
+			errx(1, "no pieces field");
+
+		if (!(node->flags & BSTRING))
+			errx(1, "pieces is not a string");
+
+		torrent->body.multifile.pieces = node->body.string.value;
 	}
 
 	if ((node = benc_node_find(root, "created by")) != NULL
