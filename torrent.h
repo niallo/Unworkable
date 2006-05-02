@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.4 2006-05-02 00:27:06 niallo Exp $ */
+/* $Id: torrent.h,v 1.5 2006-05-02 15:26:05 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -41,6 +41,7 @@ struct torrent {
 			char			*name;
 			long			piece_length;
 			char			*pieces;
+			char			*md5sum;
 		} singlefile;
 
 		struct {

@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.10 2006-05-02 15:00:09 niallo Exp $ */
+/* $Id: torrent.c,v 1.11 2006-05-02 15:26:05 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -42,7 +42,7 @@ torrent_parse_file(const char *file)
 		err(1, "torrent_parse_file: fopen");
 
 	fin = fp;
-	if (yyparse() > 0) {
+	if (yyparse() != 0) {
 		fclose(fin);
 		errx(1, "torrent_parse_file: yyparse");
 	}
@@ -61,10 +61,50 @@ torrent_parse_file(const char *file)
 	    && node->flags & BSTRING)
 		torrent->comment = node->body.string.value;
 
-	if ((node = benc_node_find(root, "files")) == NULL)
+	if ((node = benc_node_find(root, "files")) == NULL) {
 		torrent->type = SINGLEFILE;
-	else
+		if ((node = benc_node_find(root, "length")) == NULL)
+			errx(1, "no length field");
+
+		if (!(node->flags & BINT))
+			errx(1, "length is not a number");
+
+		torrent->body.singlefile.length = node->body.number;
+
+		if ((node = benc_node_find(root, "name")) == NULL)
+			errx(1, "no name field");
+
+		if (!(node->flags & BSTRING))
+			errx(1, "name is not a string");
+
+		torrent->body.singlefile.name = node->body.string.value;
+
+		if ((node = benc_node_find(root, "piece length")) == NULL)
+			errx(1, "no piece length field");
+
+		if (!(node->flags & BINT))
+			errx(1, "piece length is not a number");
+
+		torrent->body.singlefile.piece_length = node->body.number;
+
+		if ((node = benc_node_find(root, "pieces")) == NULL)
+			errx(1, "no pieces field");
+
+		if (!(node->flags & BSTRING))
+			errx(1, "pieces is not a string");
+
+		torrent->body.singlefile.pieces = node->body.string.value;
+
+		if ((node = benc_node_find(root, "md5sum")) != NULL) {
+			if (!(node->flags & BSTRING))
+				errx(1, "md5sum is not a string");
+			else
+				torrent->body.singlefile.md5sum =
+				    node->body.string.value;
+		}
+	} else {
 		torrent->type = MULTIFILE;
+	}
 
 	if ((node = benc_node_find(root, "created by")) != NULL
 	    && node->flags & BSTRING)
@@ -98,8 +138,20 @@ torrent_print(struct torrent *torrent)
 	else
 		printf("%s\n", torrent->comment);
 	printf("type:\t\t");
-	if (torrent->type == SINGLEFILE)
+	if (torrent->type == SINGLEFILE) {
 		printf("single file\n");
-	else
+		printf("length:\t\t%ld bytes\n",
+		    torrent->body.singlefile.length);
+		printf("file name:\t%s\n",
+		    torrent->body.singlefile.name);
+		printf("piece length:\t%ld bytes\n",
+		    torrent->body.singlefile.piece_length);
+		printf("md5sum:\t\t");
+		if (torrent->body.singlefile.md5sum == NULL)
+			printf("NONE\n");
+		else
+			printf("%s\n", torrent->body.singlefile.md5sum);
+	} else {
 		printf("multi file\n");
+	}
 }
