@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.8 2006-05-02 14:15:29 niallo Exp $ */
+/* $Id: torrent.c,v 1.9 2006-05-02 14:34:53 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -64,6 +64,10 @@ torrent_parse_file(const char *file)
 	else
 		torrent->type = MULTIFILE;
 
+	if ((node = benc_node_find(root, "created by")) != NULL
+	    && node->flags & BSTRING)
+		torrent->created_by = node->body.string.value;
+
 	return (torrent);
 }
 
@@ -71,13 +75,18 @@ void
 torrent_print(struct torrent *torrent)
 {
 
-	printf("announce url: %s\n", torrent->announce);
-	printf("comment: ");
+	printf("announce url:\t%s\n", torrent->announce);
+	printf("created by:\t");
+	if (torrent->created_by == NULL)
+		printf("NONE\n");
+	else
+		printf("%s\n", torrent->created_by);
+	printf("comment:\t");
 	if (torrent->comment == NULL)
 		printf("NONE\n");
 	else
 		printf("%s\n", torrent->comment);
-	printf("type: ");
+	printf("type:\t\t");
 	if (torrent->type == SINGLEFILE)
 		printf("single file\n");
 	else
