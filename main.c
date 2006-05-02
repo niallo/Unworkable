@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.3 2006-05-02 00:23:21 niallo Exp $ */
+/* $Id: main.c,v 1.4 2006-05-02 00:57:13 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -57,7 +57,7 @@ main(int argc, char **argv)
 
 	if (argc == 0)
 		usage();
-	
+
 	torrent = torrent_parse_file(argv[0]);
 	torrent_print(torrent);
 
