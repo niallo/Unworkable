@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.2 2006-05-01 23:49:38 niallo Exp $ */
+/* $Id: main.c,v 1.3 2006-05-02 00:23:21 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -37,6 +37,7 @@ int
 main(int argc, char **argv)
 {
 	int ch, iflag;
+	struct torrent *torrent;
 
 	root = benc_node_create();
 	root->flags = BLIST;
@@ -57,7 +58,8 @@ main(int argc, char **argv)
 	if (argc == 0)
 		usage();
 	
-	torrent_parse_file(argv[0]);
+	torrent = torrent_parse_file(argv[0]);
+	torrent_print(torrent);
 
 	exit(0);
 }
