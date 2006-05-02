@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.19 2006-05-02 00:58:25 niallo Exp $ */
+/* $Id: bencode.c,v 1.20 2006-05-02 00:59:10 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -71,7 +71,6 @@ benc_node_find(struct benc_node *node, char *key)
 		SLIST_FOREACH(childnode, &(node->children), benc_nodes)
 			if ((ret = benc_node_find(childnode, key)) != NULL)
 				return (ret);
-
 
 	return (NULL);
 }
