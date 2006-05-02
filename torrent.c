@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.4 2006-05-02 00:23:21 niallo Exp $ */
+/* $Id: torrent.c,v 1.5 2006-05-02 00:27:21 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -61,6 +61,11 @@ torrent_parse_file(const char *file)
 		torrent->comment = tnode->body.string.value;
 	}
 
+	if ((node = benc_node_find(root, "files")) == NULL)
+		torrent->type = SINGLEFILE;
+	else
+		torrent->type = MULTIFILE;
+
 	return (torrent);
 }
 
@@ -70,4 +75,9 @@ torrent_print(struct torrent *torrent)
 
 	printf("announce url: %s\n", torrent->announce);
 	printf("comment: %s\n", torrent->comment);
+	printf("type: ");
+	if (torrent->type == SINGLEFILE)
+		printf("single file\n");
+	else
+		printf("multi file\n");
 }
