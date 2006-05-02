@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.3 2006-05-02 00:23:21 niallo Exp $ */
+/* $Id: torrent.h,v 1.4 2006-05-02 00:27:06 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,7 +20,7 @@
 
 #include <sys/queue.h>
 
-enum type { MUTLTIFILE, SINGLEFILE };
+enum type { MULTIFILE, SINGLEFILE };
 
 struct torrent_path {
 	char					*path;
