@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.7 2006-05-02 00:57:13 niallo Exp $ */
+/* $Id: torrent.c,v 1.8 2006-05-02 14:15:29 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -28,7 +28,7 @@ struct torrent *
 torrent_parse_file(const char *file)
 {
 	struct torrent		*torrent;
-	struct benc_node	*node, *tnode;
+	struct benc_node	*node;
 	FILE			*fp;
 
 	if ((torrent = malloc(sizeof(*torrent))) == NULL)
@@ -50,16 +50,14 @@ torrent_parse_file(const char *file)
 	if ((node = benc_node_find(root, "announce")) == NULL)
 		errx(1, "no announce data found in torrent");
 
-	tnode = node->body.dict_entry.value;
-	if (tnode->flags & BSTRING) {
-		torrent->announce = tnode->body.string.value;
-	} else
+	if (node->flags & BSTRING)
+		torrent->announce = node->body.string.value;
+	else
 		errx(1, "announce value is not a string");
 
 	if ((node = benc_node_find(root, "comment")) != NULL
-	    && tnode->flags & BSTRING) {
-		torrent->comment = tnode->body.string.value;
-	}
+	    && node->flags & BSTRING)
+		torrent->comment = node->body.string.value;
 
 	if ((node = benc_node_find(root, "files")) == NULL)
 		torrent->type = SINGLEFILE;
