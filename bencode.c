@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.20 2006-05-02 00:59:10 niallo Exp $ */
+/* $Id: bencode.c,v 1.21 2006-05-02 14:05:31 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -58,7 +58,7 @@ benc_node_find(struct benc_node *node, char *key)
 
 	if (node->flags & BDICT_ENTRY
 	    && strcmp(key, node->body.dict_entry.key) == 0)
-		return (node);
+		return (node->body.dict_entry.value);
 
 	if (node->flags & BDICT_ENTRY
 	    && IS_CONTAINER_TYPE(node))
