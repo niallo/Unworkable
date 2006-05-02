@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.9 2006-05-02 14:34:53 niallo Exp $ */
+/* $Id: torrent.c,v 1.10 2006-05-02 15:00:09 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -16,9 +16,11 @@
  */
 
 #include <err.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "bencode.h"
 #include "parse.h"
@@ -68,6 +70,10 @@ torrent_parse_file(const char *file)
 	    && node->flags & BSTRING)
 		torrent->created_by = node->body.string.value;
 
+	if ((node = benc_node_find(root, "creation date")) != NULL
+	    && node->flags & BINT)
+		torrent->creation_date = node->body.number;
+
 	return (torrent);
 }
 
@@ -81,6 +87,11 @@ torrent_print(struct torrent *torrent)
 		printf("NONE\n");
 	else
 		printf("%s\n", torrent->created_by);
+	printf("creation date:\t");
+	if (torrent->creation_date == NULL)
+		printf("NONE\n");
+	else
+		printf("%s", ctime(&torrent->creation_date));
 	printf("comment:\t");
 	if (torrent->comment == NULL)
 		printf("NONE\n");
