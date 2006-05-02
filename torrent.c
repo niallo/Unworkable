@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.5 2006-05-02 00:27:21 niallo Exp $ */
+/* $Id: torrent.c,v 1.6 2006-05-02 00:30:53 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -74,7 +74,11 @@ torrent_print(struct torrent *torrent)
 {
 
 	printf("announce url: %s\n", torrent->announce);
-	printf("comment: %s\n", torrent->comment);
+	printf("comment: ");
+	if (torrent->comment == NULL)
+		printf("NONE\n");
+	else
+		printf("%s\n", torrent->comment);
 	printf("type: ");
 	if (torrent->type == SINGLEFILE)
 		printf("single file\n");
