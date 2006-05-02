@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.12 2006-05-02 15:29:11 niallo Exp $ */
+/* $Id: torrent.c,v 1.13 2006-05-02 15:30:55 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -176,5 +176,9 @@ torrent_print(struct torrent *torrent)
 			printf("%s\n", torrent->body.singlefile.md5sum);
 	} else {
 		printf("multi file\n");
+		printf("base path:\t%s\n",
+		    torrent->body.multifile.name);
+		printf("piece length:\t%ld bytes\n",
+		    torrent->body.multifile.piece_length);
 	}
 }
