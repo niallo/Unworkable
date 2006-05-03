@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.15 2006-05-03 00:49:44 niallo Exp $ */
+/* $Id: torrent.c,v 1.16 2006-05-03 00:54:02 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -226,7 +226,7 @@ torrent_print(struct torrent *torrent)
 		    torrent->body.multifile.name);
 		printf("piece length:\t%ld bytes\n",
 		    torrent->body.multifile.piece_length);
-		printf("files:\n");
+		printf("--files--\n");
 		SLIST_FOREACH(tfile, &(torrent->body.multifile.files), files) {
 			printf("file name:\t%s\n", tfile->path);
 			printf("length:\t\t%ld bytes\n", tfile->length);
