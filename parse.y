@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.34 2006-05-03 01:42:36 niallo Exp $ */
+/* $Id: parse.y,v 1.35 2006-05-03 01:51:03 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -353,8 +353,13 @@ skip:
 			/* azureus broken torrent hack */
 			if (strcmp("comment", buf) == 0
 			    || strcmp("comment.utf-8", buf) == 0) {
-				(void)fgetc(fin);
-				(void)fgetc(fin);
+				int c1, c2;
+				c1 = fgetc(fin);
+				c2 = fgetc(fin);
+				if (c1 != '0' && c2 != ':') {
+					(void)ungetc(c2, fin);
+					(void)ungetc(c1, fin);
+				}
 			}
 			yylval.string = buf;
 			bstrlen = bstrflag = bcdone = 0;
