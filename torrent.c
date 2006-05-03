@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.14 2006-05-03 00:45:46 niallo Exp $ */
+/* $Id: torrent.c,v 1.15 2006-05-03 00:49:44 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -228,8 +228,8 @@ torrent_print(struct torrent *torrent)
 		    torrent->body.multifile.piece_length);
 		printf("files:\n");
 		SLIST_FOREACH(tfile, &(torrent->body.multifile.files), files) {
-			printf("length:\t\t%ld bytes\n", tfile->length);
 			printf("file name:\t%s\n", tfile->path);
+			printf("length:\t\t%ld bytes\n", tfile->length);
 			printf("md5sum:\t\t");
 			if (tfile->md5sum == NULL)
 				printf("NONE\n");
