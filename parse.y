@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.36 2006-05-03 01:55:33 niallo Exp $ */
+/* $Id: parse.y,v 1.37 2006-05-03 18:12:46 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -297,8 +297,13 @@ yylex(void)
 			memset(p, '\0', BENC_BUFFER_INCREMENT);
 		}
 
-		c = fgetc(fin);
-		if (c == EOF) {
+		if (bstrlen == 0 && bstrflag == 1 && bcdone == 1) {
+			yylval.string = buf;
+			bstrlen = bstrflag = bcdone = 0;
+			return (STRING);
+		}
+
+		if ((c = fgetc(fin)) == EOF) {
 			free(buf);
 			return (0);
 		}
@@ -350,17 +355,6 @@ skip:
 		i++;
 
 		if (i == bstrlen && bstrflag == 1) {
-			/* azureus broken torrent hack */
-			if (strcmp("comment", buf) == 0
-			    || strcmp("comment.utf-8", buf) == 0) {
-				int c1, c2;
-				c1 = fgetc(fin);
-				c2 = fgetc(fin);
-				if (c1 != '0' && c2 != ':') {
-					(void)ungetc(c2, fin);
-					(void)ungetc(c1, fin);
-				}
-			}
 			yylval.string = buf;
 			bstrlen = bstrflag = bcdone = 0;
 			return (STRING);
