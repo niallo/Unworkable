@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.21 2006-05-02 14:05:31 niallo Exp $ */
+/* $Id: bencode.c,v 1.22 2006-05-03 19:58:46 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -113,7 +113,7 @@ benc_node_print(struct benc_node *node, int level)
 		printf("string len: %ld value: %s\n", node->body.string.len,
 		    node->body.string.value);
 	} else if (node->flags & BINT) {
-		printf("int value: %ld\n", node->body.number);
+		printf("int value: %lld\n", node->body.number);
 	} else if (node->flags & BLIST) {
 		printf("blist\n");
 		SLIST_FOREACH(childnode, &(node->children), benc_nodes)
