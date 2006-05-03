@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.37 2006-05-03 18:12:46 niallo Exp $ */
+/* $Id: parse.y,v 1.38 2006-05-03 18:23:45 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -400,8 +400,8 @@ benc_stack_peek(void)
 static void
 benc_stack_push(struct benc_node *node)
 {
-	bstack[bstackidx] = node;
-	bstackidx++;
 	if (bstackidx == BENC_STACK_SIZE - 1)
 		errx(1, "benc_stack_push: stack overflow");	
+	bstack[bstackidx] = node;
+	bstackidx++;
 }
