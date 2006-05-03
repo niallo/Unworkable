@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.17 2006-05-03 01:05:48 niallo Exp $ */
+/* $Id: torrent.c,v 1.18 2006-05-03 01:08:52 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -49,7 +49,7 @@ torrent_parse_file(const char *file)
 	fin = fp;
 	if (yyparse() != 0) {
 		fclose(fin);
-		errx(1, "torrent_parse_file: yyparse");
+		errx(1, "torrent_parse_file: yyparse of %s", file);
 	}
 
 	fclose(fin);
