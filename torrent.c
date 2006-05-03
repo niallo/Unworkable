@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.13 2006-05-02 15:30:55 niallo Exp $ */
+/* $Id: torrent.c,v 1.14 2006-05-03 00:45:46 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -15,6 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <sys/param.h>
+
 #include <err.h>
 #include <limits.h>
 #include <stdio.h>
@@ -29,9 +31,12 @@
 struct torrent *
 torrent_parse_file(const char *file)
 {
-	struct torrent		*torrent;
-	struct benc_node	*node;
-	FILE			*fp;
+	struct torrent_file		*multi_file;
+	struct torrent			*torrent;
+	struct benc_node		*node, *lnode, *tnode;
+	struct benc_node		*filenode, *childnode;
+	FILE				*fp;
+	size_t				ret;
 
 	if ((torrent = malloc(sizeof(*torrent))) == NULL)
 		err(1, "torrent_parse_file: malloc");
@@ -61,7 +66,7 @@ torrent_parse_file(const char *file)
 	    && node->flags & BSTRING)
 		torrent->comment = node->body.string.value;
 
-	if ((node = benc_node_find(root, "files")) == NULL) {
+	if ((filenode = benc_node_find(root, "files")) == NULL) {
 		torrent->type = SINGLEFILE;
 		if ((node = benc_node_find(root, "length")) == NULL)
 			errx(1, "no length field");
@@ -127,6 +132,46 @@ torrent_parse_file(const char *file)
 			errx(1, "pieces is not a string");
 
 		torrent->body.multifile.pieces = node->body.string.value;
+
+		SLIST_INIT(&(torrent->body.multifile.files));
+
+		/* iterate through sub-dictionaries */
+		SLIST_FOREACH(childnode, &(filenode->children), benc_nodes) {
+			if ((multi_file = malloc(sizeof(*multi_file))) == NULL)
+				err(1, "torrent_parse_file: malloc");
+
+			memset(multi_file, 0, sizeof(*multi_file));
+			if ((tnode = benc_node_find(childnode, "length")) == NULL)
+				errx(1, "no length field");
+			if (!(tnode->flags & BINT))
+				errx(1, "length is not a number");
+			multi_file->length = tnode->body.number;
+			if ((tnode = benc_node_find(childnode, "md5sum")) != NULL
+			    && tnode->flags & BSTRING)
+				multi_file->md5sum = tnode->body.string.value;
+
+			if ((tnode = benc_node_find(childnode, "path")) == NULL)
+				errx(1, "no path field");
+			if (!(tnode->flags & BLIST))
+				errx(1, "path is not a list");
+
+			if ((multi_file->path = malloc(MAXPATHLEN)) == NULL)
+				err(1, "torrent_parse_file: malloc");
+
+			memset(multi_file->path, '\0', MAXPATHLEN);
+
+			SLIST_FOREACH(lnode, &(tnode->children), benc_nodes) {
+				if (!(lnode->flags & BSTRING))
+					errx(1, "path element is not a string");
+				ret = strlcat(multi_file->path,
+				    lnode->body.string.value, MAXPATHLEN);
+				if (ret >= MAXPATHLEN)
+					errx(1, "path too large for buffer");
+			}
+
+			SLIST_INSERT_HEAD(&(torrent->body.multifile.files),
+			    multi_file, files);
+		}
 	}
 
 	if ((node = benc_node_find(root, "created by")) != NULL
@@ -143,6 +188,7 @@ torrent_parse_file(const char *file)
 void
 torrent_print(struct torrent *torrent)
 {
+	struct torrent_file *tfile;
 
 	printf("announce url:\t%s\n", torrent->announce);
 	printf("created by:\t");
@@ -180,5 +226,15 @@ torrent_print(struct torrent *torrent)
 		    torrent->body.multifile.name);
 		printf("piece length:\t%ld bytes\n",
 		    torrent->body.multifile.piece_length);
+		printf("files:\n");
+		SLIST_FOREACH(tfile, &(torrent->body.multifile.files), files) {
+			printf("length:\t\t%ld bytes\n", tfile->length);
+			printf("file name:\t%s\n", tfile->path);
+			printf("md5sum:\t\t");
+			if (tfile->md5sum == NULL)
+				printf("NONE\n");
+			else
+				printf("%s\n", tfile->md5sum);
+		}
 	}
 }

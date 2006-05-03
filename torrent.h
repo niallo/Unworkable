@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.5 2006-05-02 15:26:05 niallo Exp $ */
+/* $Id: torrent.h,v 1.6 2006-05-03 00:45:47 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -22,16 +22,11 @@
 
 enum type { MULTIFILE, SINGLEFILE };
 
-struct torrent_path {
-	char					*path;
-	SLIST_ENTRY(torrent_path)		paths;
-};
-
-struct torrent_multi_file {
-	SLIST_HEAD(multi_paths, torrent_path)	multi_paths;
-	SLIST_ENTRY(torrent_multi_file)		files;
+struct torrent_file {
+	SLIST_ENTRY(torrent_file)		files;
 	long					length;
 	char					*md5sum;
+	char					*path;
 };
 
 struct torrent {
@@ -45,7 +40,7 @@ struct torrent {
 		} singlefile;
 
 		struct {
-			SLIST_HEAD(multi_files, torrent_multi_file) multi_files;
+			SLIST_HEAD(files, torrent_file) files;
 			char			*name;
 			long			piece_length;
 			char			*pieces;
