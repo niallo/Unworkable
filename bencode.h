@@ -1,4 +1,4 @@
-/* $Id: bencode.h,v 1.11 2006-05-01 02:04:35 niallo Exp $ */
+/* $Id: bencode.h,v 1.12 2006-05-03 01:05:48 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -39,7 +39,7 @@ struct benc_node {
 	SLIST_ENTRY(benc_node)			benc_nodes;
 	unsigned int				flags;
 	union {
-		long				number;
+		long long			number;
 		struct {
 			char *value;
 			long len;

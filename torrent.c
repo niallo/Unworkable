@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.16 2006-05-03 00:54:02 niallo Exp $ */
+/* $Id: torrent.c,v 1.17 2006-05-03 01:05:48 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -209,7 +209,7 @@ torrent_print(struct torrent *torrent)
 	printf("type:\t\t");
 	if (torrent->type == SINGLEFILE) {
 		printf("single file\n");
-		printf("length:\t\t%ld bytes\n",
+		printf("length:\t\t%lld bytes\n",
 		    torrent->body.singlefile.length);
 		printf("file name:\t%s\n",
 		    torrent->body.singlefile.name);
@@ -224,12 +224,12 @@ torrent_print(struct torrent *torrent)
 		printf("multi file\n");
 		printf("base path:\t%s\n",
 		    torrent->body.multifile.name);
-		printf("piece length:\t%ld bytes\n",
+		printf("piece length:\t%lld bytes\n",
 		    torrent->body.multifile.piece_length);
 		printf("--files--\n");
 		SLIST_FOREACH(tfile, &(torrent->body.multifile.files), files) {
 			printf("file name:\t%s\n", tfile->path);
-			printf("length:\t\t%ld bytes\n", tfile->length);
+			printf("length:\t\t%lld bytes\n", tfile->length);
 			printf("md5sum:\t\t");
 			if (tfile->md5sum == NULL)
 				printf("NONE\n");

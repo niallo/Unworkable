@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.32 2006-05-03 00:53:10 niallo Exp $ */
+/* $Id: parse.y,v 1.33 2006-05-03 01:05:48 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -60,7 +60,7 @@ FILE				*fin     = NULL;
 %}
 
 %union {
-	long			number;
+	long long		number;
 	char			*string;
 	struct benc_node	*benc_node;
 }
@@ -101,9 +101,9 @@ bencode		: /* empty */
 		;
 
 number		: STRING					{
-			long lval;
+			long long lval;
 			const char *errstr;
-			lval = strtonum($1, LONG_MIN, LONG_MAX, &errstr);
+			lval = strtonum($1, LLONG_MIN, LLONG_MAX, &errstr);
 			if (errstr) {
 				yyerror("%s is %s", $1, errstr);
 				free($1);
