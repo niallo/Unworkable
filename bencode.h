@@ -1,4 +1,4 @@
-/* $Id: bencode.h,v 1.12 2006-05-03 01:05:48 niallo Exp $ */
+/* $Id: bencode.h,v 1.13 2006-05-03 19:58:38 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -19,8 +19,6 @@
 #define BENCODE_H
 
 #include <sys/queue.h>
-
-enum btype { BSTRING, BINT, BDICT, BLIST };
 
 #define BSTRING		(1 << 0)
 #define BINT		(1 << 1)
