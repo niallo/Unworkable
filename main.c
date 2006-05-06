@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.4 2006-05-02 00:57:13 niallo Exp $ */
+/* $Id: main.c,v 1.5 2006-05-06 19:32:54 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -31,6 +31,7 @@ void
 usage(void)
 {
 	fprintf(stderr, "unworkable: [-i] file\n");
+	exit(1);
 }
 
 int
