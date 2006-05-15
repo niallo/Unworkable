@@ -1,4 +1,4 @@
-/* $Id: file.h,v 1.1 2006-05-03 19:43:51 niallo Exp $ */
+/* $Id: file.h,v 1.2 2006-05-15 16:24:38 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -19,14 +19,23 @@
 
 #include <sys/queue.h>
 
-struct piece {
-    
+#define COMPLETE	(1 << 0)
 
+struct piece {
+	int				flags;
+	char				*sha1;
+	size_t				len;
+	off_t				offset;
+	SLIST_ENTRY(piece)		pieces;
 };
 
 struct file {
-
+	int				fd;
+	void				*addr;
+	SLIST_HEAD(pieces, piece)	pieces;
 };
+
+struct file				*file_open(const char *path);
 
 /* FILE_H */
 #endif

@@ -1,4 +1,4 @@
-/* $Id: file.c,v 1.1 2006-05-03 19:43:51 niallo Exp $ */
+/* $Id: file.c,v 1.2 2006-05-15 16:24:37 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -17,12 +17,12 @@
 
 #include <sys/param.h>
 
-#include <err.h>
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-
-#include "file.h"
 #include "torrent.h"
+#include "file.h"
+
+/* index is used in multi-file */
+struct file *
+file_open(const char *filename)
+{
+	return (NULL);
+}
