@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.7 2006-05-03 01:05:48 niallo Exp $ */
+/* $Id: torrent.h,v 1.8 2006-05-15 16:26:39 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,6 +20,8 @@
 
 #include <sys/queue.h>
 
+#include "file.h"
+
 enum type { MULTIFILE, SINGLEFILE };
 
 struct torrent_file {
@@ -27,6 +29,7 @@ struct torrent_file {
 	long long				length;
 	char					*md5sum;
 	char					*path;
+	struct file				*file;
 };
 
 struct torrent {
