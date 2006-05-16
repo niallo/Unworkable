@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.19 2006-05-16 01:19:09 niallo Exp $ */
+/* $Id: torrent.c,v 1.20 2006-05-16 01:28:36 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -37,6 +37,7 @@ torrent_parse_file(const char *file)
 	struct benc_node		*filenode, *childnode;
 	FILE				*fp;
 	int				l;
+	size_t				ret;
 
 	if ((torrent = malloc(sizeof(*torrent))) == NULL)
 		err(1, "torrent_parse_file: malloc");
@@ -165,10 +166,10 @@ torrent_parse_file(const char *file)
 				if (!(lnode->flags & BSTRING))
 					errx(1, "path element is not a string");
 				if (*multi_file->path == '\0') {
-					l = strlcpy(multi_file->path,
+					ret = strlcpy(multi_file->path,
 					    lnode->body.string.value,
 					    MAXPATHLEN);
-					if (l >= MAXPATHLEN)
+					if (ret >= MAXPATHLEN)
 						errx(1, "path too large");
 				} else {
 					l = snprintf(multi_file->path,
