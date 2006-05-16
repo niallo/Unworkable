@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.18 2006-05-03 01:08:52 niallo Exp $ */
+/* $Id: torrent.c,v 1.19 2006-05-16 01:19:09 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -36,7 +36,7 @@ torrent_parse_file(const char *file)
 	struct benc_node		*node, *lnode, *tnode;
 	struct benc_node		*filenode, *childnode;
 	FILE				*fp;
-	size_t				ret;
+	int				l;
 
 	if ((torrent = malloc(sizeof(*torrent))) == NULL)
 		err(1, "torrent_parse_file: malloc");
@@ -161,12 +161,23 @@ torrent_parse_file(const char *file)
 			memset(multi_file->path, '\0', MAXPATHLEN);
 
 			SLIST_FOREACH(lnode, &(tnode->children), benc_nodes) {
+				printf("p: %s\n", lnode->body.string.value);
 				if (!(lnode->flags & BSTRING))
 					errx(1, "path element is not a string");
-				ret = strlcat(multi_file->path,
-				    lnode->body.string.value, MAXPATHLEN);
-				if (ret >= MAXPATHLEN)
-					errx(1, "path too large for buffer");
+				if (*multi_file->path == '\0') {
+					l = strlcpy(multi_file->path,
+					    lnode->body.string.value,
+					    MAXPATHLEN);
+					if (l >= MAXPATHLEN)
+						errx(1, "path too large");
+				} else {
+					l = snprintf(multi_file->path,
+					    MAXPATHLEN, "%s/%s",
+					    multi_file->path,
+					    lnode->body.string.value);
+					if (l == -1 || l >= MAXPATHLEN)
+						errx(1, "path too large");
+				}
 			}
 
 			SLIST_INSERT_HEAD(&(torrent->body.multifile.files),
