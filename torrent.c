@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.22 2006-05-17 22:32:26 niallo Exp $ */
+/* $Id: torrent.c,v 1.23 2006-05-17 22:34:26 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -557,7 +557,6 @@ torrent_piece_map(struct torrent *tp, int idx)
 			}
 		}
 		RB_INSERT(pieces, &(tp->pieces), tpp);
-		printf("piece length: %d\n", (int)tpp->len);
 
 		return (tpp);
 	}
