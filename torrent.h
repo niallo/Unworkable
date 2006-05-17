@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.10 2006-05-17 22:32:26 niallo Exp $ */
+/* $Id: torrent.h,v 1.11 2006-05-17 22:43:13 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -74,9 +74,9 @@ struct torrent {
 	enum type				type;
 };
 
-void			*torrent_block_read(struct torrent_piece *, off_t,
+void			*torrent_block_read(struct torrent_piece *, size_t,
 			    size_t, int *);
-void			 torrent_block_write(struct torrent_piece *, off_t,
+void			 torrent_block_write(struct torrent_piece *, size_t,
 			    size_t, void *);
 void			 torrent_data_open(struct torrent *);
 void			 torrent_data_close(struct torrent *);

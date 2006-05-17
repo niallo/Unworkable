@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.23 2006-05-17 22:34:26 niallo Exp $ */
+/* $Id: torrent.c,v 1.24 2006-05-17 22:43:13 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -326,7 +326,7 @@ torrent_intcmp(struct torrent_piece *p1, struct torrent_piece *p2)
 }
 
 void
-torrent_block_write(struct torrent_piece *tpp, off_t off, size_t len, void *d)
+torrent_block_write(struct torrent_piece *tpp, size_t off, size_t len, void *d)
 {
 	void *block;
 	char *aptr, *bptr;
@@ -358,7 +358,7 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, size_t len, void *d)
 
 /* hint will be set to 1 if the return value needs to be freed */
 void *
-torrent_block_read(struct torrent_piece *tpp, off_t off, size_t len, int *hint)
+torrent_block_read(struct torrent_piece *tpp, size_t off, size_t len, int *hint)
 {
 	void *block;
 	char *aptr, *bptr;
@@ -517,7 +517,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 			}
 			/* file is too small for one piece
 			   and this piece is not yet full */
-			if (tfp->file_length < len
+			if ((size_t)tfp->file_length < len
 			    && tpp->len < len) {
 				tmmp = torrent_mmap_create(tfp->fd, 0,
 				    tfp->file_length);
@@ -527,7 +527,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 				continue;
 			}
 			/* piece overlaps this file and the next one */
-			if (off + len > tfp->file_length) {
+			if (off + len > (size_t)tfp->file_length) {
 				tmmp = torrent_mmap_create(tfp->fd, off,
 				    tfp->file_length - off);
 				tpp->len += tmmp->len;
