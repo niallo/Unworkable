@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.8 2006-05-15 16:26:39 niallo Exp $ */
+/* $Id: torrent.h,v 1.9 2006-05-17 16:32:29 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -19,34 +19,48 @@
 #define TORRENT_H
 
 #include <sys/queue.h>
-
-#include "file.h"
+#include <sys/tree.h>
 
 enum type { MULTIFILE, SINGLEFILE };
 
+struct torrent_mmap {
+	void				*addr;
+	size_t				len;
+	TAILQ_ENTRY(torrent_mmap)	mmaps;
+};
+
+struct torrent_piece {
+	int				flags;
+	char				*sha1;
+	size_t				len;
+	int				index;
+	TAILQ_HEAD(mmaps, torrent_mmap)	mmaps;
+	RB_ENTRY(torrent_piece)		entry;
+};
+
 struct torrent_file {
-	SLIST_ENTRY(torrent_file)		files;
-	long long				length;
+	TAILQ_ENTRY(torrent_file)		files;
+	long long				file_length;
 	char					*md5sum;
 	char					*path;
-	struct file				*file;
+	int					fd;
 };
 
 struct torrent {
 	union {
 		struct {
-			long long		length;
+			long long		file_length;
 			char			*name;
-			long			piece_length;
 			char			*pieces;
 			char			*md5sum;
+			int			fd;
 		} singlefile;
 
 		struct {
-			SLIST_HEAD(files, torrent_file) files;
+			TAILQ_HEAD(files, torrent_file) files;
 			char			*name;
-			long long		piece_length;
 			char			*pieces;
+			long long		total_length;
 		} multifile;
 	} body;
 	char					*announce;
@@ -54,10 +68,25 @@ struct torrent {
 	char					*comment;
 	char					*created_by;
 	enum type				type;
+	int					num_pieces;
+	int					piece_length;
+	RB_HEAD(pieces, torrent_piece)		pieces;
 };
 
+void			*torrent_block_read(struct torrent_piece *, off_t,
+			    size_t, int *);
+void			 torrent_block_write(struct torrent_piece *, off_t,
+			    size_t, void *);
+void			 torrent_data_open(struct torrent *);
+void			 torrent_data_close(struct torrent *);
+struct torrent_mmap	*torrent_mmap_create(int, off_t, size_t);
 struct torrent		*torrent_parse_file(const char *);
-void 			torrent_print(struct torrent *);
+struct torrent_piece	*torrent_piece_find(struct torrent *, int);
+struct torrent_piece	*torrent_piece_map(struct torrent *, int);
+void			 torrent_piece_unmap(struct torrent *, int);
+void			 torrent_print(struct torrent *);
+int			 torrent_intcmp(struct torrent_piece *,
+			    struct torrent_piece *);
 
 /* TORRENT_H */
 #endif

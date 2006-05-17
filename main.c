@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.5 2006-05-06 19:32:54 niallo Exp $ */
+/* $Id: main.c,v 1.6 2006-05-17 16:32:29 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -15,8 +15,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <err.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "bencode.h"
@@ -37,8 +40,11 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	int ch, iflag;
+	int ch, fd, i, iflag, hint;
 	struct torrent *torrent;
+	struct torrent_piece *tpp;
+	char *p, *p2;
+	size_t siz;
 
 	root = benc_node_create();
 	root->flags = BLIST;
@@ -61,6 +67,23 @@ main(int argc, char **argv)
 
 	torrent = torrent_parse_file(argv[0]);
 	torrent_print(torrent);
+	torrent_data_open(torrent);
+
+	if ((fd = open("/tmp/out", O_WRONLY|O_CREAT|O_TRUNC, 0600)) == -1)
+		err(1, "open");
+	for (i = 0; i < torrent->num_pieces; i++) {
+		torrent_piece_map(torrent, i);
+		tpp = torrent_piece_find(torrent, i);
+		if (tpp == NULL)
+			printf("bad!\n");
+		p = (char *)torrent_block_read(tpp, 0, tpp->len, &hint);
+		//printf("%d len is %d\n", i, (int)tpp->len);
+		write(fd, p, tpp->len);
+		if (hint == 1)
+			free(p);
+	}
+	close(fd);
 
 	exit(0);
+
 }
