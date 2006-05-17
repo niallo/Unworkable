@@ -1,4 +1,4 @@
-/* $Id: bencode.h,v 1.13 2006-05-03 19:58:38 niallo Exp $ */
+/* $Id: bencode.h,v 1.14 2006-05-17 22:32:25 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -32,9 +32,9 @@ struct benc_node {
 	 *  Having this HEAD in every node is slightly wasteful of memory,
 	 *  but I can't figure out how to put it in the union.
 	 */
-	SLIST_HEAD(children, benc_node)		children;
+	TAILQ_HEAD(children, benc_node)		children;
 
-	SLIST_ENTRY(benc_node)			benc_nodes;
+	TAILQ_ENTRY(benc_node)			benc_nodes;
 	unsigned int				flags;
 	union {
 		long long			number;
@@ -49,11 +49,13 @@ struct benc_node {
 	} body;
 };
 
-void			benc_node_add(struct benc_node *, struct benc_node *);
+void			 benc_node_add(struct benc_node *, struct benc_node *);
+void			 benc_node_add_head(struct benc_node *,
+			    struct benc_node *);
 struct benc_node	*benc_node_create(void);
 struct benc_node	*benc_node_find(struct benc_node *node, char *key);
-void			benc_node_free(struct benc_node *);
-void			benc_node_print(struct benc_node *, int level);
+void			 benc_node_free(struct benc_node *);
+void			 benc_node_print(struct benc_node *, int level);
 
 extern struct benc_node	*root;
 #endif /* BENCODE_H */

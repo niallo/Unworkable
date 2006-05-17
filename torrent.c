@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.21 2006-05-17 16:32:29 niallo Exp $ */
+/* $Id: torrent.c,v 1.22 2006-05-17 22:32:26 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -18,10 +18,12 @@
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/param.h>
+#include <sys/stat.h>
 
 #include <err.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <sha1.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,6 +36,57 @@
 
 RB_PROTOTYPE(pieces, torrent_piece, entry, torrent_intcmp)
 RB_GENERATE(pieces, torrent_piece, entry, torrent_intcmp)
+
+/* dedicated function which computes the torrent info hash */
+u_int8_t *
+torrent_parse_infohash(const char *file)
+{
+	int fd, i;
+	SHA1_CTX sha;
+	u_int8_t result[SHA1_DIGEST_LENGTH], *ret;
+	struct stat sb;
+	size_t len;
+	ssize_t n;
+	char *buf, *p;
+
+	if ((fd = open(file, O_RDONLY, 0)) == -1)
+		err(1, "torrent_parse_infohash: open `%s'", file);
+	
+	if (fstat(fd, &sb) == -1)
+		err(1, "torrent_parse_infohash: fstat");
+
+	len = sb.st_size;
+
+	if ((buf = malloc(len+1)) == NULL)
+		err(1, "torrent_parse_infohash: malloc");
+	
+	n = read(fd, buf, len);
+	if (n == -1)
+		err(1, "torrent_parse_infohash: read");
+	(void) close(fd);
+
+	buf[len] = '\0';
+	p = strstr(buf, "4:info");
+	if (p == NULL)
+		errx(1, "torrent_parse_infohash: no info key found");
+	p += 6;
+	//printf("p: %s\n", p);
+
+	SHA1Init(&sha);
+	SHA1Update(&sha, p, len - (p - buf));
+	SHA1Final(result, &sha);
+
+	if ((ret = malloc(SHA1_DIGEST_LENGTH)) == NULL)
+		err(1, "torrent_parse_infohash: malloc");
+	memcpy(ret, result, SHA1_DIGEST_LENGTH);
+	free(buf);
+
+	printf("info hash: 0x");
+	for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
+		printf("%02x", ret[i]);
+	putchar('\n');
+	return (ret);
+}
 
 struct torrent *
 torrent_parse_file(const char *file)
@@ -61,6 +114,7 @@ torrent_parse_file(const char *file)
 	}
 
 	fclose(fin);
+	torrent->info_hash = torrent_parse_infohash(file);
 
 	if ((node = benc_node_find(root, "announce")) == NULL)
 		errx(1, "no announce data found in torrent");
@@ -142,12 +196,12 @@ torrent_parse_file(const char *file)
 
 		torrent->body.multifile.pieces = node->body.string.value;
 		torrent->body.singlefile.pieces = node->body.string.value;
-		torrent->num_pieces = node->body.string.len / 20;
+		torrent->num_pieces = node->body.string.len / SHA1_DIGEST_LENGTH;
 
 		TAILQ_INIT(&(torrent->body.multifile.files));
 
 		/* iterate through sub-dictionaries */
-		SLIST_FOREACH(childnode, &(filenode->children), benc_nodes) {
+		TAILQ_FOREACH(childnode, &(filenode->children), benc_nodes) {
 			if ((multi_file = malloc(sizeof(*multi_file))) == NULL)
 				err(1, "torrent_parse_file: malloc");
 
@@ -173,7 +227,7 @@ torrent_parse_file(const char *file)
 
 			memset(multi_file->path, '\0', MAXPATHLEN);
 
-			SLIST_FOREACH(lnode, &(tnode->children), benc_nodes) {
+			TAILQ_FOREACH(lnode, &(tnode->children), benc_nodes) {
 				if (!(lnode->flags & BSTRING))
 					errx(1, "path element is not a string");
 				if (*multi_file->path == '\0') {
@@ -508,6 +562,32 @@ torrent_piece_map(struct torrent *tp, int idx)
 		return (tpp);
 	}
 	return (NULL);
+}
+
+int
+torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
+{
+	SHA1_CTX sha;
+	u_int8_t *d, *s, results[SHA1_DIGEST_LENGTH];
+	int hint;
+
+	d = torrent_block_read(tpp, 0, tpp->len, &hint);
+	if (d == NULL)
+		return (-1);
+
+	SHA1Init(&sha);
+	SHA1Update(&sha, d, tpp->len);
+	SHA1Final(results, &sha);
+
+	if (tp->type == MULTIFILE) {
+		s = tp->body.multifile.pieces
+		    + (SHA1_DIGEST_LENGTH * tpp->index);
+	} else {
+		s = tp->body.singlefile.pieces
+		    + (SHA1_DIGEST_LENGTH * tpp->index);
+	}
+
+	return (memcmp(results, s, SHA1_DIGEST_LENGTH));
 }
 
 void

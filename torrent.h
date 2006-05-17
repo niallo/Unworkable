@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.9 2006-05-17 16:32:29 niallo Exp $ */
+/* $Id: torrent.h,v 1.10 2006-05-17 22:32:26 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -67,10 +67,11 @@ struct torrent {
 	time_t					creation_date;
 	char					*comment;
 	char					*created_by;
-	enum type				type;
+	u_int8_t				*info_hash;
 	int					num_pieces;
 	int					piece_length;
 	RB_HEAD(pieces, torrent_piece)		pieces;
+	enum type				type;
 };
 
 void			*torrent_block_read(struct torrent_piece *, off_t,
@@ -81,6 +82,9 @@ void			 torrent_data_open(struct torrent *);
 void			 torrent_data_close(struct torrent *);
 struct torrent_mmap	*torrent_mmap_create(int, off_t, size_t);
 struct torrent		*torrent_parse_file(const char *);
+u_int8_t		*torrent_parse_infohash(const char *);
+int			 torrent_piece_checkhash(struct torrent *,
+			    struct torrent_piece *);
 struct torrent_piece	*torrent_piece_find(struct torrent *, int);
 struct torrent_piece	*torrent_piece_map(struct torrent *, int);
 void			 torrent_piece_unmap(struct torrent *, int);

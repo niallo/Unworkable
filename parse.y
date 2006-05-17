@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.38 2006-05-03 18:23:45 niallo Exp $ */
+/* $Id: parse.y,v 1.39 2006-05-17 22:32:26 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -165,7 +165,7 @@ blist		: LIST_START					{
 			struct benc_node *node;
 
 			node = benc_stack_pop();
-			benc_node_add(node, $3);
+			benc_node_add_head(node, $3);
 			$$ = node;
 		}
 		;
@@ -186,7 +186,7 @@ blist_entries	: bint						{
 			benc_node_add(benc_stack_peek(), $2);
 		}
 		| blist_entries bstring				{
-			benc_node_add(benc_stack_peek(), $2);
+			benc_node_add(benc_stack_peek(), $1);
 		}
 		| blist_entries blist				{
 			benc_node_add(benc_stack_peek(), $2);
@@ -265,7 +265,7 @@ bdict		: DICT_START					{
 			struct benc_node *node;
 
 			node = benc_stack_pop();
-			benc_node_add(node, $3);
+			benc_node_add_head(node, $3);
 
 			$$ = node;
 		}

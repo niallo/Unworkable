@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.22 2006-05-03 19:58:46 niallo Exp $ */
+/* $Id: bencode.c,v 1.23 2006-05-17 22:32:25 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -31,7 +31,13 @@ struct benc_node *root;
 void
 benc_node_add(struct benc_node *node, struct benc_node *new)
 {
-	SLIST_INSERT_HEAD(&(node->children), new, benc_nodes);
+	TAILQ_INSERT_TAIL(&node->children, new, benc_nodes);
+}
+
+void
+benc_node_add_head(struct benc_node *node, struct benc_node *new)
+{
+	TAILQ_INSERT_HEAD(&node->children, new, benc_nodes);
 }
 
 /* create and initialise a benc_node */
@@ -45,7 +51,7 @@ benc_node_create(void)
 
 	memset(node, 0, sizeof(*node));
 
-	SLIST_INIT(&(node->children));
+	TAILQ_INIT(&(node->children));
 
 	return (node);
 }
@@ -62,13 +68,13 @@ benc_node_find(struct benc_node *node, char *key)
 
 	if (node->flags & BDICT_ENTRY
 	    && IS_CONTAINER_TYPE(node))
-		SLIST_FOREACH(childnode,
+		TAILQ_FOREACH(childnode,
 		    &(node->body.dict_entry.value->children), benc_nodes)
 			if ((ret = benc_node_find(childnode, key)) != NULL)
 				return (ret);
 
 	if (IS_CONTAINER_TYPE(node))
-		SLIST_FOREACH(childnode, &(node->children), benc_nodes)
+		TAILQ_FOREACH(childnode, &(node->children), benc_nodes)
 			if ((ret = benc_node_find(childnode, key)) != NULL)
 				return (ret);
 
@@ -90,10 +96,11 @@ benc_node_free(struct benc_node *node)
 		free(node->body.string.value);
 	
 	if (IS_CONTAINER_TYPE(node)) {
-		SLIST_FOREACH(childnode, &(node->children), benc_nodes)
+		TAILQ_FOREACH(childnode, &(node->children), benc_nodes) {
 			benc_node_free(childnode);
-		while (!SLIST_EMPTY(&(node->children)))
-			SLIST_REMOVE_HEAD(&(node->children), benc_nodes);
+		}
+		while ((childnode = TAILQ_FIRST(&node->children)))
+			TAILQ_REMOVE(&(node->children), childnode, benc_nodes);
 	}
 }
 
@@ -116,11 +123,11 @@ benc_node_print(struct benc_node *node, int level)
 		printf("int value: %lld\n", node->body.number);
 	} else if (node->flags & BLIST) {
 		printf("blist\n");
-		SLIST_FOREACH(childnode, &(node->children), benc_nodes)
+		TAILQ_FOREACH(childnode, &(node->children), benc_nodes)
 			benc_node_print(childnode, level + 1);
 	} else if (node->flags & BDICT) {
 		printf("bdict\n");
-		SLIST_FOREACH(childnode, &(node->children), benc_nodes)
+		TAILQ_FOREACH(childnode, &(node->children), benc_nodes)
 			benc_node_print(childnode, level + 1);
 	}
 }

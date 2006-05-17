@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.6 2006-05-17 16:32:29 niallo Exp $ */
+/* $Id: main.c,v 1.7 2006-05-17 22:32:26 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -43,8 +43,7 @@ main(int argc, char **argv)
 	int ch, fd, i, iflag, hint;
 	struct torrent *torrent;
 	struct torrent_piece *tpp;
-	char *p, *p2;
-	size_t siz;
+	char *p;
 
 	root = benc_node_create();
 	root->flags = BLIST;
@@ -83,6 +82,13 @@ main(int argc, char **argv)
 			free(p);
 	}
 	close(fd);
+
+	tpp = torrent_piece_find(torrent, 0);
+	i = torrent_piece_checkhash(torrent, tpp);
+	if (i != 0)
+		printf("hash mismatch\n");
+	else
+		printf("hash match\n");
 
 	exit(0);
 
