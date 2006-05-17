@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.24 2006-05-17 22:43:13 niallo Exp $ */
+/* $Id: torrent.c,v 1.25 2006-05-17 23:40:41 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -41,7 +41,7 @@ RB_GENERATE(pieces, torrent_piece, entry, torrent_intcmp)
 u_int8_t *
 torrent_parse_infohash(const char *file)
 {
-	int fd, i;
+	int fd;
 	SHA1_CTX sha;
 	u_int8_t result[SHA1_DIGEST_LENGTH], *ret;
 	struct stat sb;
@@ -70,10 +70,9 @@ torrent_parse_infohash(const char *file)
 	if (p == NULL)
 		errx(1, "torrent_parse_infohash: no info key found");
 	p += 6;
-	//printf("p: %s\n", p);
 
 	SHA1Init(&sha);
-	SHA1Update(&sha, p, len - (p - buf));
+	SHA1Update(&sha, p, (len - (p - buf)) - 1);
 	SHA1Final(result, &sha);
 
 	if ((ret = malloc(SHA1_DIGEST_LENGTH)) == NULL)
@@ -81,10 +80,6 @@ torrent_parse_infohash(const char *file)
 	memcpy(ret, result, SHA1_DIGEST_LENGTH);
 	free(buf);
 
-	printf("info hash: 0x");
-	for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
-		printf("%02x", ret[i]);
-	putchar('\n');
 	return (ret);
 }
 
@@ -268,6 +263,7 @@ void
 torrent_print(struct torrent *torrent)
 {
 	struct torrent_file *tfile;
+	int i;
 
 	printf("announce url:\t%s\n", torrent->announce);
 	printf("created by:\t");
@@ -285,6 +281,10 @@ torrent_print(struct torrent *torrent)
 		printf("NONE\n");
 	else
 		printf("%s\n", torrent->comment);
+	printf("info hash:\t0x");
+	for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
+		printf("%02x", torrent->info_hash[i]);
+	putchar('\n');
 	printf("pieces:\t\t%d\n", torrent->num_pieces);
 	printf("type:\t\t");
 	if (torrent->type == SINGLEFILE) {
@@ -426,7 +426,8 @@ torrent_piece_find(struct torrent *tp, int idx)
 	struct torrent_piece find, *res;
 	find.index = idx;
 	res = RB_FIND(pieces, &(tp->pieces), &find);
-
+	if (res == NULL)
+		errx(1, "torrent_piece_find: no such piece");
 	return (res);
 }
 
@@ -440,7 +441,7 @@ torrent_mmap_create(int fd, off_t off, size_t len)
 		err(1, "torrent_mmap_create: malloc");
 	memset(tmmp, 0, sizeof(*tmmp));
 	
-	printf("mmap: len %d off: %d fd: %d\n", (int)len, (int)off, fd);
+	//printf("mmap: len %d off: %d fd: %d\n", (int)len, (int)off, fd);
 	tmmp->addr = mmap(0, len, MMAP_FLAGS, 0, fd, off);
 	if (tmmp->addr == MAP_FAILED)
 		err(1, "torrent_mmap_create: mmap");
@@ -475,6 +476,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 		} else {
 			len = tp->piece_length;
 		}
+		tpp->len = len;
 		fd = tp->body.singlefile.fd;
 		tmmp = torrent_mmap_create(fd, off, len);
 		TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
@@ -578,6 +580,8 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 	SHA1Update(&sha, d, tpp->len);
 	SHA1Final(results, &sha);
 
+	if (hint == 1)
+		free(d);
 	if (tp->type == MULTIFILE) {
 		s = tp->body.multifile.pieces
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
@@ -585,6 +589,7 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 		s = tp->body.singlefile.pieces
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
 	}
+
 
 	return (memcmp(results, s, SHA1_DIGEST_LENGTH));
 }

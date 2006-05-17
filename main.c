@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.7 2006-05-17 22:32:26 niallo Exp $ */
+/* $Id: main.c,v 1.8 2006-05-17 23:40:41 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -40,10 +40,12 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	int ch, fd, i, iflag, hint;
+	int ch, fd, i, j, iflag, badflag, hint;
 	struct torrent *torrent;
 	struct torrent_piece *tpp;
 	char *p;
+
+	badflag = 0;
 
 	root = benc_node_create();
 	root->flags = BLIST;
@@ -68,27 +70,17 @@ main(int argc, char **argv)
 	torrent_print(torrent);
 	torrent_data_open(torrent);
 
-	if ((fd = open("/tmp/out", O_WRONLY|O_CREAT|O_TRUNC, 0600)) == -1)
-		err(1, "open");
 	for (i = 0; i < torrent->num_pieces; i++) {
 		torrent_piece_map(torrent, i);
 		tpp = torrent_piece_find(torrent, i);
-		if (tpp == NULL)
-			printf("bad!\n");
-		p = (char *)torrent_block_read(tpp, 0, tpp->len, &hint);
-		//printf("%d len is %d\n", i, (int)tpp->len);
-		write(fd, p, tpp->len);
-		if (hint == 1)
-			free(p);
+		j = torrent_piece_checkhash(torrent, tpp);
+		if (j != 0) {
+			printf("hash mismatch for piece: %d\n", i);
+			badflag = 1;
+		}
 	}
-	close(fd);
-
-	tpp = torrent_piece_find(torrent, 0);
-	i = torrent_piece_checkhash(torrent, tpp);
-	if (i != 0)
-		printf("hash mismatch\n");
-	else
-		printf("hash match\n");
+	if (badflag == 0)
+		printf("torrent matches hash\n");
 
 	exit(0);
 
