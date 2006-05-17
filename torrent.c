@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.25 2006-05-17 23:40:41 niallo Exp $ */
+/* $Id: torrent.c,v 1.26 2006-05-17 23:53:07 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -598,17 +598,17 @@ void
 torrent_piece_unmap(struct torrent *tp, int idx)
 {
 	struct torrent_piece *tpp;
+	struct torrent_mmap *tmmp;
 
 	tpp = torrent_piece_find(tp, idx);
 
 	if (tpp == NULL)
 		errx(1, "torrent_piece_unmap: NULL piece");
 
-	#if 0
-	if (munmap(tpp->addr, tpp->len) < 0)
-		err(1, "torrent_piece_unmap: munmap");
-	#endif
-
+	TAILQ_FOREACH(tmmp, &(tpp->mmaps), mmaps) {
+		if (munmap(tmmp->addr, tmmp->len) < 0)
+			err(1, "torrent_piece_unmap: munmap");
+	}
 }
 
 void

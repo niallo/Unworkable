@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.8 2006-05-17 23:40:41 niallo Exp $ */
+/* $Id: main.c,v 1.9 2006-05-17 23:53:07 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -78,6 +78,7 @@ main(int argc, char **argv)
 			printf("hash mismatch for piece: %d\n", i);
 			badflag = 1;
 		}
+		torrent_piece_unmap(torrent, i);
 	}
 	if (badflag == 0)
 		printf("torrent matches hash\n");
