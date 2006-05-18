@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.12 2006-05-18 01:23:32 niallo Exp $ */
+/* $Id: torrent.h,v 1.13 2006-05-18 16:42:12 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -26,6 +26,7 @@ enum type { MULTIFILE, SINGLEFILE };
 struct torrent_mmap {
 	void				*addr;
 	size_t				len;
+	struct torrent_file		*tfp;
 	TAILQ_ENTRY(torrent_mmap)	mmaps;
 };
 
@@ -44,16 +45,14 @@ struct torrent_file {
 	char					*md5sum;
 	char					*path;
 	int					fd;
+	int					refs;
 };
 
 struct torrent {
 	union {
 		struct {
-			long long		file_length;
-			char			*name;
 			char			*pieces;
-			char			*md5sum;
-			int			fd;
+			struct torrent_file	tfp;
 		} singlefile;
 
 		struct {
@@ -80,7 +79,8 @@ void			 torrent_block_write(struct torrent_piece *, size_t,
 			    size_t, void *);
 void			 torrent_data_open(struct torrent *);
 void			 torrent_data_close(struct torrent *);
-struct torrent_mmap	*torrent_mmap_create(int, size_t, size_t);
+struct torrent_mmap	*torrent_mmap_create(struct torrent *,
+			    struct torrent_file *, size_t, size_t);
 struct torrent		*torrent_parse_file(const char *);
 u_int8_t		*torrent_parse_infohash(const char *);
 int			 torrent_piece_checkhash(struct torrent *,

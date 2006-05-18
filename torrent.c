@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.33 2006-05-18 15:50:18 niallo Exp $ */
+/* $Id: torrent.c,v 1.34 2006-05-18 16:42:12 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -131,7 +131,7 @@ torrent_parse_file(const char *file)
 		if (!(node->flags & BINT))
 			errx(1, "length is not a number");
 
-		torrent->body.singlefile.file_length = node->body.number;
+		torrent->body.singlefile.tfp.file_length = node->body.number;
 
 		if ((node = benc_node_find(root, "name")) == NULL)
 			errx(1, "no name field");
@@ -139,7 +139,7 @@ torrent_parse_file(const char *file)
 		if (!(node->flags & BSTRING))
 			errx(1, "name is not a string");
 
-		torrent->body.singlefile.name = node->body.string.value;
+		torrent->body.singlefile.tfp.path = node->body.string.value;
 
 		if ((node = benc_node_find(root, "piece length")) == NULL)
 			errx(1, "no piece length field");
@@ -162,7 +162,7 @@ torrent_parse_file(const char *file)
 			if (!(node->flags & BSTRING))
 				errx(1, "md5sum is not a string");
 			else
-				torrent->body.singlefile.md5sum =
+				torrent->body.singlefile.tfp.md5sum =
 				    node->body.string.value;
 		}
 	} else {
@@ -288,18 +288,17 @@ torrent_print(struct torrent *torrent)
 	printf("pieces:\t\t%d\n", torrent->num_pieces);
 	printf("type:\t\t");
 	if (torrent->type == SINGLEFILE) {
+		tfile = &torrent->body.singlefile.tfp;
 		printf("single file\n");
-		printf("length:\t\t%lld bytes\n",
-		    torrent->body.singlefile.file_length);
-		printf("file name:\t%s\n",
-		    torrent->body.singlefile.name);
+		printf("length:\t\t%lld bytes\n", tfile->file_length);
+		printf("file name:\t%s\n", tfile->path);
 		printf("piece length:\t%d bytes\n",
 		    torrent->piece_length);
 		printf("md5sum:\t\t");
-		if (torrent->body.singlefile.md5sum == NULL)
+		if (tfile->md5sum == NULL)
 			printf("NONE\n");
 		else
-			printf("%s\n", torrent->body.singlefile.md5sum);
+			printf("%s\n", tfile->md5sum);
 	} else {
 		printf("multi file\n");
 		printf("base path:\t%s\n",
@@ -434,14 +433,27 @@ torrent_piece_find(struct torrent *tp, int idx)
 }
 
 struct torrent_mmap *
-torrent_mmap_create(int fd, size_t off, size_t len)
+torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, size_t off,
+    size_t len)
 {
 	struct torrent_mmap *tmmp;
 	struct stat sb;
+	char buf[MAXPATHLEN];
+	int fd = 0, l;
 	
+#define OPEN_FLAGS O_RDWR|O_CREAT
 	//printf("mmap: len: %d off: %d fd: %d\n", (int)len, (int)off, fd);
-	if (fstat(fd, &sb) == -1)
-		err(1, "torrent_mmap_create: fstat");
+	if (tfp->fd == 0) {
+		l = snprintf(buf, sizeof(buf), "%s/%s",
+		    tp->body.multifile.name, tfp->path);
+		if (l == -1 || l >= (int)sizeof(buf))
+			errx(1, "torrent_data_open: path too long");
+		if ((fd = open(buf, OPEN_FLAGS, 0600)) == -1)
+			err(1, "torrent_data_open: open `%s'", buf);
+		tfp->fd = fd;
+	}
+	if (fstat(tfp->fd, &sb) == -1)
+		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
 	if (sb.st_size < (len + off))
 		errx(1, "torrent_mmap_create: insufficient data in file");
 #define MMAP_FLAGS PROT_READ|PROT_WRITE
@@ -449,11 +461,13 @@ torrent_mmap_create(int fd, size_t off, size_t len)
 		err(1, "torrent_mmap_create: malloc");
 	memset(tmmp, 0, sizeof(*tmmp));
 	
-	tmmp->addr = mmap(0, len, MMAP_FLAGS, 0, fd, off);
+	tmmp->addr = mmap(0, len, MMAP_FLAGS, 0, tfp->fd, off);
 	if (tmmp->addr == MAP_FAILED)
 		err(1, "torrent_mmap_create: mmap");
 	tmmp->len = len;
 
+	tmmp->tfp = tfp;
+	tfp->refs++;
 	return (tmmp);
 }
 
@@ -464,7 +478,6 @@ torrent_piece_map(struct torrent *tp, int idx)
 	struct torrent_file  *nxttfp, *tfp, *lasttfp;
 	struct torrent_mmap  *tmmp;
 	size_t len, off;
-	int fd;
 
 	if ((tpp = malloc(sizeof(*tpp))) == NULL)
 		err(1, "torrent_piece_map: malloc");
@@ -477,14 +490,14 @@ torrent_piece_map(struct torrent *tp, int idx)
 	if (tp->type == SINGLEFILE) {
 		off = tp->piece_length * idx;
 		/* last piece is irregular */
+		tfp = &tp->body.singlefile.tfp;
 		if (idx == tp->num_pieces - 1) {
-			len = tp->body.singlefile.file_length - off;
+			len = tfp->file_length - off;
 		} else {
 			len = tp->piece_length;
 		}
 		tpp->len = len;
-		fd = tp->body.singlefile.fd;
-		tmmp = torrent_mmap_create(fd, off, len);
+		tmmp = torrent_mmap_create(tp, tfp, off, len);
 		TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
 		RB_INSERT(pieces, &(tp->pieces), tpp);
 
@@ -527,20 +540,20 @@ torrent_piece_map(struct torrent *tp, int idx)
 			   and this piece is not yet full */
 			if ((size_t)tfp->file_length < len
 			    && tpp->len < len) {
-				tmmp = torrent_mmap_create(tfp->fd, off,
+				tmmp = torrent_mmap_create(tp, tfp, off,
 				    tfp->file_length - off);
 				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
 				tpp->len += tfp->file_length - off;
 				len -= tfp->file_length - off;
-                off = 0;
+				off = 0;
 				continue;
 			}
 			if (off + len > (size_t)tfp->file_length) {
-                if (tfp->file_length == off) {
-                    off = 0;
-                    continue;
-                }
-				tmmp = torrent_mmap_create(tfp->fd, off,
+				if (tfp->file_length == off) {
+					off = 0;
+					continue;
+				}
+				tmmp = torrent_mmap_create(tp, tfp, off,
 				    tfp->file_length - off);
 				tpp->len += tmmp->len;
 				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
@@ -548,23 +561,22 @@ torrent_piece_map(struct torrent *tp, int idx)
 				len -= tfp->file_length - off;
 				off++;
 				if (idx == tp->num_pieces - 1) {
-					tmmp = torrent_mmap_create(nxttfp->fd,
+					tmmp = torrent_mmap_create(tp, nxttfp,
 					    0, nxttfp->file_length);
+				} else if (nxttfp->file_length < tp->piece_length - len) {
+					tmmp = torrent_mmap_create(tp, nxttfp,
+					    0, nxttfp->file_length);
+					tpp->len += tmmp->len;
+					TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp,
+					    mmaps);
+					off++;
+					len -= tmmp->len;
+					tfp = nxttfp;
+					off = 0;
+					continue;
 				} else {
-                    if (nxttfp->file_length < tp->piece_length - len) {
-                        tmmp = torrent_mmap_create(nxttfp->fd,
-                            0, nxttfp->file_length);
-                        tpp->len += tmmp->len;
-                        TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
-                        off++;
-                        len -= tmmp->len;
-                        tfp = nxttfp;
-                        off = 0;
-                        continue;
-                    } else {
-                        tmmp = torrent_mmap_create(nxttfp->fd,
-                            0, tp->piece_length - tpp->len);
-                    }
+					tmmp = torrent_mmap_create(tp, nxttfp,
+					    0, tp->piece_length - tpp->len);
 				}
 				tpp->len += tmmp->len;
 				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
@@ -572,8 +584,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 				break;
 			} else if (off < (size_t)tfp->file_length) {
 				/* piece lies within this file */
-				fd = tfp->fd;
-				tmmp = torrent_mmap_create(fd, off, len);
+				tmmp = torrent_mmap_create(tp, tfp, off, len);
 				off++;
 				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
 				tpp->len += len;
@@ -595,10 +606,8 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 	int hint;
 
 	d = torrent_block_read(tpp, 0, tpp->len, &hint);
-	if (d == NULL) {
-        printf("no block\n");
+	if (d == NULL)
 		return (-1);
-    }
 
 	SHA1Init(&sha);
 	SHA1Update(&sha, d, tpp->len);
@@ -613,7 +622,6 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 		s = tp->body.singlefile.pieces
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
 	}
-
 
 	return (memcmp(results, s, SHA1_DIGEST_LENGTH));
 }
@@ -632,6 +640,11 @@ torrent_piece_unmap(struct torrent *tp, int idx)
 	TAILQ_FOREACH(tmmp, &(tpp->mmaps), mmaps) {
 		if (munmap(tmmp->addr, tmmp->len) == -1)
 			err(1, "torrent_piece_unmap: munmap");
+		tmmp->tfp->refs--;
+		if (tmmp->tfp->refs == 0) {
+			(void) close(tmmp->tfp->fd);
+			tmmp->tfp->fd = 0;
+		}
 	}
 	while ((tmmp = TAILQ_FIRST(&tpp->mmaps))) {
 		TAILQ_REMOVE(&tpp->mmaps, tmmp, mmaps);
@@ -645,35 +658,36 @@ torrent_piece_unmap(struct torrent *tp, int idx)
 void
 torrent_data_open(struct torrent *tp)
 {
+	#if 0
 	struct torrent_file *tfp;
 	char buf[MAXPATHLEN];
 	int fd, l;
 
-#define OPEN_FLAGS O_RDWR|O_CREAT
 	if (tp->type == SINGLEFILE) {
-		if ((fd = open(tp->body.singlefile.name, OPEN_FLAGS, 0600)) == -1)
+		fd = open(tp->body.singlefile.name, OPEN_FLAGS, 0600);
+		if (fd == -1)
 			err(1, "torrent_data_open: open `%s'",
 			    tp->body.singlefile.name);
-		tp->body.singlefile.fd = fd;
+		tp->body.singlefile.tfp.fd = fd;
 	} else {
 		TAILQ_FOREACH(tfp, &(tp->body.multifile.files), files) {
 			memset(buf, '\0', sizeof(buf));
-			l = snprintf(buf, sizeof(buf), "%s/",
-			    tp->body.multifile.name);
+			l = snprintf(buf, sizeof(buf), "%s/%s",
+			    tp->body.multifile.name, tfp->path);
 			if (l == -1 || l >= (int)sizeof(buf))
-				errx(1, "torrent_data_open: path too long");
-			if (strlcat(buf, tfp->path, sizeof(buf)) >= sizeof(buf))
 				errx(1, "torrent_data_open: path too long");
 			if ((fd = open(buf, OPEN_FLAGS, 0600)) == -1)
 				err(1, "torrent_data_open: open `%s'", buf);
 			tfp->fd = fd;
 		}
 	}
+	#endif
 }
 
 void
 torrent_data_close(struct torrent *tp)
 {
+	#if 0
 	struct torrent_file *tfp;
 
 	if (tp->type == SINGLEFILE) {
@@ -683,5 +697,6 @@ torrent_data_close(struct torrent *tp)
 			(void) close(tfp->fd);
 		}
 	}
+	#endif
 }
 
