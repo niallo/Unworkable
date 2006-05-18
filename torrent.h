@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.14 2006-05-18 18:17:57 niallo Exp $ */
+/* $Id: torrent.h,v 1.15 2006-05-18 18:28:59 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -41,7 +41,7 @@ struct torrent_piece {
 
 struct torrent_file {
 	TAILQ_ENTRY(torrent_file)		files;
-	long long				file_length;
+	size_t					file_length;
 	char					*md5sum;
 	char					*path;
 	int					fd;
@@ -59,7 +59,7 @@ struct torrent {
 			TAILQ_HEAD(files, torrent_file) files;
 			char			*name;
 			char			*pieces;
-			long long		total_length;
+			size_t			total_length;
 		} multifile;
 	} body;
 	char					*announce;

@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.37 2006-05-18 18:17:57 niallo Exp $ */
+/* $Id: torrent.c,v 1.38 2006-05-18 18:28:59 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -290,7 +290,7 @@ torrent_print(struct torrent *torrent)
 	if (torrent->type == SINGLEFILE) {
 		tfile = &torrent->body.singlefile.tfp;
 		printf("single file\n");
-		printf("length:\t\t%lld bytes\n", tfile->file_length);
+		printf("length:\t\t%zd bytes\n", tfile->file_length);
 		printf("file name:\t%s\n", tfile->path);
 		printf("piece length:\t%d bytes\n",
 		    torrent->piece_length);
@@ -308,7 +308,7 @@ torrent_print(struct torrent *torrent)
 		printf("--files--\n");
 		TAILQ_FOREACH(tfile, &(torrent->body.multifile.files), files) {
 			printf("file name:\t%s\n", tfile->path);
-			printf("length:\t\t%lld bytes\n", tfile->file_length);
+			printf("length:\t\t%zd bytes\n", tfile->file_length);
 			printf("md5sum:\t\t");
 			if (tfile->md5sum == NULL)
 				printf("NONE\n");
@@ -535,13 +535,13 @@ torrent_piece_map(struct torrent *tp, int idx)
 		TAILQ_FOREACH(tfp, &(tp->body.multifile.files), files) {
 			/* piece offset puts it outside the current
 			   file, may be mapped to next file */
-			if (off > (size_t)tfp->file_length) {
+			if (off > tfp->file_length) {
 				off -= tfp->file_length;
 				continue;
 			}
 			/* file is too small for one piece
 			   and this piece is not yet full */
-			if ((size_t)tfp->file_length < len
+			if (tfp->file_length < len
 			    && tpp->len < len) {
 				tmmp = torrent_mmap_create(tp, tfp, off,
 				    tfp->file_length - off);
@@ -551,7 +551,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 				off = 0;
 				continue;
 			}
-			if (off + len > (size_t)tfp->file_length) {
+			if (off + len > tfp->file_length) {
 				if (tfp->file_length == off) {
 					off = 0;
 					continue;
@@ -582,7 +582,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
 				off++;
 				break;
-			} else if (off < (size_t)tfp->file_length) {
+			} else if (off < tfp->file_length) {
 				/* piece lies within this file */
 				tmmp = torrent_mmap_create(tp, tfp, off, len);
 				off++;
