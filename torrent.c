@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.27 2006-05-18 00:07:40 niallo Exp $ */
+/* $Id: torrent.c,v 1.28 2006-05-18 00:50:22 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -427,7 +427,7 @@ torrent_piece_find(struct torrent *tp, int idx)
 	find.index = idx;
 	res = RB_FIND(pieces, &(tp->pieces), &find);
 	if (res == NULL)
-		errx(1, "torrent_piece_find: no such piece");
+		errx(1, "torrent_piece_find: no such piece `%d'", idx);
 	return (res);
 }
 
@@ -573,8 +573,10 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 	int hint;
 
 	d = torrent_block_read(tpp, 0, tpp->len, &hint);
-	if (d == NULL)
+	if (d == NULL) {
+        printf("no block\n");
 		return (-1);
+    }
 
 	SHA1Init(&sha);
 	SHA1Update(&sha, d, tpp->len);
@@ -606,7 +608,7 @@ torrent_piece_unmap(struct torrent *tp, int idx)
 		errx(1, "torrent_piece_unmap: NULL piece");
 
 	TAILQ_FOREACH(tmmp, &(tpp->mmaps), mmaps) {
-		if (munmap(tmmp->addr, tmmp->len) < 0)
+		if (munmap(tmmp->addr, tmmp->len) == -1)
 			err(1, "torrent_piece_unmap: munmap");
 	}
 	while ((tmmp = TAILQ_FIRST(&tpp->mmaps))) {
@@ -615,8 +617,7 @@ torrent_piece_unmap(struct torrent *tp, int idx)
 	}
 
 	RB_REMOVE(pieces, &tp->pieces, tpp);
-	free(tp);
-
+	free(tpp);
 }
 
 void

@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.10 2006-05-18 00:14:50 niallo Exp $ */
+/* $Id: main.c,v 1.11 2006-05-18 00:50:22 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -40,7 +40,7 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	int ch, fd, i, j, iflag, badflag, hint;
+	int ch, fd, i, j, k, iflag, badflag, hint;
 	struct torrent *torrent;
 	struct torrent_piece *tpp;
 	char *p;
@@ -80,7 +80,12 @@ main(int argc, char **argv)
 			printf("hash mismatch for piece: %d\n", i);
 			badflag = 1;
 		}
-		torrent_piece_unmap(torrent, i);
+        /* lazy unmapping */
+        if (i % 8 == 0 && i > 0) {
+            for (k = 0; k < 8; k++) {
+		        torrent_piece_unmap(torrent, i - k);
+            }
+        }
 	}
 	if (badflag == 0)
 		printf("torrent matches hash\n");
