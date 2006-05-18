@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.41 2006-05-18 22:59:19 niallo Exp $ */
+/* $Id: torrent.c,v 1.42 2006-05-18 23:24:29 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -31,6 +31,7 @@
 #include <unistd.h>
 
 #include "bencode.h"
+#include "buf.h"
 #include "parse.h"
 #include "torrent.h"
 #include "xmalloc.h"
@@ -42,30 +43,18 @@ RB_GENERATE(pieces, torrent_piece, entry, torrent_intcmp)
 u_int8_t *
 torrent_parse_infohash(const char *file)
 {
-	int fd;
 	SHA1_CTX sha;
 	u_int8_t result[SHA1_DIGEST_LENGTH], *ret;
-	struct stat sb;
+	char *p, *buf;
+	BUF *b;
 	size_t len;
-	ssize_t n;
-	char *buf, *p;
 
-	if ((fd = open(file, O_RDONLY, 0)) == -1)
-		err(1, "torrent_parse_infohash: open `%s'", file);
-	
-	if (fstat(fd, &sb) == -1)
-		err(1, "torrent_parse_infohash: fstat");
+	if ((b = buf_load(file, BUF_AUTOEXT)) == NULL)
+		exit(1);
 
-	len = sb.st_size;
-
-	buf = xmalloc(len+1);
-	
-	n = read(fd, buf, len);
-	if (n == -1)
-		err(1, "torrent_parse_infohash: read");
-	(void) close(fd);
-
-	buf[len] = '\0';
+	len = buf_len(b);
+	buf = buf_release(b);
+	p = buf;
 	p = strstr(buf, "4:info");
 	if (p == NULL)
 		errx(1, "torrent_parse_infohash: no info key found");
