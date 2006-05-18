@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.34 2006-05-18 16:42:12 niallo Exp $ */
+/* $Id: torrent.c,v 1.35 2006-05-18 17:12:11 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -441,17 +441,20 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, size_t off,
 	char buf[MAXPATHLEN];
 	int fd = 0, l;
 	
-#define OPEN_FLAGS O_RDWR|O_CREAT
-	//printf("mmap: len: %d off: %d fd: %d\n", (int)len, (int)off, fd);
+#define OPEN_FLAGS O_RDONLY
 	if (tfp->fd == 0) {
-		l = snprintf(buf, sizeof(buf), "%s/%s",
-		    tp->body.multifile.name, tfp->path);
+		if (tp->type == SINGLEFILE)
+			l = snprintf(buf, sizeof(buf), "%s", tfp->path);
+		else
+			l = snprintf(buf, sizeof(buf), "%s/%s",
+			    tp->body.multifile.name, tfp->path);
 		if (l == -1 || l >= (int)sizeof(buf))
 			errx(1, "torrent_data_open: path too long");
 		if ((fd = open(buf, OPEN_FLAGS, 0600)) == -1)
 			err(1, "torrent_data_open: open `%s'", buf);
 		tfp->fd = fd;
 	}
+	//printf("mmap: len: %d off: %d fd: %d\n", (int)len, (int)off, tfp->fd);
 	if (fstat(tfp->fd, &sb) == -1)
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
 	if (sb.st_size < (len + off))
@@ -603,7 +606,7 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 {
 	SHA1_CTX sha;
 	u_int8_t *d, *s, results[SHA1_DIGEST_LENGTH];
-	int hint;
+	int hint, i;
 
 	d = torrent_block_read(tpp, 0, tpp->len, &hint);
 	if (d == NULL)
@@ -623,6 +626,17 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
 	}
 
+	#if 0
+	printf("actual hash: 0x");
+	for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
+		printf("%02x", s[i]);
+	printf("\n");
+	printf("genera hash: 0x");
+	for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
+		printf("%02x", results[i]);
+	printf("\n");
+	#endif
+	
 	return (memcmp(results, s, SHA1_DIGEST_LENGTH));
 }
 
