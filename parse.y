@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.40 2006-05-18 12:22:31 niallo Exp $ */
+/* $Id: parse.y,v 1.41 2006-05-18 22:59:19 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -34,6 +34,7 @@
 
 #include "bencode.h"
 #include "parse.h"
+#include "xmalloc.h"
 
 /* Assume no more than 16 nested dictionaries/lists. */
 #define  BENC_STACK_SIZE	16
@@ -279,8 +280,7 @@ yylex(void)
 	int	c;
 	long	buflen = BENC_BUFFER_SIZE, i = 0;
 
-	if ((buf = malloc(buflen)) == NULL)
-		err(1, "yylex: malloc");
+	buf = xmalloc(buflen);
 
 	p = buf;
 	memset(buf, '\0', buflen);
@@ -289,8 +289,7 @@ yylex(void)
 		if (i == buflen) {
 			size_t p_offset = p - buf;
 			buflen += BENC_BUFFER_INCREMENT;
-			if ((buf = realloc(buf, buflen)) == NULL)
-				err(1, "yylex: realloc");
+			buf = xrealloc(buf, buflen);
 			/* ensure pointers are not invalidated after realloc */
 			p = buf + p_offset;
 			/* NUL-fill the new memory */

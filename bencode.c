@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.23 2006-05-17 22:32:25 niallo Exp $ */
+/* $Id: bencode.c,v 1.24 2006-05-18 22:59:19 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "bencode.h"
+#include "xmalloc.h"
 
 #define IS_CONTAINER_TYPE(x) \
 	(x->flags & BDICT || x->flags & BLIST)
@@ -46,8 +47,7 @@ benc_node_create(void)
 {
 	struct benc_node *node;
 
-	if ((node = malloc(sizeof(*node))) == NULL)
-		err(1, "benc_create_node: malloc");
+	node = xmalloc(sizeof(*node));
 
 	memset(node, 0, sizeof(*node));
 

@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.40 2006-05-18 21:27:09 niallo Exp $ */
+/* $Id: torrent.c,v 1.41 2006-05-18 22:59:19 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -33,6 +33,7 @@
 #include "bencode.h"
 #include "parse.h"
 #include "torrent.h"
+#include "xmalloc.h"
 
 RB_PROTOTYPE(pieces, torrent_piece, entry, torrent_intcmp)
 RB_GENERATE(pieces, torrent_piece, entry, torrent_intcmp)
@@ -57,8 +58,7 @@ torrent_parse_infohash(const char *file)
 
 	len = sb.st_size;
 
-	if ((buf = malloc(len+1)) == NULL)
-		err(1, "torrent_parse_infohash: malloc");
+	buf = xmalloc(len+1);
 	
 	n = read(fd, buf, len);
 	if (n == -1)
@@ -75,8 +75,7 @@ torrent_parse_infohash(const char *file)
 	SHA1Update(&sha, p, (len - (p - buf)) - 1);
 	SHA1Final(result, &sha);
 
-	if ((ret = malloc(SHA1_DIGEST_LENGTH)) == NULL)
-		err(1, "torrent_parse_infohash: malloc");
+	ret = xmalloc(SHA1_DIGEST_LENGTH);
 	memcpy(ret, result, SHA1_DIGEST_LENGTH);
 	free(buf);
 
@@ -94,8 +93,7 @@ torrent_parse_file(const char *file)
 	int				l;
 	size_t				ret;
 
-	if ((torrent = malloc(sizeof(*torrent))) == NULL)
-		err(1, "torrent_parse_file: malloc");
+	torrent = xmalloc(sizeof(*torrent));
 
 	memset(torrent, 0, sizeof(*torrent));
 
@@ -197,8 +195,7 @@ torrent_parse_file(const char *file)
 
 		/* iterate through sub-dictionaries */
 		TAILQ_FOREACH(childnode, &(filenode->children), benc_nodes) {
-			if ((multi_file = malloc(sizeof(*multi_file))) == NULL)
-				err(1, "torrent_parse_file: malloc");
+			multi_file = xmalloc(sizeof(*multi_file));
 
 			memset(multi_file, 0, sizeof(*multi_file));
 			if ((tnode = benc_node_find(childnode, "length")) == NULL)
@@ -217,8 +214,7 @@ torrent_parse_file(const char *file)
 			if (!(tnode->flags & BLIST))
 				errx(1, "path is not a list");
 
-			if ((multi_file->path = malloc(MAXPATHLEN)) == NULL)
-				err(1, "torrent_parse_file: malloc");
+			multi_file->path = xmalloc(MAXPATHLEN);
 
 			memset(multi_file->path, '\0', MAXPATHLEN);
 
@@ -393,9 +389,7 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, size_t len, int *hint)
 			if (tmmp->len  < tlen) {
 				/* make sure we only malloc once */
 				if (*hint == 0) {
-					if ((block = malloc(len)) == NULL)
-						err(1,
-						    "torrent_block_read: malloc");
+					block = xmalloc(len);
 					bptr = block;
 					*hint = 1;
 				}
@@ -461,8 +455,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	if (sb.st_size < (len + off))
 		errx(1, "torrent_mmap_create: insufficient data in file");
 #define MMAP_FLAGS PROT_READ|PROT_WRITE
-	if ((tmmp = malloc(sizeof(*tmmp))) == NULL)
-		err(1, "torrent_mmap_create: malloc");
+	tmmp = xmalloc(sizeof(*tmmp));
 	memset(tmmp, 0, sizeof(*tmmp));
 	
 	tmmp->addr = mmap(0, len, MMAP_FLAGS, 0, tfp->fd, off);
@@ -484,8 +477,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 	size_t len;
 	off_t off;
 
-	if ((tpp = malloc(sizeof(*tpp))) == NULL)
-		err(1, "torrent_piece_map: malloc");
+	tpp = xmalloc(sizeof(*tpp));
 	
 	memset(tpp, 0, sizeof(*tpp));
 	tpp->index = idx;
