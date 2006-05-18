@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.38 2006-05-18 18:28:59 niallo Exp $ */
+/* $Id: torrent.c,v 1.39 2006-05-18 18:30:49 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -457,7 +457,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, size_t off,
 	//printf("mmap: len: %d off: %d fd: %d\n", (int)len, (int)off, tfp->fd);
 	if (fstat(tfp->fd, &sb) == -1)
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
-	if (sb.st_size < (len + off))
+	if ((size_t)sb.st_size < (len + off))
 		errx(1, "torrent_mmap_create: insufficient data in file");
 #define MMAP_FLAGS PROT_READ|PROT_WRITE
 	if ((tmmp = malloc(sizeof(*tmmp))) == NULL)
