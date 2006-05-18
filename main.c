@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.11 2006-05-18 00:50:22 niallo Exp $ */
+/* $Id: main.c,v 1.12 2006-05-18 15:50:18 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -77,7 +77,7 @@ main(int argc, char **argv)
 			printf("could not find piece: %d\n", i);
 		j = torrent_piece_checkhash(torrent, tpp);
 		if (j != 0) {
-			printf("hash mismatch for piece: %d\n", i);
+			errx(1, "hash mismatch for piece: %d\n", i);
 			badflag = 1;
 		}
         /* lazy unmapping */

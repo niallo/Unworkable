@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.32 2006-05-18 01:38:57 niallo Exp $ */
+/* $Id: torrent.c,v 1.33 2006-05-18 15:50:18 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -439,6 +439,7 @@ torrent_mmap_create(int fd, size_t off, size_t len)
 	struct torrent_mmap *tmmp;
 	struct stat sb;
 	
+	//printf("mmap: len: %d off: %d fd: %d\n", (int)len, (int)off, fd);
 	if (fstat(fd, &sb) == -1)
 		err(1, "torrent_mmap_create: fstat");
 	if (sb.st_size < (len + off))
@@ -448,7 +449,6 @@ torrent_mmap_create(int fd, size_t off, size_t len)
 		err(1, "torrent_mmap_create: malloc");
 	memset(tmmp, 0, sizeof(*tmmp));
 	
-	//printf("mmap: len %d off: %d fd: %d\n", (int)len, (int)off, fd);
 	tmmp->addr = mmap(0, len, MMAP_FLAGS, 0, fd, off);
 	if (tmmp->addr == MAP_FAILED)
 		err(1, "torrent_mmap_create: mmap");
@@ -527,28 +527,44 @@ torrent_piece_map(struct torrent *tp, int idx)
 			   and this piece is not yet full */
 			if ((size_t)tfp->file_length < len
 			    && tpp->len < len) {
-				tmmp = torrent_mmap_create(tfp->fd, 0,
-				    tfp->file_length);
+				tmmp = torrent_mmap_create(tfp->fd, off,
+				    tfp->file_length - off);
 				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
-				tpp->len += tfp->file_length;
-				len -= tfp->file_length;
+				tpp->len += tfp->file_length - off;
+				len -= tfp->file_length - off;
+                off = 0;
 				continue;
 			}
-			/* piece overlaps this file and the next one */
 			if (off + len > (size_t)tfp->file_length) {
+                if (tfp->file_length == off) {
+                    off = 0;
+                    continue;
+                }
 				tmmp = torrent_mmap_create(tfp->fd, off,
 				    tfp->file_length - off);
 				tpp->len += tmmp->len;
 				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
 				nxttfp = TAILQ_NEXT(tfp, files);
-				len = tfp->file_length - off;
+				len -= tfp->file_length - off;
 				off++;
 				if (idx == tp->num_pieces - 1) {
 					tmmp = torrent_mmap_create(nxttfp->fd,
 					    0, nxttfp->file_length);
 				} else {
-					tmmp = torrent_mmap_create(nxttfp->fd,
-					    0, tp->piece_length - len);
+                    if (nxttfp->file_length < tp->piece_length - len) {
+                        tmmp = torrent_mmap_create(nxttfp->fd,
+                            0, nxttfp->file_length);
+                        tpp->len += tmmp->len;
+                        TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
+                        off++;
+                        len -= tmmp->len;
+                        tfp = nxttfp;
+                        off = 0;
+                        continue;
+                    } else {
+                        tmmp = torrent_mmap_create(nxttfp->fd,
+                            0, tp->piece_length - tpp->len);
+                    }
 				}
 				tpp->len += tmmp->len;
 				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
