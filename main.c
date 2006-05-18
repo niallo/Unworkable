@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.12 2006-05-18 15:50:18 niallo Exp $ */
+/* $Id: main.c,v 1.13 2006-05-18 18:17:57 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -40,10 +40,9 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	int ch, fd, i, j, k, iflag, badflag, hint;
+	int ch, i, j, k, iflag, badflag;
 	struct torrent *torrent;
 	struct torrent_piece *tpp;
-	char *p;
 
 	badflag = 0;
 
@@ -68,7 +67,6 @@ main(int argc, char **argv)
 
 	torrent = torrent_parse_file(argv[0]);
 	torrent_print(torrent);
-	torrent_data_open(torrent);
 
 	for (i = 0; i < torrent->num_pieces; i++) {
 		torrent_piece_map(torrent, i);

@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.36 2006-05-18 18:03:34 niallo Exp $ */
+/* $Id: torrent.c,v 1.37 2006-05-18 18:17:57 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -563,12 +563,6 @@ torrent_piece_map(struct torrent *tp, int idx)
 				nxttfp = TAILQ_NEXT(tfp, files);
 				len -= tmmp->len;
 				off++;
-				#if 0
-				if (idx == tp->num_pieces - 1) {
-					tmmp = torrent_mmap_create(tp, nxttfp,
-					    0, nxttfp->file_length);
-				} else if (nxttfp->file_length < len) {
-				#endif
 				if (nxttfp->file_length < len) {
 					tmmp = torrent_mmap_create(tp, nxttfp,
 					    0, nxttfp->file_length);
@@ -609,7 +603,7 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 {
 	SHA1_CTX sha;
 	u_int8_t *d, *s, results[SHA1_DIGEST_LENGTH];
-	int hint, i;
+	int hint;
 
 	d = torrent_block_read(tpp, 0, tpp->len, &hint);
 	if (d == NULL)
@@ -670,50 +664,5 @@ torrent_piece_unmap(struct torrent *tp, int idx)
 
 	RB_REMOVE(pieces, &tp->pieces, tpp);
 	free(tpp);
-}
-
-void
-torrent_data_open(struct torrent *tp)
-{
-	#if 0
-	struct torrent_file *tfp;
-	char buf[MAXPATHLEN];
-	int fd, l;
-
-	if (tp->type == SINGLEFILE) {
-		fd = open(tp->body.singlefile.name, OPEN_FLAGS, 0600);
-		if (fd == -1)
-			err(1, "torrent_data_open: open `%s'",
-			    tp->body.singlefile.name);
-		tp->body.singlefile.tfp.fd = fd;
-	} else {
-		TAILQ_FOREACH(tfp, &(tp->body.multifile.files), files) {
-			memset(buf, '\0', sizeof(buf));
-			l = snprintf(buf, sizeof(buf), "%s/%s",
-			    tp->body.multifile.name, tfp->path);
-			if (l == -1 || l >= (int)sizeof(buf))
-				errx(1, "torrent_data_open: path too long");
-			if ((fd = open(buf, OPEN_FLAGS, 0600)) == -1)
-				err(1, "torrent_data_open: open `%s'", buf);
-			tfp->fd = fd;
-		}
-	}
-	#endif
-}
-
-void
-torrent_data_close(struct torrent *tp)
-{
-	#if 0
-	struct torrent_file *tfp;
-
-	if (tp->type == SINGLEFILE) {
-		(void) close(tp->body.singlefile.fd);
-	} else {
-		TAILQ_FOREACH(tfp, &(tp->body.multifile.files), files) {
-			(void) close(tfp->fd);
-		}
-	}
-	#endif
 }
 
