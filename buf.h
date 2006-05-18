@@ -38,7 +38,7 @@ BUF		*buf_alloc(size_t, u_int);
 BUF		*buf_load(const char *, u_int);
 void		 buf_free(BUF *);
 void		*buf_release(BUF *);
-u_char		 buf_getc(BUF *);
+int		 buf_getc(BUF *);
 void		 buf_empty(BUF *);
 ssize_t		 buf_set(BUF *, const void *, size_t, size_t);
 ssize_t		 buf_append(BUF *, const void *, size_t);
@@ -49,6 +49,7 @@ size_t		 buf_len(BUF *);
 int		 buf_write_fd(BUF *, int);
 int		 buf_write(BUF *, const char *, mode_t);
 void		 buf_write_stmp(BUF *, char *, mode_t);
+void		 buf_ungetc(BUF *);
 
 #define buf_get(b)	buf_peek(b, 0)
 

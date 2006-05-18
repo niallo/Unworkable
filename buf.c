@@ -1,4 +1,4 @@
-/* $Id: buf.c,v 1.1 2006-05-18 23:24:29 niallo Exp $ */
+/* $Id: buf.c,v 1.2 2006-05-18 23:43:35 niallo Exp $ */
 /*
  * Copyright (c) 2003 Jean-Francois Brousseau <jfb@openbsd.org>
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
@@ -238,17 +238,24 @@ buf_putc(BUF *b, int c)
  * Return u_char at buffer position <pos>.
  *
  */
-u_char
+int
 buf_getc(BUF *b)
 {
-	u_char c;
-	if (b->cb_pos < b->cb_len - 1) {
+	int c;
+	if (b->cb_pos < b->cb_len) {
 		c = b->cb_cur[b->cb_pos];
 		b->cb_pos++;
 		return (c);
 	} else {
 		return (EOF);
 	}
+}
+
+void
+buf_ungetc(BUF *b)
+{
+	if (b->cb_len > 0)
+		b->cb_pos--;
 }
 
 /*

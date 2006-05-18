@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.41 2006-05-18 22:59:19 niallo Exp $ */
+/* $Id: parse.y,v 1.42 2006-05-18 23:43:35 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -33,6 +33,7 @@
 #include <string.h>
 
 #include "bencode.h"
+#include "buf.h"
 #include "parse.h"
 #include "xmalloc.h"
 
@@ -56,7 +57,7 @@ static int			bcdone   = 0;
 
 static struct benc_node		*bstack[BENC_STACK_SIZE];
 static int			bstackidx = 0;
-FILE				*fin     = NULL;
+BUF				*in     = NULL;
 
 %}
 
@@ -302,7 +303,7 @@ yylex(void)
 			return (STRING);
 		}
 
-		if ((c = fgetc(fin)) == EOF) {
+		if ((c = buf_getc(in)) == EOF) {
 			free(buf);
 			return (0);
 		}
@@ -318,7 +319,7 @@ yylex(void)
 				yylval.string = buf;
 				bdone = 1;
 				bcdone = 0;
-				(void)ungetc(c, fin);
+				(void)buf_ungetc(in);
 				return (STRING);
 			} else {
 				bdone = 0;
@@ -331,7 +332,7 @@ yylex(void)
 			if (bdone == 0 && i > 0) {
 				yylval.string = buf;
 				bdone = 1;
-				(void)ungetc(c, fin);
+				(void)buf_ungetc(in);
 				return (STRING);
 			} else {
 				bdone = 0;
@@ -400,7 +401,7 @@ static void
 benc_stack_push(struct benc_node *node)
 {
 	if (bstackidx == BENC_STACK_SIZE - 1)
-		errx(1, "benc_stack_push: stack overflow");	
+		errx(1, "benc_stack_push: stack overflow");
 	bstack[bstackidx] = node;
 	bstackidx++;
 }

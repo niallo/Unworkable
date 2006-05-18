@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.42 2006-05-18 23:24:29 niallo Exp $ */
+/* $Id: torrent.c,v 1.43 2006-05-18 23:43:35 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -78,7 +78,7 @@ torrent_parse_file(const char *file)
 	struct torrent			*torrent;
 	struct benc_node		*node, *lnode, *tnode;
 	struct benc_node		*filenode, *childnode;
-	FILE				*fp;
+	BUF				*buf;
 	int				l;
 	size_t				ret;
 
@@ -86,16 +86,15 @@ torrent_parse_file(const char *file)
 
 	memset(torrent, 0, sizeof(*torrent));
 
-	if ((fp = fopen(file, "r")) == NULL)
-		err(1, "torrent_parse_file: fopen");
+	if ((buf = buf_load(file, 0)) == NULL)
+		err(1, "torrent_parse_file: buf_load");
 
-	fin = fp;
+	in = buf;
 	if (yyparse() != 0) {
-		fclose(fin);
 		errx(1, "torrent_parse_file: yyparse of %s", file);
 	}
 
-	fclose(fin);
+	buf_free(in);
 	torrent->info_hash = torrent_parse_infohash(file);
 
 	if ((node = benc_node_find(root, "announce")) == NULL)
