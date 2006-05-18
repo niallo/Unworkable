@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.28 2006-05-18 00:50:22 niallo Exp $ */
+/* $Id: torrent.c,v 1.29 2006-05-18 01:23:32 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -406,16 +406,18 @@ torrent_block_read(struct torrent_piece *tpp, size_t off, size_t len, int *hint)
 				/* if possible, do not do a buffer copy,
 				 * but return the mmaped base address directly
 				 */
-				if (*hint == 0)
+				if (*hint == 0) {
 					return (aptr);
+                }
 
 				memcpy(bptr, aptr, tlen);
 				return (block);
 			}
 		}
 	}
-	if (*hint == 1)
+	if (*hint == 1) {
 		return (block);
+    }
 
 	return (NULL);
 }
@@ -432,7 +434,7 @@ torrent_piece_find(struct torrent *tp, int idx)
 }
 
 struct torrent_mmap *
-torrent_mmap_create(int fd, off_t off, size_t len)
+torrent_mmap_create(int fd, size_t off, size_t len)
 {
 	struct torrent_mmap *tmmp;
 
@@ -456,8 +458,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 	struct torrent_piece *tpp;
 	struct torrent_file  *nxttfp, *tfp, *lasttfp;
 	struct torrent_mmap  *tmmp;
-	off_t off;
-	size_t len;
+	size_t len, off;
 	int fd;
 
 	if ((tpp = malloc(sizeof(*tpp))) == NULL)

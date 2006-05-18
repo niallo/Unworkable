@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.11 2006-05-17 22:43:13 niallo Exp $ */
+/* $Id: torrent.h,v 1.12 2006-05-18 01:23:32 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -80,7 +80,7 @@ void			 torrent_block_write(struct torrent_piece *, size_t,
 			    size_t, void *);
 void			 torrent_data_open(struct torrent *);
 void			 torrent_data_close(struct torrent *);
-struct torrent_mmap	*torrent_mmap_create(int, off_t, size_t);
+struct torrent_mmap	*torrent_mmap_create(int, size_t, size_t);
 struct torrent		*torrent_parse_file(const char *);
 u_int8_t		*torrent_parse_infohash(const char *);
 int			 torrent_piece_checkhash(struct torrent *,
