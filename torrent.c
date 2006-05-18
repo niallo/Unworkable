@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.39 2006-05-18 18:30:49 niallo Exp $ */
+/* $Id: torrent.c,v 1.40 2006-05-18 21:27:09 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -290,7 +290,7 @@ torrent_print(struct torrent *torrent)
 	if (torrent->type == SINGLEFILE) {
 		tfile = &torrent->body.singlefile.tfp;
 		printf("single file\n");
-		printf("length:\t\t%zd bytes\n", tfile->file_length);
+		printf("length:\t\t%lld bytes\n", tfile->file_length);
 		printf("file name:\t%s\n", tfile->path);
 		printf("piece length:\t%d bytes\n",
 		    torrent->piece_length);
@@ -308,7 +308,7 @@ torrent_print(struct torrent *torrent)
 		printf("--files--\n");
 		TAILQ_FOREACH(tfile, &(torrent->body.multifile.files), files) {
 			printf("file name:\t%s\n", tfile->path);
-			printf("length:\t\t%zd bytes\n", tfile->file_length);
+			printf("length:\t\t%lld bytes\n", tfile->file_length);
 			printf("md5sum:\t\t");
 			if (tfile->md5sum == NULL)
 				printf("NONE\n");
@@ -357,12 +357,13 @@ torrent_block_write(struct torrent_piece *tpp, size_t off, size_t len, void *d)
 
 /* hint will be set to 1 if the return value needs to be freed */
 void *
-torrent_block_read(struct torrent_piece *tpp, size_t off, size_t len, int *hint)
+torrent_block_read(struct torrent_piece *tpp, off_t off, size_t len, int *hint)
 {
 	void *block;
 	char *aptr, *bptr;
 	struct torrent_mmap *tmmp;
-	size_t cntlen = 0, cntbase = 0, tlen = len;
+	off_t cntlen = 0, cntbase = 0;
+	size_t tlen = len;
 
 	*hint = 0;
 	block = NULL;
@@ -433,7 +434,7 @@ torrent_piece_find(struct torrent *tp, int idx)
 }
 
 struct torrent_mmap *
-torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, size_t off,
+torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
     size_t len)
 {
 	struct torrent_mmap *tmmp;
@@ -454,10 +455,10 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, size_t off,
 			err(1, "torrent_data_open: open `%s'", buf);
 		tfp->fd = fd;
 	}
-	//printf("mmap: len: %d off: %d fd: %d\n", (int)len, (int)off, tfp->fd);
+	//printf("mmap: len: %zd off: %llu fd: %d\n", len, off, tfp->fd);
 	if (fstat(tfp->fd, &sb) == -1)
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
-	if ((size_t)sb.st_size < (len + off))
+	if (sb.st_size < (len + off))
 		errx(1, "torrent_mmap_create: insufficient data in file");
 #define MMAP_FLAGS PROT_READ|PROT_WRITE
 	if ((tmmp = malloc(sizeof(*tmmp))) == NULL)
@@ -480,7 +481,8 @@ torrent_piece_map(struct torrent *tp, int idx)
 	struct torrent_piece *tpp;
 	struct torrent_file  *nxttfp, *tfp, *lasttfp;
 	struct torrent_mmap  *tmmp;
-	size_t len, off;
+	size_t len;
+	off_t off;
 
 	if ((tpp = malloc(sizeof(*tpp))) == NULL)
 		err(1, "torrent_piece_map: malloc");
@@ -489,9 +491,9 @@ torrent_piece_map(struct torrent *tp, int idx)
 	tpp->index = idx;
 	TAILQ_INIT(&(tpp->mmaps));
 
+	off = tp->piece_length * (off_t)idx;
 	/* nice and simple */
 	if (tp->type == SINGLEFILE) {
-		off = tp->piece_length * idx;
 		/* last piece is irregular */
 		tfp = &tp->body.singlefile.tfp;
 		if (idx == tp->num_pieces - 1) {
@@ -522,7 +524,6 @@ torrent_piece_map(struct torrent *tp, int idx)
 		 * This is kind of complicated.
 		 */
 
-		off = tp->piece_length * idx;
 		/* last piece is irregular */
 		if (idx == tp->num_pieces - 1) {
 			lasttfp = TAILQ_LAST(&(tp->body.multifile.files),

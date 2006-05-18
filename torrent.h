@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.15 2006-05-18 18:28:59 niallo Exp $ */
+/* $Id: torrent.h,v 1.16 2006-05-18 21:27:09 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -41,7 +41,7 @@ struct torrent_piece {
 
 struct torrent_file {
 	TAILQ_ENTRY(torrent_file)		files;
-	size_t					file_length;
+	off_t					file_length;
 	char					*md5sum;
 	char					*path;
 	int					fd;
@@ -59,7 +59,7 @@ struct torrent {
 			TAILQ_HEAD(files, torrent_file) files;
 			char			*name;
 			char			*pieces;
-			size_t			total_length;
+			off_t			total_length;
 		} multifile;
 	} body;
 	char					*announce;
@@ -73,12 +73,12 @@ struct torrent {
 	enum type				type;
 };
 
-void			*torrent_block_read(struct torrent_piece *, size_t,
+void			*torrent_block_read(struct torrent_piece *, off_t,
 			    size_t, int *);
 void			 torrent_block_write(struct torrent_piece *, size_t,
 			    size_t, void *);
 struct torrent_mmap	*torrent_mmap_create(struct torrent *,
-			    struct torrent_file *, size_t, size_t);
+			    struct torrent_file *, off_t, size_t);
 struct torrent		*torrent_parse_file(const char *);
 u_int8_t		*torrent_parse_infohash(const char *);
 int			 torrent_piece_checkhash(struct torrent *,
