@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.29 2006-05-18 01:23:32 niallo Exp $ */
+/* $Id: torrent.c,v 1.30 2006-05-18 01:28:53 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -630,7 +630,7 @@ torrent_data_open(struct torrent *tp)
 
 #define OPEN_FLAGS O_RDWR|O_CREAT
 	if (tp->type == SINGLEFILE) {
-		if ((fd = open(tp->body.singlefile.name, OPEN_FLAGS, 0600)) < 0)
+		if ((fd = open(tp->body.singlefile.name, OPEN_FLAGS, 0600)) == -1)
 			err(1, "torrent_data_open: open `%s'",
 			    tp->body.singlefile.name);
 		tp->body.singlefile.fd = fd;
@@ -643,7 +643,7 @@ torrent_data_open(struct torrent *tp)
 				errx(1, "torrent_data_open: path too long");
 			if (strlcat(buf, tfp->path, sizeof(buf)) >= sizeof(buf))
 				errx(1, "torrent_data_open: path too long");
-			if ((fd = open(buf, OPEN_FLAGS, 0600)) < 0)
+			if ((fd = open(buf, OPEN_FLAGS, 0600)) == -1)
 				err(1, "torrent_data_open: open `%s'", buf);
 			tfp->fd = fd;
 		}
