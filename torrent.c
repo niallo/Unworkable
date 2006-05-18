@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.26 2006-05-17 23:53:07 niallo Exp $ */
+/* $Id: torrent.c,v 1.27 2006-05-18 00:07:40 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -609,6 +609,14 @@ torrent_piece_unmap(struct torrent *tp, int idx)
 		if (munmap(tmmp->addr, tmmp->len) < 0)
 			err(1, "torrent_piece_unmap: munmap");
 	}
+	while ((tmmp = TAILQ_FIRST(&tpp->mmaps))) {
+		TAILQ_REMOVE(&tpp->mmaps, tmmp, mmaps);
+		free(tmmp);
+	}
+
+	RB_REMOVE(pieces, &tp->pieces, tpp);
+	free(tp);
+
 }
 
 void
