@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.39 2006-05-17 22:32:26 niallo Exp $ */
+/* $Id: parse.y,v 1.40 2006-05-18 12:22:31 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -186,7 +186,7 @@ blist_entries	: bint						{
 			benc_node_add(benc_stack_peek(), $2);
 		}
 		| blist_entries bstring				{
-			benc_node_add(benc_stack_peek(), $1);
+			benc_node_add(benc_stack_peek(), $2);
 		}
 		| blist_entries blist				{
 			benc_node_add(benc_stack_peek(), $2);
