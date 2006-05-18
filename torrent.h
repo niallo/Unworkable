@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.16 2006-05-18 21:27:09 niallo Exp $ */
+/* $Id: torrent.h,v 1.17 2006-05-18 22:27:52 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -32,7 +32,6 @@ struct torrent_mmap {
 
 struct torrent_piece {
 	int				flags;
-	char				*sha1;
 	size_t				len;
 	int				index;
 	TAILQ_HEAD(mmaps, torrent_mmap)	mmaps;
