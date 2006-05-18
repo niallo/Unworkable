@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.9 2006-05-17 23:53:07 niallo Exp $ */
+/* $Id: main.c,v 1.10 2006-05-18 00:14:50 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -73,6 +73,8 @@ main(int argc, char **argv)
 	for (i = 0; i < torrent->num_pieces; i++) {
 		torrent_piece_map(torrent, i);
 		tpp = torrent_piece_find(torrent, i);
+		if (tpp == NULL)
+			printf("could not find piece: %d\n", i);
 		j = torrent_piece_checkhash(torrent, tpp);
 		if (j != 0) {
 			printf("hash mismatch for piece: %d\n", i);
