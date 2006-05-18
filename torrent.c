@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.35 2006-05-18 17:12:11 niallo Exp $ */
+/* $Id: torrent.c,v 1.36 2006-05-18 18:03:34 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -561,12 +561,15 @@ torrent_piece_map(struct torrent *tp, int idx)
 				tpp->len += tmmp->len;
 				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
 				nxttfp = TAILQ_NEXT(tfp, files);
-				len -= tfp->file_length - off;
+				len -= tmmp->len;
 				off++;
+				#if 0
 				if (idx == tp->num_pieces - 1) {
 					tmmp = torrent_mmap_create(tp, nxttfp,
 					    0, nxttfp->file_length);
-				} else if (nxttfp->file_length < tp->piece_length - len) {
+				} else if (nxttfp->file_length < len) {
+				#endif
+				if (nxttfp->file_length < len) {
 					tmmp = torrent_mmap_create(tp, nxttfp,
 					    0, nxttfp->file_length);
 					tpp->len += tmmp->len;
@@ -579,7 +582,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 					continue;
 				} else {
 					tmmp = torrent_mmap_create(tp, nxttfp,
-					    0, tp->piece_length - tpp->len);
+					    0, len);
 				}
 				tpp->len += tmmp->len;
 				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
