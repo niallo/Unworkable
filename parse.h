@@ -1,4 +1,4 @@
-/* $Id: parse.h,v 1.4 2006-05-18 23:43:35 niallo Exp $ */
+/* $Id: parse.h,v 1.5 2006-05-19 00:09:41 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -21,6 +21,7 @@
 int				yyerror(const char *, ...);
 int				yyparse(void);
 int				yylex(void);
+struct benc_node		*benc_parse_buf(BUF *b);
 
 extern BUF			*in;
 /* PARSE_H */

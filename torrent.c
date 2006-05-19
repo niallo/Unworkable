@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.43 2006-05-18 23:43:35 niallo Exp $ */
+/* $Id: torrent.c,v 1.44 2006-05-19 00:09:41 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -76,7 +76,7 @@ torrent_parse_file(const char *file)
 {
 	struct torrent_file		*multi_file;
 	struct torrent			*torrent;
-	struct benc_node		*node, *lnode, *tnode;
+	struct benc_node		*troot, *node, *lnode, *tnode;
 	struct benc_node		*filenode, *childnode;
 	BUF				*buf;
 	int				l;
@@ -90,14 +90,13 @@ torrent_parse_file(const char *file)
 		err(1, "torrent_parse_file: buf_load");
 
 	in = buf;
-	if (yyparse() != 0) {
+	if ((troot = benc_parse_buf(buf)) == NULL)
 		errx(1, "torrent_parse_file: yyparse of %s", file);
-	}
 
 	buf_free(in);
 	torrent->info_hash = torrent_parse_infohash(file);
 
-	if ((node = benc_node_find(root, "announce")) == NULL)
+	if ((node = benc_node_find(troot, "announce")) == NULL)
 		errx(1, "no announce data found in torrent");
 
 	if (node->flags & BSTRING)
@@ -105,13 +104,13 @@ torrent_parse_file(const char *file)
 	else
 		errx(1, "announce value is not a string");
 
-	if ((node = benc_node_find(root, "comment")) != NULL
+	if ((node = benc_node_find(troot, "comment")) != NULL
 	    && node->flags & BSTRING)
 		torrent->comment = node->body.string.value;
 
-	if ((filenode = benc_node_find(root, "files")) == NULL) {
+	if ((filenode = benc_node_find(troot, "files")) == NULL) {
 		torrent->type = SINGLEFILE;
-		if ((node = benc_node_find(root, "length")) == NULL)
+		if ((node = benc_node_find(troot, "length")) == NULL)
 			errx(1, "no length field");
 
 		if (!(node->flags & BINT))
@@ -119,7 +118,7 @@ torrent_parse_file(const char *file)
 
 		torrent->body.singlefile.tfp.file_length = node->body.number;
 
-		if ((node = benc_node_find(root, "name")) == NULL)
+		if ((node = benc_node_find(troot, "name")) == NULL)
 			errx(1, "no name field");
 
 		if (!(node->flags & BSTRING))
@@ -127,7 +126,7 @@ torrent_parse_file(const char *file)
 
 		torrent->body.singlefile.tfp.path = node->body.string.value;
 
-		if ((node = benc_node_find(root, "piece length")) == NULL)
+		if ((node = benc_node_find(troot, "piece length")) == NULL)
 			errx(1, "no piece length field");
 
 		if (!(node->flags & BINT))
@@ -135,7 +134,7 @@ torrent_parse_file(const char *file)
 
 		torrent->piece_length = node->body.number;
 
-		if ((node = benc_node_find(root, "pieces")) == NULL)
+		if ((node = benc_node_find(troot, "pieces")) == NULL)
 			errx(1, "no pieces field");
 
 		if (!(node->flags & BSTRING))
@@ -144,7 +143,7 @@ torrent_parse_file(const char *file)
 		torrent->body.singlefile.pieces = node->body.string.value;
 		torrent->num_pieces = node->body.string.len / 20;
 
-		if ((node = benc_node_find(root, "md5sum")) != NULL) {
+		if ((node = benc_node_find(troot, "md5sum")) != NULL) {
 			if (!(node->flags & BSTRING))
 				errx(1, "md5sum is not a string");
 			else
@@ -153,7 +152,7 @@ torrent_parse_file(const char *file)
 		}
 	} else {
 		torrent->type = MULTIFILE;
-		if ((node = benc_node_find(root, "name")) == NULL)
+		if ((node = benc_node_find(troot, "name")) == NULL)
 			errx(1, "no name field");
 
 		if (!(node->flags & BSTRING))
@@ -161,7 +160,7 @@ torrent_parse_file(const char *file)
 
 		torrent->body.multifile.name = node->body.string.value;
 
-		if ((node = benc_node_find(root, "piece length")) == NULL)
+		if ((node = benc_node_find(troot, "piece length")) == NULL)
 			errx(1, "no piece length field");
 
 		if (!(node->flags & BINT))
@@ -169,7 +168,7 @@ torrent_parse_file(const char *file)
 
 		torrent->piece_length = node->body.number;
 
-		if ((node = benc_node_find(root, "pieces")) == NULL)
+		if ((node = benc_node_find(troot, "pieces")) == NULL)
 			errx(1, "no pieces field");
 
 		if (!(node->flags & BSTRING))
@@ -230,11 +229,11 @@ torrent_parse_file(const char *file)
 		}
 	}
 
-	if ((node = benc_node_find(root, "created by")) != NULL
+	if ((node = benc_node_find(troot, "created by")) != NULL
 	    && node->flags & BSTRING)
 		torrent->created_by = node->body.string.value;
 
-	if ((node = benc_node_find(root, "creation date")) != NULL
+	if ((node = benc_node_find(troot, "creation date")) != NULL
 	    && node->flags & BINT)
 		torrent->creation_date = node->body.number;
 
