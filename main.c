@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.13 2006-05-18 18:17:57 niallo Exp $ */
+/* $Id: main.c,v 1.14 2006-05-19 01:03:03 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -78,12 +78,11 @@ main(int argc, char **argv)
 			errx(1, "hash mismatch for piece: %d\n", i);
 			badflag = 1;
 		}
-        /* lazy unmapping */
-        if (i % 8 == 0 && i > 0) {
-            for (k = 0; k < 8; k++) {
-		        torrent_piece_unmap(torrent, i - k);
-            }
-        }
+		/* lazy unmapping */
+		if (i % 8 == 0 && i > 0) {
+			for (k = 0; k < 8; k++)
+				torrent_piece_unmap(torrent, i - k);
+		}
 	}
 	if (badflag == 0)
 		printf("torrent matches hash\n");
