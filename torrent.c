@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.44 2006-05-19 00:09:41 niallo Exp $ */
+/* $Id: torrent.c,v 1.45 2006-05-19 01:00:22 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -308,31 +308,34 @@ torrent_intcmp(struct torrent_piece *p1, struct torrent_piece *p2)
 }
 
 void
-torrent_block_write(struct torrent_piece *tpp, size_t off, size_t len, void *d)
+torrent_block_write(struct torrent_piece *tpp, off_t off, size_t len, void *d)
 {
-	void *block;
-	char *aptr, *bptr;
 	struct torrent_mmap *tmmp;
-	size_t cntlen = 0, tlen = len;
-
-	block = NULL;
-	bptr = NULL;
+	off_t cntlen = 0, cntbase = 0;
+	size_t tlen = len;
+	char *aptr;
 
 	TAILQ_FOREACH(tmmp, &(tpp->mmaps), mmaps) {
 		cntlen += tmmp->len;
-		if (tmmp->len < off) {
+		if (cntlen < off) {
+			cntbase += tmmp->len;
 			continue;
 		} else {
-			aptr = (char *)tmmp->addr;
-			for (; cntlen < off; cntlen++) {
+			aptr = tmmp->addr;
+			for(; cntbase < off; cntbase++)
 				aptr++;
-			}
-			if (tmmp->len < len) {
-				memcpy(bptr, aptr, tmmp->len);
-				bptr += tmmp->len;
-				tlen = len - tmmp->len;
+
+			/* this mapping might not contain as many bytes as
+			   we requested.  in that case, copy as many as
+			   possible and continue to next mapping */
+			if (tmmp->len  < tlen) {
+				memcpy(aptr, d, tmmp->len);
+				tlen -= tmmp->len;
 			} else {
-				memcpy(bptr, aptr, tlen);
+				/* if possible, do not do a buffer copy,
+				 * but return the mmaped base address directly
+				 */
+				memcpy(aptr, d, tlen);
 			}
 		}
 	}
@@ -389,8 +392,7 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, size_t len, int *hint)
 				 */
 				if (*hint == 0) {
 					return (aptr);
-                }
-
+				}
 				memcpy(bptr, aptr, tlen);
 				return (block);
 			}
@@ -398,7 +400,7 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, size_t len, int *hint)
 	}
 	if (*hint == 1) {
 		return (block);
-    }
+	}
 
 	return (NULL);
 }
