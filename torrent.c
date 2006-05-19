@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.45 2006-05-19 01:00:22 niallo Exp $ */
+/* $Id: torrent.c,v 1.46 2006-05-19 01:08:33 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -441,7 +441,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	//printf("mmap: len: %zd off: %llu fd: %d\n", len, off, tfp->fd);
 	if (fstat(tfp->fd, &sb) == -1)
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
-	if (sb.st_size < (len + off))
+	if (sb.st_size < ((off_t)len + off))
 		errx(1, "torrent_mmap_create: insufficient data in file");
 #define MMAP_FLAGS PROT_READ|PROT_WRITE
 	tmmp = xmalloc(sizeof(*tmmp));
@@ -523,7 +523,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 			}
 			/* file is too small for one piece
 			   and this piece is not yet full */
-			if (tfp->file_length < len
+			if (tfp->file_length < (off_t)len
 			    && tpp->len < len) {
 				tmmp = torrent_mmap_create(tp, tfp, off,
 				    tfp->file_length - off);
@@ -533,7 +533,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 				off = 0;
 				continue;
 			}
-			if (off + len > tfp->file_length) {
+			if (off + (off_t)len > tfp->file_length) {
 				if (tfp->file_length == off) {
 					off = 0;
 					continue;
@@ -545,7 +545,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 				nxttfp = TAILQ_NEXT(tfp, files);
 				len -= tmmp->len;
 				off++;
-				if (nxttfp->file_length < len) {
+				if (nxttfp->file_length < (off_t)len) {
 					tmmp = torrent_mmap_create(tp, nxttfp,
 					    0, nxttfp->file_length);
 					tpp->len += tmmp->len;
