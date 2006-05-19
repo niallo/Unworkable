@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.47 2006-05-19 13:15:18 niallo Exp $ */
+/* $Id: torrent.c,v 1.48 2006-05-19 13:21:58 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -178,10 +178,10 @@ torrent_parse_file(const char *file)
 		torrent->body.singlefile.pieces = node->body.string.value;
 		torrent->num_pieces = node->body.string.len / SHA1_DIGEST_LENGTH;
 
-		TAILQ_INIT(&(torrent->body.multifile.files));
+		TAILQ_INIT(&torrent->body.multifile.files);
 
 		/* iterate through sub-dictionaries */
-		TAILQ_FOREACH(childnode, &(filenode->children), benc_nodes) {
+		TAILQ_FOREACH(childnode, &filenode->children, benc_nodes) {
 			multi_file = xmalloc(sizeof(*multi_file));
 
 			memset(multi_file, 0, sizeof(*multi_file));
@@ -205,7 +205,7 @@ torrent_parse_file(const char *file)
 
 			memset(multi_file->path, '\0', MAXPATHLEN);
 
-			TAILQ_FOREACH(lnode, &(tnode->children), benc_nodes) {
+			TAILQ_FOREACH(lnode, &tnode->children, benc_nodes) {
 				if (!(lnode->flags & BSTRING))
 					errx(1, "path element is not a string");
 				if (*multi_file->path == '\0') {
@@ -224,7 +224,7 @@ torrent_parse_file(const char *file)
 				}
 			}
 
-			TAILQ_INSERT_TAIL(&(torrent->body.multifile.files),
+			TAILQ_INSERT_TAIL(&torrent->body.multifile.files,
 			    multi_file, files);
 		}
 	}
@@ -237,7 +237,7 @@ torrent_parse_file(const char *file)
 	    && node->flags & BINT)
 		torrent->creation_date = node->body.number;
 
-	RB_INIT(&(torrent->pieces));
+	RB_INIT(&torrent->pieces);
 
 	return (torrent);
 }
@@ -289,7 +289,7 @@ torrent_print(struct torrent *torrent)
 		printf("piece length:\t%d bytes\n",
 		    torrent->piece_length);
 		printf("--files--\n");
-		TAILQ_FOREACH(tfile, &(torrent->body.multifile.files), files) {
+		TAILQ_FOREACH(tfile, &torrent->body.multifile.files, files) {
 			printf("file name:\t%s\n", tfile->path);
 			printf("length:\t\t%lld bytes\n", tfile->file_length);
 			printf("md5sum:\t\t");
@@ -315,7 +315,7 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, size_t len, void *d)
 	size_t tlen = len;
 	char *aptr;
 
-	TAILQ_FOREACH(tmmp, &(tpp->mmaps), mmaps) {
+	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps) {
 		cntlen += tmmp->len;
 		if (cntlen < off) {
 			cntbase += tmmp->len;
@@ -355,7 +355,7 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, size_t len, int *hint)
 	block = NULL;
 	bptr = NULL;
 
-	TAILQ_FOREACH(tmmp, &(tpp->mmaps), mmaps) {
+	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps) {
 		/* sum the lengths of the mappings we visit. if the offset is
 		   greater than the current sum, then the requested data is
 		   not within this mapping so continue to next mapping */
@@ -410,7 +410,7 @@ torrent_piece_find(struct torrent *tp, int idx)
 {
 	struct torrent_piece find, *res;
 	find.index = idx;
-	res = RB_FIND(pieces, &(tp->pieces), &find);
+	res = RB_FIND(pieces, &tp->pieces, &find);
 	if (res == NULL)
 		errx(1, "torrent_piece_find: no such piece `%d'", idx);
 	return (res);
@@ -470,7 +470,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 	
 	memset(tpp, 0, sizeof(*tpp));
 	tpp->index = idx;
-	TAILQ_INIT(&(tpp->mmaps));
+	TAILQ_INIT(&tpp->mmaps);
 
 	off = tp->piece_length * (off_t)idx;
 	/* nice and simple */
@@ -484,8 +484,8 @@ torrent_piece_map(struct torrent *tp, int idx)
 		}
 		tpp->len = len;
 		tmmp = torrent_mmap_create(tp, tfp, off, len);
-		TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
-		RB_INSERT(pieces, &(tp->pieces), tpp);
+		TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
+		RB_INSERT(pieces, &tp->pieces, tpp);
 
 		return (tpp);
 	} else {
@@ -507,14 +507,14 @@ torrent_piece_map(struct torrent *tp, int idx)
 
 		/* last piece is irregular */
 		if (idx == tp->num_pieces - 1) {
-			lasttfp = TAILQ_LAST(&(tp->body.multifile.files),
+			lasttfp = TAILQ_LAST(&tp->body.multifile.files,
 			    files);
 			len = tp->body.multifile.total_length
 			    - ((tp->num_pieces - 1) * tp->piece_length);
 		} else {
 			len = tp->piece_length;
 		}
-		TAILQ_FOREACH(tfp, &(tp->body.multifile.files), files) {
+		TAILQ_FOREACH(tfp, &tp->body.multifile.files, files) {
 			/* piece offset puts it outside the current
 			   file, may be mapped to next file */
 			if (off > tfp->file_length) {
@@ -527,7 +527,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 			    && tpp->len < len) {
 				tmmp = torrent_mmap_create(tp, tfp, off,
 				    tfp->file_length - off);
-				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
+				TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
 				tpp->len += tfp->file_length - off;
 				len -= tfp->file_length - off;
 				off = 0;
@@ -541,7 +541,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 				tmmp = torrent_mmap_create(tp, tfp, off,
 				    tfp->file_length - off);
 				tpp->len += tmmp->len;
-				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
+				TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
 				nxttfp = TAILQ_NEXT(tfp, files);
 				len -= tmmp->len;
 				off++;
@@ -549,7 +549,7 @@ torrent_piece_map(struct torrent *tp, int idx)
 					tmmp = torrent_mmap_create(tp, nxttfp,
 					    0, nxttfp->file_length);
 					tpp->len += tmmp->len;
-					TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp,
+					TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp,
 					    mmaps);
 					off++;
 					len -= tmmp->len;
@@ -561,19 +561,19 @@ torrent_piece_map(struct torrent *tp, int idx)
 					    0, len);
 				}
 				tpp->len += tmmp->len;
-				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
+				TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
 				off++;
 				break;
 			} else if (off < tfp->file_length) {
 				/* piece lies within this file */
 				tmmp = torrent_mmap_create(tp, tfp, off, len);
 				off++;
-				TAILQ_INSERT_TAIL(&(tpp->mmaps), tmmp, mmaps);
+				TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
 				tpp->len += len;
 				break;
 			}
 		}
-		RB_INSERT(pieces, &(tp->pieces), tpp);
+		RB_INSERT(pieces, &tp->pieces, tpp);
 
 		return (tpp);
 	}
@@ -630,7 +630,7 @@ torrent_piece_unmap(struct torrent *tp, int idx)
 	if (tpp == NULL)
 		errx(1, "torrent_piece_unmap: NULL piece");
 
-	TAILQ_FOREACH(tmmp, &(tpp->mmaps), mmaps) {
+	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps) {
 		if (munmap(tmmp->addr, tmmp->len) == -1)
 			err(1, "torrent_piece_unmap: munmap");
 		tmmp->tfp->refs--;
