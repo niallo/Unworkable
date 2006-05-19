@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.46 2006-05-19 01:08:33 niallo Exp $ */
+/* $Id: torrent.c,v 1.47 2006-05-19 13:15:18 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -141,7 +141,7 @@ torrent_parse_file(const char *file)
 			errx(1, "pieces is not a string");
 
 		torrent->body.singlefile.pieces = node->body.string.value;
-		torrent->num_pieces = node->body.string.len / 20;
+		torrent->num_pieces = node->body.string.len / SHA1_DIGEST_LENGTH;
 
 		if ((node = benc_node_find(troot, "md5sum")) != NULL) {
 			if (!(node->flags & BSTRING))
@@ -425,7 +425,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	char buf[MAXPATHLEN];
 	int fd = 0, l;
 	
-#define OPEN_FLAGS O_RDONLY
+#define OPEN_FLAGS O_RDWR|O_CREAT
 	if (tfp->fd == 0) {
 		if (tp->type == SINGLEFILE)
 			l = snprintf(buf, sizeof(buf), "%s", tfp->path);
