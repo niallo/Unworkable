@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: Makefile,v 1.13 2006-05-18 23:24:29 niallo Exp $
+# $Id: Makefile,v 1.14 2006-05-20 12:15:11 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
@@ -24,13 +24,13 @@ CFLAGS+= -Wsign-compare -g -ggdb
 
 PROG= unworkable
 
-SRCS= bencode.c buf.c main.c parse.y torrent.c xmalloc.c
+SRCS= bencode.c buf.c main.c network.c parse.y torrent.c xmalloc.c
 OBJS= ${SRCS:N*.h:N*.sh:R:S/$/.o/g}
 
 all: ${PROG}
 
 ${PROG}: ${OBJS}
-	${CC} -o ${.TARGET} ${OBJS}
+	${CC} -o ${.TARGET} -levent ${OBJS}
 
 clean:
 	rm -rf *.o ${PROG} y.tab.h
