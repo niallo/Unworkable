@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.15 2006-05-24 00:07:05 niallo Exp $ */
+/* $Id: main.c,v 1.16 2006-05-24 00:58:09 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -90,7 +90,7 @@ main(int argc, char **argv)
 		printf("torrent matches hash\n");
 
 	#endif
-	network_announce("http://aurelia:80/blah/announce", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+	network_announce("http://aurelia:80/blah/announce", "infohash", "peerid", "port", "uploaded", "downloaded", "left", "compact", "event", NULL, NULL, NULL, NULL);
 	exit(0);
 
 }
