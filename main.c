@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.14 2006-05-19 01:03:03 niallo Exp $ */
+/* $Id: main.c,v 1.15 2006-05-24 00:07:05 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "bencode.h"
+#include "network.h"
 #include "torrent.h"
 
 void usage(void);
@@ -65,6 +66,7 @@ main(int argc, char **argv)
 	if (argc == 0)
 		usage();
 
+	#if 0
 	torrent = torrent_parse_file(argv[0]);
 	torrent_print(torrent);
 
@@ -87,6 +89,8 @@ main(int argc, char **argv)
 	if (badflag == 0)
 		printf("torrent matches hash\n");
 
+	#endif
+	network_announce("http://aurelia:80/blah/announce", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 	exit(0);
 
 }

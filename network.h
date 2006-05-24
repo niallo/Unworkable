@@ -1,4 +1,4 @@
-/* $Id: network.h,v 1.1 2006-05-20 12:15:11 niallo Exp $ */
+/* $Id: network.h,v 1.2 2006-05-24 00:07:05 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -16,5 +16,12 @@
  */
 #ifndef NETWORK_H
 #define NETWORK_H
+int 		network_announce(const char *url, const char *infohash,
+		    const char *peerid, const char *myport,
+		    const char *uploaded, const char *downloaded,
+		    const char *left, const char *compact, const char *event,
+		    const char *ip, const char *numwant, const char *key,
+		    const char *trackerid);
 void		network_loop(void);
+int 		network_connect(const char *host, const char *port);
 #endif /* NETWORK_H */
