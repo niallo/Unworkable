@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.2 2006-05-24 00:07:05 niallo Exp $ */
+/* $Id: network.c,v 1.3 2006-05-24 00:09:07 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -22,6 +22,8 @@
 #include <err.h>
 #include <event.h>
 #include <netdb.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "network.h"
@@ -34,7 +36,7 @@ network_announce(const char *url, const char *infohash, const char *peerid,
 {
 	int connfd;
 	size_t n, ret;
-	char host[MAXHOSTNAMELEN], port[6], *path, *p, *c;
+	char host[MAXHOSTNAMELEN], port[6], path[MAXPATHLEN], *c;
 
 #define HTTPLEN 7
 	c = strstr(url, "http://");
@@ -59,6 +61,9 @@ network_announce(const char *url, const char *infohash, const char *peerid,
 
 	if ((connfd = network_connect(host, port)) == -1)
 		exit(1);
+	
+	
+
 	return (0);
 }
 
