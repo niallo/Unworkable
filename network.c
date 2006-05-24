@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.4 2006-05-24 00:58:09 niallo Exp $ */
+/* $Id: network.c,v 1.5 2006-05-24 01:24:15 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -25,7 +25,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
+#include "buf.h"
 #include "network.h"
 
 int
@@ -34,18 +36,23 @@ network_announce(const char *url, const char *infohash, const char *peerid,
     const char *left, const char *compact, const char *event, const char *ip,
     const char *numwant, const char *key, const char *trackerid)
 {
-	int connfd;
+	int connfd, l;
 	size_t n;
+	ssize_t nr;
 	char host[MAXHOSTNAMELEN], port[6], path[MAXPATHLEN], *c;
-	char request[1024];
-	FILE *conn;
+	char params[1024], request[1024], buf[128];
+	BUF *res;
 
+	if ((res = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
+		warnx("network_announce: could not allocate response buffer");
+		return (-1);
+	}
 #define HTTPLEN 7
 	c = strstr(url, "http://");
 	c += HTTPLEN;
 	n = strcspn(c, ":/") + 1;
 	if (n > sizeof(host) - 1)
-		return (-1);
+		goto err;
 
 	strlcpy(host, c, n);
 	printf("hostname: %s\n", host);
@@ -54,7 +61,7 @@ network_announce(const char *url, const char *infohash, const char *peerid,
 	if (*c != '/') {
 		n = strcspn(c, "/") + 1;
 		if (n > sizeof(port) - 1)
-			return (-1);
+			goto err;
 
 		strlcpy(port, c, n);
 	} else {
@@ -73,55 +80,71 @@ network_announce(const char *url, const char *infohash, const char *peerid,
 	if ((connfd = network_connect(host, port)) == -1)
 		exit(1);
 	
-	if ((conn = fdopen(connfd, "r+")) == NULL)
-		err(1, "network_announce");
-
-	/* build request string */
-	if (strlcpy(request, "?info_hash=", sizeof(request)) >= sizeof(request)
-	    || strlcat(request, infohash, sizeof(request)) >= sizeof(request)
-	    || strlcat(request, "?peer_id=", sizeof(request)) >= sizeof(request)
-	    || strlcat(request, peerid, sizeof(request)) >= sizeof(request)
-	    || strlcat(request, "?port=", sizeof(request)) >= sizeof(request)
-	    || strlcat(request, myport, sizeof(request)) >= sizeof(request)
-	    || strlcat(request, "?uploaded=", sizeof(request)) >= sizeof(request)
-	    || strlcat(request, uploaded, sizeof(request)) >= sizeof(request)
-	    || strlcat(request, "?downloaded=", sizeof(request)) >= sizeof(request)
-	    || strlcat(request, downloaded, sizeof(request)) >= sizeof(request)
-	    || strlcat(request, "?left=", sizeof(request)) >= sizeof(request)
-	    || strlcat(request, left, sizeof(request)) >= sizeof(request)
-	    || strlcat(request, "?compact=", sizeof(request)) >= sizeof(request)
-	    || strlcat(request, compact, sizeof(request)) >= sizeof(request))
+	/* build params string */
+	if (strlcpy(params, "?info_hash=", sizeof(params)) >= sizeof(params)
+	    || strlcat(params, infohash, sizeof(params)) >= sizeof(params)
+	    || strlcat(params, "?peer_id=", sizeof(params)) >= sizeof(params)
+	    || strlcat(params, peerid, sizeof(params)) >= sizeof(params)
+	    || strlcat(params, "?port=", sizeof(params)) >= sizeof(params)
+	    || strlcat(params, myport, sizeof(params)) >= sizeof(params)
+	    || strlcat(params, "?uploaded=", sizeof(params)) >= sizeof(params)
+	    || strlcat(params, uploaded, sizeof(params)) >= sizeof(params)
+	    || strlcat(params, "?downloaded=", sizeof(params)) >= sizeof(params)
+	    || strlcat(params, downloaded, sizeof(params)) >= sizeof(params)
+	    || strlcat(params, "?left=", sizeof(params)) >= sizeof(params)
+	    || strlcat(params, left, sizeof(params)) >= sizeof(params)
+	    || strlcat(params, "?compact=", sizeof(params)) >= sizeof(params)
+	    || strlcat(params, compact, sizeof(params)) >= sizeof(params))
 		errx(1, "network_announce: string truncation detected");
 	/* these parts are optional */
 	if (event != NULL) {
-		if (strlcat(request, "?event=", sizeof(request)) >= sizeof(request)
-		    || strlcat(request, event, sizeof(request)) >= sizeof(request))
+		if (strlcat(params, "?event=", sizeof(params)) >= sizeof(params)
+		    || strlcat(params, event, sizeof(params)) >= sizeof(params))
 			errx(1, "network_announce: string truncation detected");
 	}
 	if (ip != NULL) {
-		if (strlcat(request, "?ip=", sizeof(request)) >= sizeof(request)
-		    || strlcat(request, ip, sizeof(request)) >= sizeof(request))
+		if (strlcat(params, "?ip=", sizeof(params)) >= sizeof(params)
+		    || strlcat(params, ip, sizeof(params)) >= sizeof(params))
 			errx(1, "network_announce: string truncation detected");
 	}
 	if (numwant != NULL) {
-		if (strlcat(request, "?numwant=", sizeof(request)) >= sizeof(request)
-		    || strlcat(request, numwant, sizeof(request)) >= sizeof(request))
+		if (strlcat(params, "?numwant=", sizeof(params)) >= sizeof(params)
+		    || strlcat(params, numwant, sizeof(params)) >= sizeof(params))
 			errx(1, "network_announce: string truncation detected");
 	}
 	if (numwant != NULL) {
-		if (strlcat(request, "?key=", sizeof(request)) >= sizeof(request)
-		    || strlcat(request, key, sizeof(request)) >= sizeof(request))
+		if (strlcat(params, "?key=", sizeof(params)) >= sizeof(params)
+		    || strlcat(params, key, sizeof(params)) >= sizeof(params))
 			errx(1, "network_announce: string truncation detected");
 	}
 	if (trackerid != NULL) {
-		if (strlcat(request, "?trackerid=", sizeof(request)) >= sizeof(request)
-		    || strlcat(request, trackerid, sizeof(request)) >= sizeof(request))
+		if (strlcat(params, "?trackerid=", sizeof(params)) >= sizeof(params)
+		    || strlcat(params, trackerid, sizeof(params)) >= sizeof(params))
 			errx(1, "network_announce: string truncation detected");
 	}
-	fprintf(conn, "GET %s%s HTTP/1.1\r\nHost: %s\r\n\r\n", path, request,
-	    host);
+	l = snprintf(request, sizeof(params),
+	    "GET %s%s HTTP/1.1\r\nHost: %s\r\n\r\n", path, params, host);
+	if (l == -1 || l >= (int)sizeof(request))
+		errx(1, "network_announce: snprintf error");
+	
+
+	if ((nr = write(connfd, request, strlen(request) + 1)) == -1)
+		err(1, "network_announce: write");
+
+	nr = read(connfd, buf, sizeof(buf));
+	buf_append(res, &buf, nr);
+
+	/*
+	while ((nr = read(connfd, buf, sizeof(buf))) != -1 && nr !=0)
+		buf_append(res, buf, nr);
+	*/
+	buf_write_fd(res, STDOUT_FILENO);
 
 	return (0);
+
+err:
+	buf_free(res);
+	return (-1);
 }
 
 int
