@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.48 2006-05-19 13:21:58 niallo Exp $ */
+/* $Id: torrent.c,v 1.49 2006-05-24 00:06:43 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -55,10 +55,11 @@ torrent_parse_infohash(const char *file)
 	len = buf_len(b);
 	buf = buf_release(b);
 	p = buf;
+#define INFOLEN 6
 	p = strstr(buf, "4:info");
 	if (p == NULL)
 		errx(1, "torrent_parse_infohash: no info key found");
-	p += 6;
+	p += INFOLEN;
 
 	SHA1Init(&sha);
 	SHA1Update(&sha, p, (len - (p - buf)) - 1);
