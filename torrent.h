@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.18 2006-05-19 01:00:22 niallo Exp $ */
+/* $Id: torrent.h,v 1.19 2006-05-27 12:31:56 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -70,6 +70,9 @@ struct torrent {
 	int					piece_length;
 	RB_HEAD(pieces, torrent_piece)		pieces;
 	enum type				type;
+	unsigned long long			uploaded;
+	unsigned long long			downloaded;
+	unsigned long long			left;
 };
 
 void			*torrent_block_read(struct torrent_piece *, off_t,
