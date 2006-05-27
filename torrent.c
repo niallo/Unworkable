@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.49 2006-05-24 00:06:43 niallo Exp $ */
+/* $Id: torrent.c,v 1.50 2006-05-27 00:03:39 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -65,7 +65,8 @@ torrent_parse_infohash(const char *file)
 	SHA1Update(&sha, p, (len - (p - buf)) - 1);
 	SHA1Final(result, &sha);
 
-	ret = xmalloc(SHA1_DIGEST_LENGTH);
+	len = SHA1_DIGEST_LENGTH;
+	ret = xmalloc(len);
 	memcpy(ret, result, SHA1_DIGEST_LENGTH);
 	free(buf);
 

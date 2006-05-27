@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.16 2006-05-24 00:58:09 niallo Exp $ */
+/* $Id: main.c,v 1.17 2006-05-27 00:03:39 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -66,10 +66,9 @@ main(int argc, char **argv)
 	if (argc == 0)
 		usage();
 
-	#if 0
 	torrent = torrent_parse_file(argv[0]);
+	#if 0
 	torrent_print(torrent);
-
 	for (i = 0; i < torrent->num_pieces; i++) {
 		torrent_piece_map(torrent, i);
 		tpp = torrent_piece_find(torrent, i);
@@ -88,9 +87,9 @@ main(int argc, char **argv)
 	}
 	if (badflag == 0)
 		printf("torrent matches hash\n");
-
 	#endif
-	network_announce("http://aurelia:80/blah/announce", "infohash", "peerid", "port", "uploaded", "downloaded", "left", "compact", "event", NULL, NULL, NULL, NULL);
+
+	network_announce("http://127.0.0.1:8080/announce", torrent->info_hash, "U1234567891234567890", "6881", "0", "0", "100", "compact", NULL, NULL, NULL, NULL, NULL);
 	exit(0);
 
 }
