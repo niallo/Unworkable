@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.9 2006-05-27 00:20:48 niallo Exp $ */
+/* $Id: network.c,v 1.10 2006-05-27 00:25:44 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -143,6 +143,8 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 
 	while ((nr = read(connfd, buf, sizeof(buf))) != -1 && nr !=0)
 		buf_append(res, &buf, nr);
+
+	(void) close(connfd);
 
 	return (buf_release(res));
 
