@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.11 2006-05-27 12:31:26 niallo Exp $ */
+/* $Id: network.c,v 1.12 2006-05-27 12:53:26 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -134,7 +134,7 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 			goto trunc;
 	}
 
-	l = snprintf(request, sizeof(params),
+	l = snprintf(request, sizeof(request),
 	    "GET %s%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path,
 	    params, host);
 	if (l == -1 || l >= (int)sizeof(request))
@@ -151,6 +151,7 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 	while ((nr = read(connfd, buf, sizeof(buf))) != -1 && nr !=0)
 		buf_append(res, &buf, nr);
 
+	buf_putc(res, '\0');
 	(void) close(connfd);
 
 	return (buf_release(res));
