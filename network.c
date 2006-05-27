@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.7 2006-05-27 00:15:08 niallo Exp $ */
+/* $Id: network.c,v 1.8 2006-05-27 00:19:33 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -46,16 +46,16 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 	char tbuf[3*SHA1_DIGEST_LENGTH+1];
 	BUF *res;
 
+	if ((res = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
+		warnx("network_announce: could not allocate response buffer");
+		return (NULL);
+	}
+
 	/* convert binary info hash to url encoded format */
 	for (i = 0; i < SHA1_DIGEST_LENGTH; i++) {
 		l = snprintf(&tbuf[3*i], sizeof(tbuf), "%%%02x", infohash[i]);
 		if (l == -1 || l >= (int)sizeof(tbuf))
-			return (NULL);
-	}
-
-	if ((res = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
-		warnx("network_announce: could not allocate response buffer");
-		return (NULL);
+			goto trunc;
 	}
 #define HTTPLEN 7
 	c = strstr(url, "http://");
