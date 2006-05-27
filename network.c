@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.10 2006-05-27 00:25:44 niallo Exp $ */
+/* $Id: network.c,v 1.11 2006-05-27 12:31:26 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -85,45 +85,52 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 		path[strlen(path) - 1] = '\0';
 
 	/* build params string */
-	if (strlcpy(params, "?info_hash=", sizeof(params)) >= sizeof(params)
-	    || strlcat(params, tbuf, sizeof(params)) >= sizeof(params)
-	    || strlcat(params, "&peer_id=", sizeof(params)) >= sizeof(params)
-	    || strlcat(params, peerid, sizeof(params)) >= sizeof(params)
-	    || strlcat(params, "&port=", sizeof(params)) >= sizeof(params)
-	    || strlcat(params, myport, sizeof(params)) >= sizeof(params)
-	    || strlcat(params, "&uploaded=", sizeof(params)) >= sizeof(params)
-	    || strlcat(params, uploaded, sizeof(params)) >= sizeof(params)
-	    || strlcat(params, "&downloaded=", sizeof(params)) >= sizeof(params)
-	    || strlcat(params, downloaded, sizeof(params)) >= sizeof(params)
-	    || strlcat(params, "&left=", sizeof(params)) >= sizeof(params)
-	    || strlcat(params, left, sizeof(params)) >= sizeof(params)
-	    || strlcat(params, "&compact=", sizeof(params)) >= sizeof(params)
-	    || strlcat(params, compact, sizeof(params)) >= sizeof(params))
+	l = snprintf(params, sizeof(params),
+	    "?info_hash=%s"
+	    "&peer_id=%s"
+	    "&port=%s"
+	    "&uploaded=%s"
+	    "&downloaded=%s"
+	    "&left=%s"
+	    "&compact=%s",
+	    tbuf,
+	    peerid,
+	    myport,
+	    uploaded,
+	    downloaded,
+	    left,
+	    compact);
+	if (l == -1 || l >= (int)sizeof(params))
 		goto trunc;
 	/* these parts are optional */
 	if (event != NULL) {
-		if (strlcat(params, "&event=", sizeof(params)) >= sizeof(params)
-		    || strlcat(params, event, sizeof(params)) >= sizeof(params))
+		l = snprintf(params, sizeof(params), "%s&event=%s\n", params,
+		    event);
+		if (l == -1 || l >= (int)sizeof(params))
 			goto trunc;
 	}
 	if (ip != NULL) {
-		if (strlcat(params, "&ip=", sizeof(params)) >= sizeof(params)
-		    || strlcat(params, ip, sizeof(params)) >= sizeof(params))
+		l = snprintf(params, sizeof(params), "%s&ip=%s\n", params,
+		    ip);
+		if (l == -1 || l >= (int)sizeof(params))
 			goto trunc;
 	}
 	if (numwant != NULL) {
-		if (strlcat(params, "&numwant=", sizeof(params)) >= sizeof(params)
-		    || strlcat(params, numwant, sizeof(params)) >= sizeof(params))
+		l = snprintf(params, sizeof(params), "%s&numwant=%s\n", params,
+		    numwant);
+		if (l == -1 || l >= (int)sizeof(params))
 			goto trunc;
 	}
-	if (numwant != NULL) {
-		if (strlcat(params, "&key=", sizeof(params)) >= sizeof(params)
-		    || strlcat(params, key, sizeof(params)) >= sizeof(params))
+	if (key != NULL) {
+		l = snprintf(params, sizeof(params), "%s&key=%s\n", params,
+		    key);
+		if (l == -1 || l >= (int)sizeof(params))
 			goto trunc;
 	}
 	if (trackerid != NULL) {
-		if (strlcat(params, "&trackerid=", sizeof(params)) >= sizeof(params)
-		    || strlcat(params, trackerid, sizeof(params)) >= sizeof(params))
+		l = snprintf(params, sizeof(params), "%s&trackerid=%s\n",
+		    params, trackerid);
+		if (l == -1 || l >= (int)sizeof(params))
 			goto trunc;
 	}
 
@@ -156,13 +163,22 @@ err:
 }
 
 int
+network_handle_response(struct torrent *tp, const char *res)
+{
+	char *c, *p;
+
+	/* XXX */
+
+}
+
+int
 network_connect(const char *host, const char *port)
 {
 	struct addrinfo hints, *res, *res0;
 	int error, sockfd;
 
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = PF_UNSPEC;
+	hints.ai_family = PF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	error = getaddrinfo(host, port, &hints, &res0);
 	if (error) {
