@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.6 2006-05-27 00:03:39 niallo Exp $ */
+/* $Id: network.c,v 1.7 2006-05-27 00:15:08 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -98,51 +98,55 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 	    || strlcat(params, left, sizeof(params)) >= sizeof(params)
 	    || strlcat(params, "&compact=", sizeof(params)) >= sizeof(params)
 	    || strlcat(params, compact, sizeof(params)) >= sizeof(params))
-		errx(1, "network_announce: string truncation detected");
+		goto trunc;
 	/* these parts are optional */
 	if (event != NULL) {
 		if (strlcat(params, "&event=", sizeof(params)) >= sizeof(params)
 		    || strlcat(params, event, sizeof(params)) >= sizeof(params))
-			errx(1, "network_announce: string truncation detected");
+			goto trunc;
 	}
 	if (ip != NULL) {
 		if (strlcat(params, "&ip=", sizeof(params)) >= sizeof(params)
 		    || strlcat(params, ip, sizeof(params)) >= sizeof(params))
-			errx(1, "network_announce: string truncation detected");
+			goto trunc;
 	}
 	if (numwant != NULL) {
 		if (strlcat(params, "&numwant=", sizeof(params)) >= sizeof(params)
 		    || strlcat(params, numwant, sizeof(params)) >= sizeof(params))
-			errx(1, "network_announce: string truncation detected");
+			goto trunc;
 	}
 	if (numwant != NULL) {
 		if (strlcat(params, "&key=", sizeof(params)) >= sizeof(params)
 		    || strlcat(params, key, sizeof(params)) >= sizeof(params))
-			errx(1, "network_announce: string truncation detected");
+			goto trunc;
 	}
 	if (trackerid != NULL) {
 		if (strlcat(params, "&trackerid=", sizeof(params)) >= sizeof(params)
 		    || strlcat(params, trackerid, sizeof(params)) >= sizeof(params))
-			errx(1, "network_announce: string truncation detected");
+			goto trunc;
 	}
+
 	l = snprintf(request, sizeof(params),
 	    "GET %s%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path,
 	    params, host);
 	if (l == -1 || l >= (int)sizeof(request))
-		errx(1, "network_announce: snprintf error");
-	
+		goto trunc;
 
 	if ((connfd = network_connect(host, port)) == -1)
 		exit(1);
 	
-	if ((nr = write(connfd, request, strlen(request) + 1)) == -1)
-		err(1, "network_announce: write");
+	if ((nr = write(connfd, request, strlen(request) + 1)) == -1) {
+		warn("network_announce: write");
+		goto err;
+	}
 
 	while ((nr = read(connfd, buf, sizeof(buf))) != -1 && nr !=0)
 		buf_append(res, &buf, nr);
 
 	return (buf_release(res));
 
+trunc:
+	warnx("network_announce: string truncation detected");
 err:
 	buf_free(res);
 	return (NULL);
