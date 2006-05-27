@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.8 2006-05-27 00:19:33 niallo Exp $ */
+/* $Id: network.c,v 1.9 2006-05-27 00:20:48 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -58,6 +58,7 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 			goto trunc;
 	}
 #define HTTPLEN 7
+	/* separate out hostname, port and path */
 	c = strstr(url, "http://");
 	c += HTTPLEN;
 	n = strcspn(c, ":/") + 1;
