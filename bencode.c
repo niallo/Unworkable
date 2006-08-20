@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.25 2006-05-19 13:22:52 niallo Exp $ */
+/* $Id: bencode.c,v 1.26 2006-08-20 21:09:27 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -28,13 +28,14 @@
 
 struct benc_node *root;
 
-/* add new node as child of old and return new node */
+/* add new node to tail of node's child queue */
 void
 benc_node_add(struct benc_node *node, struct benc_node *new)
 {
 	TAILQ_INSERT_TAIL(&node->children, new, benc_nodes);
 }
 
+/* add new node to head of node's child queue */
 void
 benc_node_add_head(struct benc_node *node, struct benc_node *new)
 {
