@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.12 2006-05-27 12:53:26 niallo Exp $ */
+/* $Id: network.c,v 1.13 2006-08-20 21:11:42 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -29,8 +29,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "bencode.h"
 #include "buf.h"
 #include "network.h"
+#include "parse.h"
 
 char *
 network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
@@ -65,7 +67,8 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 	if (n > sizeof(host) - 1)
 		goto err;
 
-	strlcpy(host, c, n);
+	if (strlcpy(host, c, n) >= n)
+		goto trunc;
 
 	c += n;
 	if (*c != '/') {
@@ -73,13 +76,16 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 		if (n > sizeof(port) - 1)
 			goto err;
 
-		strlcpy(port, c, n);
+		if (strlcpy(port, c, n) >= n)
+			goto trunc;
 	} else {
-		strlcpy(port, "80", sizeof(port));
+		if (strlcpy(port, "80", sizeof(port)) >= sizeof(port))
+			goto trunc;
 	}
 	c += n - 1;
 
-	strlcpy(path, c, sizeof(path));
+	if (strlcpy(path, c, sizeof(path)) >= sizeof(path))
+		goto trunc;
 	/* strip trailing slash */
 	if (path[strlen(path) - 1] == '/')
 		path[strlen(path) - 1] = '\0';
@@ -164,12 +170,41 @@ err:
 }
 
 int
-network_handle_response(struct torrent *tp, const char *res)
+network_handle_response(struct torrent *tp, char *res)
 {
-	char *c, *p;
+	struct benc_node *troot;
+	char *c;
+	BUF *buf;
 
-	/* XXX */
+	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
+		warnx("network_handle_response: could not allocate buffer");
+		return (-1);
+	}
+	buf_set(buf, res, strlen(res), 0);
 
+	c = res;
+	if (strncmp(c, "HTTP/1.0", 8) != 0 && strncmp(c, "HTTP/1.1", 8)) {
+		warnx("network_handle_response: not a valid HTTP response");
+		return (-1);
+	}
+	c += 9;
+	if (strncmp(c, "200", 3) != 0) {
+		warnx("network_handle_response: HTTP response indicates error");
+		return (-1);
+	}
+	c = strstr(c, "\r\n\r\n");
+	if (c == NULL) {
+		warnx("network_handle_response: HTTP response had no content");
+		return (-1);
+	}
+	c += 4;
+	if ((troot = benc_parse_buf(buf)) == NULL) {
+		warnx("network_handle_response: HTTP response parsing failed");
+		buf_free(buf);
+		return (-1);
+	}
+
+	return (0);
 }
 
 int
@@ -179,6 +214,7 @@ network_connect(const char *host, const char *port)
 	int error, sockfd;
 
 	memset(&hints, 0, sizeof(hints));
+	/* IPv4-only for now */
 	hints.ai_family = PF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	error = getaddrinfo(host, port, &hints, &res0);
