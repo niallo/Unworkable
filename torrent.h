@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.19 2006-05-27 12:31:56 niallo Exp $ */
+/* $Id: torrent.h,v 1.20 2006-10-13 23:56:06 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,6 +20,8 @@
 
 #include <sys/queue.h>
 #include <sys/tree.h>
+
+#include "bencode.h"
 
 enum type { MULTIFILE, SINGLEFILE };
 
@@ -73,6 +75,7 @@ struct torrent {
 	unsigned long long			uploaded;
 	unsigned long long			downloaded;
 	unsigned long long			left;
+	struct benc_node			*broot;
 };
 
 void			*torrent_block_read(struct torrent_piece *, off_t,

@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.17 2006-05-27 00:03:39 niallo Exp $ */
+/* $Id: main.c,v 1.18 2006-10-13 23:56:05 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -47,9 +47,6 @@ main(int argc, char **argv)
 
 	badflag = 0;
 
-	root = benc_node_create();
-	root->flags = BLIST;
-
 	while ((ch = getopt(argc, argv, "i")) != -1) {
 		switch (ch) {
 		case 'i':
@@ -67,6 +64,7 @@ main(int argc, char **argv)
 		usage();
 
 	torrent = torrent_parse_file(argv[0]);
+	torrent_print(torrent);
 	#if 0
 	torrent_print(torrent);
 	for (i = 0; i < torrent->num_pieces; i++) {

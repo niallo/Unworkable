@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.45 2006-08-20 22:22:17 niallo Exp $ */
+/* $Id: parse.y,v 1.46 2006-10-13 23:56:05 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -375,6 +375,12 @@ yyerror(const char *fmt, ...)
 	va_end(ap);
 
 	return (0);
+}
+
+void
+benc_parse_init(struct benc_node *node)
+{
+	root = node;
 }
 
 struct benc_node*
