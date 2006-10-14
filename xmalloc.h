@@ -1,4 +1,4 @@
-/* $Id: xmalloc.h,v 1.1 2006-05-18 22:59:19 niallo Exp $ */
+/* $Id: xmalloc.h,v 1.2 2006-10-14 20:41:22 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -19,4 +19,5 @@
 void *xmalloc(size_t);
 void *xrealloc(void *, size_t);
 void *xcalloc(size_t, size_t);
+void  xfree(void *ptr);
 #endif /* XMALLOC_H */

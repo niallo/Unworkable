@@ -1,4 +1,4 @@
-/* $Id: xmalloc.c,v 1.1 2006-05-18 22:59:19 niallo Exp $ */
+/* $Id: xmalloc.c,v 1.2 2006-10-14 20:41:22 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -53,3 +53,12 @@ xcalloc(size_t nmemb, size_t size)
 		err(1, OOM_MSG);
 	return ptr;
 }
+
+void
+xfree(void *ptr)
+{
+	if (ptr == NULL)
+		errx(1, "xfree: NULL pointer given as argument");
+	free(ptr);
+}
+
