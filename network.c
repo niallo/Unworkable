@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.13 2006-08-20 21:11:42 niallo Exp $ */
+/* $Id: network.c,v 1.14 2006-10-14 03:18:14 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -41,6 +41,7 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
     const char *numwant, const char *key, const char *trackerid)
 {
 	int connfd, i, l;
+	int j;
 	size_t n;
 	ssize_t nr;
 	char host[MAXHOSTNAMELEN], port[6], path[MAXPATHLEN], *c;
@@ -67,8 +68,8 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 	if (n > sizeof(host) - 1)
 		goto err;
 
-	if (strlcpy(host, c, n) >= n)
-		goto trunc;
+	memcpy(host, c, n - 1);
+	host[n - 1] = '\0';
 
 	c += n;
 	if (*c != '/') {
@@ -76,8 +77,8 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 		if (n > sizeof(port) - 1)
 			goto err;
 
-		if (strlcpy(port, c, n) >= n)
-			goto trunc;
+		memcpy(port, c, n - 1);
+		port[n - 1] = '\0';
 	} else {
 		if (strlcpy(port, "80", sizeof(port)) >= sizeof(port))
 			goto trunc;
@@ -176,6 +177,9 @@ network_handle_response(struct torrent *tp, char *res)
 	char *c;
 	BUF *buf;
 
+	troot = benc_node_create();
+	troot->flags = BLIST;
+
 	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
 		warnx("network_handle_response: could not allocate buffer");
 		return (-1);
@@ -198,6 +202,7 @@ network_handle_response(struct torrent *tp, char *res)
 		return (-1);
 	}
 	c += 4;
+	benc_parse_init(troot);
 	if ((troot = benc_parse_buf(buf)) == NULL) {
 		warnx("network_handle_response: HTTP response parsing failed");
 		buf_free(buf);
@@ -219,14 +224,14 @@ network_connect(const char *host, const char *port)
 	hints.ai_socktype = SOCK_STREAM;
 	error = getaddrinfo(host, port, &hints, &res0);
 	if (error) {
-		warnx("%s", gai_strerror(error));
+		warnx("network_connect: %s", gai_strerror(error));
 		return (-1);
 	}
 	/* assume first address is ok */
 	res = res0;
 	sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 	if (sockfd == -1) {
-		warn("network_tracker_announce: socket");
+		warn("network_connect: socket");
 		return (-1);
 	}
 	

@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.18 2006-10-13 23:56:05 niallo Exp $ */
+/* $Id: main.c,v 1.19 2006-10-14 03:18:14 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -66,7 +66,6 @@ main(int argc, char **argv)
 	torrent = torrent_parse_file(argv[0]);
 	torrent_print(torrent);
 	#if 0
-	torrent_print(torrent);
 	for (i = 0; i < torrent->num_pieces; i++) {
 		torrent_piece_map(torrent, i);
 		tpp = torrent_piece_find(torrent, i);
