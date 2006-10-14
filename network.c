@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.14 2006-10-14 03:18:14 niallo Exp $ */
+/* $Id: network.c,v 1.15 2006-10-14 03:18:53 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -41,7 +41,6 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
     const char *numwant, const char *key, const char *trackerid)
 {
 	int connfd, i, l;
-	int j;
 	size_t n;
 	ssize_t nr;
 	char host[MAXHOSTNAMELEN], port[6], path[MAXPATHLEN], *c;
