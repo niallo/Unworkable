@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.25 2006-10-15 07:18:51 niallo Exp $ */
+/* $Id: network.c,v 1.26 2006-10-15 07:19:53 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -57,7 +57,7 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 	int connfd, i, l;
 	size_t n;
 	char host[MAXHOSTNAMELEN], port[6], path[MAXPATHLEN], *c;
-#define GETSTRINGLEN 1024
+#define GETSTRINGLEN 2048
 	char *params, *request;
 	char tbuf[3*SHA1_DIGEST_LENGTH+1];
 	struct bufferevent *bufev;
