@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.22 2006-10-15 07:04:38 niallo Exp $ */
+/* $Id: network.c,v 1.23 2006-10-15 07:10:10 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -22,6 +22,7 @@
 #include <ctype.h>
 #include <err.h>
 #include <event.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <sha1.h>
 #include <stdio.h>
@@ -55,7 +56,6 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 {
 	int connfd, i, l;
 	size_t n;
-	ssize_t nr;
 	char host[MAXHOSTNAMELEN], port[6], path[MAXPATHLEN], *c;
 	char params[2048], request[2048];
 	char tbuf[3*SHA1_DIGEST_LENGTH+1];
@@ -161,11 +161,8 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 	bufev = bufferevent_new(connfd, network_handle_response,
 	    network_handle_write, network_handle_error, tp);
 	bufferevent_enable(bufev, EV_READ);
+	bufferevent_write(bufev, request, strlen(request) + 1);
 
-	if ((nr = write(connfd, request, strlen(request) + 1)) == -1) {
-		warn("network_announce: write");
-		goto err;
-	}
 	event_dispatch();
 
 	return (0);
@@ -257,6 +254,8 @@ network_connect(const char *host, const char *port)
 	}
 
 	freeaddrinfo(res0);
+
+	fcntl(sockfd, F_SETFL, O_NONBLOCK);
 
 	return (sockfd);
 }
