@@ -1,4 +1,4 @@
-/* $Id: bencode.h,v 1.14 2006-05-17 22:32:25 niallo Exp $ */
+/* $Id: bencode.h,v 1.15 2006-10-15 06:32:43 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -56,6 +56,7 @@ struct benc_node	*benc_node_create(void);
 struct benc_node	*benc_node_find(struct benc_node *node, char *key);
 void			 benc_node_free(struct benc_node *);
 void			 benc_node_print(struct benc_node *, int level);
+struct benc_node	*benc_root_create(void);
 
 extern struct benc_node	*root;
 #endif /* BENCODE_H */

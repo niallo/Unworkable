@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.17 2006-10-15 06:27:51 niallo Exp $ */
+/* $Id: network.c,v 1.18 2006-10-15 06:32:43 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -207,8 +207,7 @@ network_handle_response(struct bufferevent *bufev, void *arg)
 	}
 	c += 4;
 	buf_set(buf, c, len - (c - res), 0);
-	troot = benc_node_create();
-	troot->flags = BLIST;
+	troot = benc_root_create();
 	benc_parse_init(troot);
 	if ((troot = benc_parse_buf(buf)) == NULL) {
 		warnx("network_handle_response: HTTP response parsing failed");

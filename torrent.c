@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.51 2006-10-13 23:56:06 niallo Exp $ */
+/* $Id: torrent.c,v 1.52 2006-10-15 06:32:44 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -89,8 +89,7 @@ torrent_parse_file(const char *file)
 	memset(torrent, 0, sizeof(*torrent));
 
 	/* XXX need a way to free torrents and their node trees */
-	torrent->broot = benc_node_create();
-	torrent->broot->flags = BLIST;
+	torrent->broot = benc_root_create();
 
 	if ((buf = buf_load(file, 0)) == NULL)
 		err(1, "torrent_parse_file: buf_load");

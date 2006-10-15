@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.26 2006-08-20 21:09:27 niallo Exp $ */
+/* $Id: bencode.c,v 1.27 2006-10-15 06:32:43 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -131,4 +131,14 @@ benc_node_print(struct benc_node *node, int level)
 		TAILQ_FOREACH(childnode, &node->children, benc_nodes)
 			benc_node_print(childnode, level + 1);
 	}
+}
+
+/* create a root node, which parser needs to be passed during init */
+struct benc_node *
+benc_root_create(void)
+{
+	struct benc_node *n = benc_node_create();
+	n->flags = BLIST;
+
+	return (n);
 }
