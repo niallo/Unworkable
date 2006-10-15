@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.28 2006-10-15 07:28:54 niallo Exp $ */
+/* $Id: network.c,v 1.29 2006-10-15 07:36:51 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -160,6 +160,7 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 	if (l == -1 || l >= GETSTRINGLEN)
 		goto trunc;
 
+	/* non blocking connect ? */
 	if ((connfd = network_connect(host, port)) == -1)
 		exit(1);
 	
@@ -282,7 +283,6 @@ network_connect(const char *host, const char *port)
 static void
 network_handle_error(struct bufferevent *bufev, short what, void *data)
 {
-
 
 }
 
