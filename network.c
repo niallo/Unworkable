@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.24 2006-10-15 07:12:52 niallo Exp $ */
+/* $Id: network.c,v 1.25 2006-10-15 07:18:51 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -57,12 +57,17 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 	int connfd, i, l;
 	size_t n;
 	char host[MAXHOSTNAMELEN], port[6], path[MAXPATHLEN], *c;
-	char params[1024], request[1024];
+#define GETSTRINGLEN 1024
+	char *params, *request;
 	char tbuf[3*SHA1_DIGEST_LENGTH+1];
 	struct bufferevent *bufev;
 
+	params = xmalloc(GETSTRINGLEN);
+	request = xmalloc(GETSTRINGLEN);
+	memset(params, '\0', GETSTRINGLEN);
+	memset(request, '\0', GETSTRINGLEN);
+
 	/* convert binary info hash to url encoded format */
-	
 	for (i = 0; i < SHA1_DIGEST_LENGTH; i++) {
 		l = snprintf(&tbuf[3*i], sizeof(tbuf), "%%%02x", infohash[i]);
 		if (l == -1 || l >= (int)sizeof(tbuf))
@@ -100,7 +105,7 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 		path[strlen(path) - 1] = '\0';
 
 	/* build params string */
-	l = snprintf(params, sizeof(params),
+	l = snprintf(params, GETSTRINGLEN,
 	    "?info_hash=%s"
 	    "&peer_id=%s"
 	    "&port=%s"
@@ -115,44 +120,44 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 	    downloaded,
 	    left,
 	    compact);
-	if (l == -1 || l >= (int)sizeof(params))
+	if (l == -1 || l >= GETSTRINGLEN)
 		goto trunc;
 	/* these parts are optional */
 	if (event != NULL) {
-		l = snprintf(params, sizeof(params), "%s&event=%s", params,
+		l = snprintf(params, GETSTRINGLEN, "%s&event=%s", params,
 		    event);
-		if (l == -1 || l >= (int)sizeof(params))
+		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
 	if (ip != NULL) {
-		l = snprintf(params, sizeof(params), "%s&ip=%s", params,
+		l = snprintf(params, GETSTRINGLEN, "%s&ip=%s", params,
 		    ip);
-		if (l == -1 || l >= (int)sizeof(params))
+		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
 	if (numwant != NULL) {
-		l = snprintf(params, sizeof(params), "%s&numwant=%s", params,
+		l = snprintf(params, GETSTRINGLEN, "%s&numwant=%s", params,
 		    numwant);
-		if (l == -1 || l >= (int)sizeof(params))
+		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
 	if (key != NULL) {
-		l = snprintf(params, sizeof(params), "%s&key=%s", params,
+		l = snprintf(params, GETSTRINGLEN, "%s&key=%s", params,
 		    key);
-		if (l == -1 || l >= (int)sizeof(params))
+		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
 	if (trackerid != NULL) {
-		l = snprintf(params, sizeof(params), "%s&trackerid=%s",
+		l = snprintf(params, GETSTRINGLEN, "%s&trackerid=%s",
 		    params, trackerid);
-		if (l == -1 || l >= (int)sizeof(params))
+		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
 
-	l = snprintf(request, sizeof(request),
+	l = snprintf(request, GETSTRINGLEN,
 	    "GET %s%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path,
 	    params, host);
-	if (l == -1 || l >= (int)sizeof(request))
+	if (l == -1 || l >= GETSTRINGLEN)
 		goto trunc;
 
 	if ((connfd = network_connect(host, port)) == -1)
@@ -165,11 +170,16 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 
 	event_dispatch();
 
+	xfree(params);
+	xfree(request);
+
 	return (0);
 
 trunc:
 	warnx("network_announce: string truncation detected");
 err:
+	xfree(params);
+	xfree(request);
 	return (-1);
 }
 
