@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.27 2006-10-15 06:32:43 niallo Exp $ */
+/* $Id: bencode.c,v 1.28 2006-10-15 07:28:54 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -131,6 +131,26 @@ benc_node_print(struct benc_node *node, int level)
 		TAILQ_FOREACH(childnode, &node->children, benc_nodes)
 			benc_node_print(childnode, level + 1);
 	}
+}
+
+void
+benc_node_freeall(struct benc_node *node)
+{
+	struct benc_node *childnode;
+
+	if (node->flags & BDICT_ENTRY) {
+		xfree(node->body.dict_entry.key);
+		xfree(node->body.dict_entry.value);
+	} else if (node->flags & BSTRING) {
+		xfree(node->body.string.value);
+	} else if (node->flags & BLIST) {
+		TAILQ_FOREACH(childnode, &node->children, benc_nodes)
+			benc_node_freeall(childnode);
+	} else if (node->flags & BDICT) {
+		TAILQ_FOREACH(childnode, &node->children, benc_nodes)
+			benc_node_freeall(childnode);
+	}
+
 }
 
 /* create a root node, which parser needs to be passed during init */

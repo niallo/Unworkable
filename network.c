@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.27 2006-10-15 07:22:31 niallo Exp $ */
+/* $Id: network.c,v 1.28 2006-10-15 07:28:54 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -42,7 +42,7 @@ static int	 network_announce(struct torrent *, const char *,
 		    const u_int8_t *, const char *, const char *, const char *,
 		    const char *, const char *, const char *, const char *,
 		    const char *, const char *, const char *, const char *);
-static void	 network_handle_response(struct bufferevent *, void *);
+static void	 network_handle_announce_response(struct bufferevent *, void *);
 static void	 network_handle_write(struct bufferevent *, void *);
 static void	 network_handle_error(struct bufferevent *, short, void *);
 static int 	 network_connect(const char *, const char *);
@@ -163,7 +163,7 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 	if ((connfd = network_connect(host, port)) == -1)
 		exit(1);
 	
-	bufev = bufferevent_new(connfd, network_handle_response,
+	bufev = bufferevent_new(connfd, network_handle_announce_response,
 	    network_handle_write, network_handle_error, tp);
 	bufferevent_enable(bufev, EV_READ);
 	bufferevent_write(bufev, request, strlen(request) + 1);
@@ -184,7 +184,7 @@ err:
 }
 
 static void
-network_handle_response(struct bufferevent *bufev, void *arg)
+network_handle_announce_response(struct bufferevent *bufev, void *arg)
 {
 #define RESBUFLEN 1024
 	struct torrent *tp;
@@ -202,31 +202,31 @@ network_handle_response(struct bufferevent *bufev, void *arg)
 	troot = benc_root_create();
 
 	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
-		warnx("network_handle_response: could not allocate buffer");
+		warnx("network_handle_announce_response: could not allocate buffer");
 		xfree(res);
 		return;
 	}
 
 	c = res;
 	if (strncmp(c, "HTTP/1.0", 8) != 0 && strncmp(c, "HTTP/1.1", 8)) {
-		warnx("network_handle_response: not a valid HTTP response");
+		warnx("network_handle_announce_response: not a valid HTTP response");
 		goto err;
 	}
 	c += 9;
 	if (strncmp(c, "200", 3) != 0) {
-		warnx("network_handle_response: HTTP response indicates error");
+		warnx("network_handle_announce_response: HTTP response indicates error");
 		goto err;
 	}
 	c = strstr(c, "\r\n\r\n");
 	if (c == NULL) {
-		warnx("network_handle_response: HTTP response had no content");
+		warnx("network_handle_announce_response: HTTP response had no content");
 		goto err;
 	}
 	c += 4;
 	buf_set(buf, c, len - (c - res), 0);
 	troot = benc_root_create();
 	if ((troot = benc_parse_buf(buf, troot)) == NULL) {
-		warnx("network_handle_response: HTTP response parsing failed");
+		warnx("network_handle_announce_response: HTTP response parsing failed");
 		goto err;
 	}
 	benc_node_print(troot, 0);
@@ -241,6 +241,7 @@ network_handle_response(struct bufferevent *bufev, void *arg)
 err:
 	xfree(res);
 	buf_free(buf);
+	benc_node_freeall(troot);
 }
 
 static int
