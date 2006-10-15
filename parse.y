@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.46 2006-10-13 23:56:05 niallo Exp $ */
+/* $Id: parse.y,v 1.47 2006-10-15 06:36:41 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -377,15 +377,10 @@ yyerror(const char *fmt, ...)
 	return (0);
 }
 
-void
-benc_parse_init(struct benc_node *node)
+struct benc_node*
+benc_parse_buf(BUF *b, struct benc_node *node)
 {
 	root = node;
-}
-
-struct benc_node*
-benc_parse_buf(BUF *b)
-{
 	in = b;
 	if (yyparse() != 0)
 		return (NULL);

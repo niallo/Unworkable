@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.52 2006-10-15 06:32:44 niallo Exp $ */
+/* $Id: torrent.c,v 1.53 2006-10-15 06:36:41 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -94,9 +94,7 @@ torrent_parse_file(const char *file)
 	if ((buf = buf_load(file, 0)) == NULL)
 		err(1, "torrent_parse_file: buf_load");
 
-	benc_parse_init(torrent->broot);
-
-	if ((troot = benc_parse_buf(buf)) == NULL)
+	if ((troot = benc_parse_buf(buf, torrent->broot)) == NULL)
 		errx(1, "torrent_parse_file: yyparse of %s", file);
 
 	buf_free(in);
