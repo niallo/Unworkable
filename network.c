@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.15 2006-10-14 03:18:53 niallo Exp $ */
+/* $Id: network.c,v 1.16 2006-10-15 06:26:11 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -110,31 +110,31 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 		goto trunc;
 	/* these parts are optional */
 	if (event != NULL) {
-		l = snprintf(params, sizeof(params), "%s&event=%s\n", params,
+		l = snprintf(params, sizeof(params), "%s&event=%s", params,
 		    event);
 		if (l == -1 || l >= (int)sizeof(params))
 			goto trunc;
 	}
 	if (ip != NULL) {
-		l = snprintf(params, sizeof(params), "%s&ip=%s\n", params,
+		l = snprintf(params, sizeof(params), "%s&ip=%s", params,
 		    ip);
 		if (l == -1 || l >= (int)sizeof(params))
 			goto trunc;
 	}
 	if (numwant != NULL) {
-		l = snprintf(params, sizeof(params), "%s&numwant=%s\n", params,
+		l = snprintf(params, sizeof(params), "%s&numwant=%s", params,
 		    numwant);
 		if (l == -1 || l >= (int)sizeof(params))
 			goto trunc;
 	}
 	if (key != NULL) {
-		l = snprintf(params, sizeof(params), "%s&key=%s\n", params,
+		l = snprintf(params, sizeof(params), "%s&key=%s", params,
 		    key);
 		if (l == -1 || l >= (int)sizeof(params))
 			goto trunc;
 	}
 	if (trackerid != NULL) {
-		l = snprintf(params, sizeof(params), "%s&trackerid=%s\n",
+		l = snprintf(params, sizeof(params), "%s&trackerid=%s",
 		    params, trackerid);
 		if (l == -1 || l >= (int)sizeof(params))
 			goto trunc;
