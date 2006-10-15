@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.20 2006-10-15 06:27:51 niallo Exp $ */
+/* $Id: main.c,v 1.21 2006-10-15 07:01:44 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -88,7 +88,8 @@ main(int argc, char **argv)
 
 
 	network_init();
-	network_announce(torrent, "http://127.0.0.1:8080/announce", torrent->info_hash, "U1234567891234567890", "6881", "0", "0", "100", "1",  "started", NULL, NULL, NULL, NULL);
+	network_start_torrent(torrent);
+	//network_announce(torrent, "http://127.0.0.1:8080/announce", torrent->info_hash, "U1234567891234567890", "6881", "0", "0", "100", "1",  "started", NULL, NULL, NULL, NULL);
 	exit(0);
 
 }

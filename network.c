@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.20 2006-10-15 06:43:56 niallo Exp $ */
+/* $Id: network.c,v 1.21 2006-10-15 07:01:44 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -35,7 +35,16 @@
 #include "parse.h"
 #include "xmalloc.h"
 
-int
+static int	 network_announce(struct torrent *, const char *,
+		    const u_int8_t *, const char *, const char *, const char *,
+		    const char *, const char *, const char *, const char *,
+		    const char *, const char *, const char *, const char *);
+static void	 network_handle_response(struct bufferevent *, void *);
+static void	 network_handle_write(struct bufferevent *, void *);
+static void	 network_handle_error(struct bufferevent *, short, void *);
+static int 	 network_connect(const char *, const char *);
+
+static int
 network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
     const char *peerid, const char *myport, const char *uploaded,
     const char *downloaded, const char *left, const char *compact,
@@ -165,7 +174,7 @@ err:
 	return (-1);
 }
 
-void
+static void
 network_handle_response(struct bufferevent *bufev, void *arg)
 {
 #define RESBUFLEN 1024
@@ -217,7 +226,7 @@ err:
 	buf_free(buf);
 }
 
-int
+static int
 network_connect(const char *host, const char *port)
 {
 	struct addrinfo hints, *res, *res0;
@@ -250,24 +259,36 @@ network_connect(const char *host, const char *port)
 	return (sockfd);
 }
 
-void
+static void
 network_handle_error(struct bufferevent *bufev, short what, void *data)
 {
 
 
 }
 
-void
+static void
 network_handle_write(struct bufferevent *bufev, void *data)
 {
 
 }
 
+/* network subsystem init, needs to be called before doing anything */
 void
 network_init()
 {
-
 	event_init();
-
-
 }
+
+/* start handling network stuff for a new torrent */
+int
+network_start_torrent(struct torrent *tp)
+{
+	int ret;
+
+	ret = network_announce(tp, "http://127.0.0.1:8080/announce",
+	    tp->info_hash, "U1234567891234567890", "6881", "0", "0", "100",
+	    "1",  "started", NULL, NULL, NULL, NULL);
+
+	return (ret);
+}
+
