@@ -1,4 +1,4 @@
-/* $Id: network.h,v 1.7 2006-10-15 07:01:44 niallo Exp $ */
+/* $Id: network.h,v 1.8 2006-10-15 07:05:17 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -16,7 +16,6 @@
  */
 #ifndef NETWORK_H
 #define NETWORK_H
-#include <event.h>
 #include "torrent.h"
 
 void		 network_init(void);
