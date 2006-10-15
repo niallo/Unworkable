@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.26 2006-10-15 07:19:53 niallo Exp $ */
+/* $Id: network.c,v 1.27 2006-10-15 07:22:31 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -188,7 +188,7 @@ network_handle_response(struct bufferevent *bufev, void *arg)
 {
 #define RESBUFLEN 1024
 	struct torrent *tp;
-	struct benc_node *troot;
+	struct benc_node *node, *troot;
 	u_char *c, *res;
 	BUF *buf;
 	size_t len;
@@ -230,6 +230,14 @@ network_handle_response(struct bufferevent *bufev, void *arg)
 		goto err;
 	}
 	benc_node_print(troot, 0);
+	if ((node = benc_node_find(troot, "interval")) == NULL)
+		errx(1, "no interval field");
+
+	if (!(node->flags & BINT))
+		errx(1, "interval is not a number");
+
+	tp->interval = node->body.number;
+
 err:
 	xfree(res);
 	buf_free(buf);
