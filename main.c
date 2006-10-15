@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.19 2006-10-14 03:18:14 niallo Exp $ */
+/* $Id: main.c,v 1.20 2006-10-15 06:27:51 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -86,7 +86,9 @@ main(int argc, char **argv)
 		printf("torrent matches hash\n");
 	#endif
 
-	network_announce("http://127.0.0.1:8080/announce", torrent->info_hash, "U1234567891234567890", "6881", "0", "0", "100", "compact", NULL, NULL, NULL, NULL, NULL);
+
+	network_init();
+	network_announce(torrent, "http://127.0.0.1:8080/announce", torrent->info_hash, "U1234567891234567890", "6881", "0", "0", "100", "1",  "started", NULL, NULL, NULL, NULL);
 	exit(0);
 
 }

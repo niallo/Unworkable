@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.16 2006-10-15 06:26:11 niallo Exp $ */
+/* $Id: network.c,v 1.17 2006-10-15 06:27:51 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -33,27 +33,25 @@
 #include "buf.h"
 #include "network.h"
 #include "parse.h"
+#include "xmalloc.h"
 
-char *
-network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
-    const char *myport, const char *uploaded, const char *downloaded,
-    const char *left, const char *compact, const char *event, const char *ip,
-    const char *numwant, const char *key, const char *trackerid)
+int
+network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
+    const char *peerid, const char *myport, const char *uploaded,
+    const char *downloaded, const char *left, const char *compact,
+    const char *event, const char *ip, const char *numwant, const char *key,
+    const char *trackerid)
 {
 	int connfd, i, l;
 	size_t n;
 	ssize_t nr;
 	char host[MAXHOSTNAMELEN], port[6], path[MAXPATHLEN], *c;
-	char params[1024], request[1024], buf[128];
+	char params[2048], request[2048];
 	char tbuf[3*SHA1_DIGEST_LENGTH+1];
-	BUF *res;
-
-	if ((res = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
-		warnx("network_announce: could not allocate response buffer");
-		return (NULL);
-	}
+	struct bufferevent *bufev;
 
 	/* convert binary info hash to url encoded format */
+	
 	for (i = 0; i < SHA1_DIGEST_LENGTH; i++) {
 		l = snprintf(&tbuf[3*i], sizeof(tbuf), "%%%02x", infohash[i]);
 		if (l == -1 || l >= (int)sizeof(tbuf))
@@ -149,66 +147,77 @@ network_announce(const char *url, const u_int8_t *infohash, const char *peerid,
 	if ((connfd = network_connect(host, port)) == -1)
 		exit(1);
 	
+	bufev = bufferevent_new(connfd, network_handle_response,
+	    network_handle_write, network_handle_error, tp);
+	bufferevent_enable(bufev, EV_READ);
+
 	if ((nr = write(connfd, request, strlen(request) + 1)) == -1) {
 		warn("network_announce: write");
 		goto err;
 	}
+	event_dispatch();
 
-	while ((nr = read(connfd, buf, sizeof(buf))) != -1 && nr !=0)
-		buf_append(res, &buf, nr);
-
-	buf_putc(res, '\0');
-	(void) close(connfd);
-
-	return (buf_release(res));
+	return (0);
 
 trunc:
 	warnx("network_announce: string truncation detected");
 err:
-	buf_free(res);
-	return (NULL);
+	return (-1);
 }
 
-int
-network_handle_response(struct torrent *tp, char *res)
+void
+network_handle_response(struct bufferevent *bufev, void *arg)
 {
+#define RESBUFLEN 1024
+	struct torrent *tp;
 	struct benc_node *troot;
-	char *c;
+	u_char *c, *res;
 	BUF *buf;
+	size_t len;
+
+	res = xmalloc(RESBUFLEN);
+	memset(res, '\0', RESBUFLEN);
+	len = bufferevent_read(bufev, res, RESBUFLEN);
+
+	tp = arg;
 
 	troot = benc_node_create();
 	troot->flags = BLIST;
 
 	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
 		warnx("network_handle_response: could not allocate buffer");
-		return (-1);
+		xfree(res);
+		return;
 	}
-	buf_set(buf, res, strlen(res), 0);
 
 	c = res;
 	if (strncmp(c, "HTTP/1.0", 8) != 0 && strncmp(c, "HTTP/1.1", 8)) {
 		warnx("network_handle_response: not a valid HTTP response");
-		return (-1);
+		goto err;
 	}
 	c += 9;
 	if (strncmp(c, "200", 3) != 0) {
 		warnx("network_handle_response: HTTP response indicates error");
-		return (-1);
+		goto err;
 	}
 	c = strstr(c, "\r\n\r\n");
 	if (c == NULL) {
 		warnx("network_handle_response: HTTP response had no content");
-		return (-1);
+		goto err;
 	}
 	c += 4;
+	buf_set(buf, c, len - (c - res), 0);
+	troot = benc_node_create();
+	troot->flags = BLIST;
 	benc_parse_init(troot);
 	if ((troot = benc_parse_buf(buf)) == NULL) {
 		warnx("network_handle_response: HTTP response parsing failed");
-		buf_free(buf);
-		return (-1);
+		goto err;
 	}
-
-	return (0);
+	benc_node_print(troot, 0);
+err:
+	xfree(res);
+	buf_free(buf);
 }
 
 int
@@ -245,7 +254,20 @@ network_connect(const char *host, const char *port)
 }
 
 void
-network_loop()
+network_handle_error(struct bufferevent *bufev, short what, void *data)
+{
+
+
+}
+
+void
+network_handle_write(struct bufferevent *bufev, void *data)
+{
+
+}
+
+void
+network_init()
 {
 
 	event_init();

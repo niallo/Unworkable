@@ -1,4 +1,4 @@
-/* $Id: network.h,v 1.5 2006-08-20 21:11:42 niallo Exp $ */
+/* $Id: network.h,v 1.6 2006-10-15 06:27:51 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -16,13 +16,16 @@
  */
 #ifndef NETWORK_H
 #define NETWORK_H
+#include <event.h>
 #include "torrent.h"
 
-char		*network_announce(const char *, const u_int8_t *, const char *,
+int		 network_announce(struct torrent *, const char *,
+		    const u_int8_t *, const char *, const char *, const char *,
 		    const char *, const char *, const char *, const char *,
-		    const char *, const char *, const char *, const char *,
-		    const char *, const char *);
-int		 network_handle_response(struct torrent *, char *);
-void		 network_loop(void);
+		    const char *, const char *, const char *, const char *);
+void		 network_handle_response(struct bufferevent *, void *);
+void		 network_handle_write(struct bufferevent *, void *);
+void		 network_handle_error(struct bufferevent *, short, void *);
+void		 network_init(void);
 int 		 network_connect(const char *, const char *);
 #endif /* NETWORK_H */
