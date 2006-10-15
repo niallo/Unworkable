@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.21 2006-10-15 07:01:44 niallo Exp $ */
+/* $Id: network.c,v 1.22 2006-10-15 07:04:38 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -35,6 +35,8 @@
 #include "parse.h"
 #include "xmalloc.h"
 
+/* XXX: does network_announce really need to take so many params?  should it 
+  just take a torrent struct? */
 static int	 network_announce(struct torrent *, const char *,
 		    const u_int8_t *, const char *, const char *, const char *,
 		    const char *, const char *, const char *, const char *,
