@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.19 2006-10-15 06:36:40 niallo Exp $ */
+/* $Id: network.c,v 1.20 2006-10-15 06:43:56 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -181,8 +181,7 @@ network_handle_response(struct bufferevent *bufev, void *arg)
 
 	tp = arg;
 
-	troot = benc_node_create();
-	troot->flags = BLIST;
+	troot = benc_root_create();
 
 	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
 		warnx("network_handle_response: could not allocate buffer");
