@@ -1,4 +1,4 @@
-/* $Id: xmalloc.c,v 1.3 2006-10-16 21:04:12 niallo Exp $ */
+/* $Id: xmalloc.c,v 1.4 2006-10-16 22:23:00 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -18,6 +18,7 @@
 
 #include <err.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "xmalloc.h"
 
