@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.21 2006-10-15 07:01:44 niallo Exp $ */
+/* $Id: torrent.h,v 1.22 2006-10-16 18:33:47 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -77,6 +77,7 @@ struct torrent {
 	unsigned long long			left;
 	struct benc_node			*broot;
 	int					interval;
+	char					*trackerid;
 };
 
 void			*torrent_block_read(struct torrent_piece *, off_t,

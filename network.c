@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.29 2006-10-15 07:36:51 niallo Exp $ */
+/* $Id: network.c,v 1.30 2006-10-16 18:33:47 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -36,23 +36,16 @@
 #include "parse.h"
 #include "xmalloc.h"
 
-/* XXX: does network_announce really need to take so many params?  should it 
-  just take a torrent struct? */
-static int	 network_announce(struct torrent *, const char *,
-		    const u_int8_t *, const char *, const char *, const char *,
-		    const char *, const char *, const char *, const char *,
-		    const char *, const char *, const char *, const char *);
+static int	 network_announce(struct torrent *, const char *, const char *, const char *,
+		    const char *, const char *, const char *);
 static void	 network_handle_announce_response(struct bufferevent *, void *);
 static void	 network_handle_write(struct bufferevent *, void *);
 static void	 network_handle_error(struct bufferevent *, short, void *);
 static int 	 network_connect(const char *, const char *);
 
 static int
-network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
-    const char *peerid, const char *myport, const char *uploaded,
-    const char *downloaded, const char *left, const char *compact,
-    const char *event, const char *ip, const char *numwant, const char *key,
-    const char *trackerid)
+network_announce(struct torrent *tp, const char *peerid, const char *myport, const char *event,
+    const char *ip, const char *key, const char *numwant)
 {
 	int connfd, i, l;
 	size_t n;
@@ -69,13 +62,13 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 
 	/* convert binary info hash to url encoded format */
 	for (i = 0; i < SHA1_DIGEST_LENGTH; i++) {
-		l = snprintf(&tbuf[3*i], sizeof(tbuf), "%%%02x", infohash[i]);
+		l = snprintf(&tbuf[3*i], sizeof(tbuf), "%%%02x", tp->info_hash[i]);
 		if (l == -1 || l >= (int)sizeof(tbuf))
 			goto trunc;
 	}
 #define HTTPLEN 7
 	/* separate out hostname, port and path */
-	c = strstr(url, "http://");
+	c = strstr(tp->announce, "http://");
 	c += HTTPLEN;
 	n = strcspn(c, ":/") + 1;
 	if (n > sizeof(host) - 1)
@@ -109,17 +102,16 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 	    "?info_hash=%s"
 	    "&peer_id=%s"
 	    "&port=%s"
-	    "&uploaded=%s"
-	    "&downloaded=%s"
-	    "&left=%s"
-	    "&compact=%s",
+	    "&uploaded=%llu"
+	    "&downloaded=%llu"
+	    "&left=%llu"
+	    "&compact=1",
 	    tbuf,
 	    peerid,
 	    myport,
-	    uploaded,
-	    downloaded,
-	    left,
-	    compact);
+	    tp->uploaded,
+	    tp->downloaded,
+	    tp->left);
 	if (l == -1 || l >= GETSTRINGLEN)
 		goto trunc;
 	/* these parts are optional */
@@ -147,9 +139,9 @@ network_announce(struct torrent *tp, const char *url, const u_int8_t *infohash,
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
-	if (trackerid != NULL) {
+	if (tp->trackerid != NULL) {
 		l = snprintf(params, GETSTRINGLEN, "%s&trackerid=%s",
-		    params, trackerid);
+		    params, tp->trackerid);
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
@@ -231,6 +223,11 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 		goto err;
 	}
 	benc_node_print(troot, 0);
+	/* if interval is zero, means we need to set a timer */
+	/*
+	if (tp->interval == 0) {
+	}
+	*/
 	if ((node = benc_node_find(troot, "interval")) == NULL)
 		errx(1, "no interval field");
 
@@ -305,9 +302,7 @@ network_start_torrent(struct torrent *tp)
 {
 	int ret;
 
-	ret = network_announce(tp, "http://127.0.0.1:8080/announce",
-	    tp->info_hash, "U1234567891234567890", "6881", "0", "0", "100",
-	    "1",  "started", NULL, NULL, NULL, NULL);
+	ret = network_announce(tp, "U1234567891234567890", "6668", "started",  NULL, NULL, NULL);
 
 	return (ret);
 }
