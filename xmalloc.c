@@ -1,4 +1,4 @@
-/* $Id: xmalloc.c,v 1.2 2006-10-14 20:41:22 niallo Exp $ */
+/* $Id: xmalloc.c,v 1.3 2006-10-16 21:04:12 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -62,3 +62,15 @@ xfree(void *ptr)
 	free(ptr);
 }
 
+char *
+xstrdup(const char *str)
+{
+	size_t len;
+	char *cp;
+
+	len = strlen(str) + 1;
+	cp = xmalloc(len);
+	if (strlcpy(cp, str, len) >= len)
+		errx(1, "xstrdup: string truncated");
+	return cp;
+}
