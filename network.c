@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.30 2006-10-16 18:33:47 niallo Exp $ */
+/* $Id: network.c,v 1.31 2006-10-16 22:24:10 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -36,16 +36,26 @@
 #include "parse.h"
 #include "xmalloc.h"
 
-static int	 network_announce(struct torrent *, const char *, const char *, const char *,
-		    const char *, const char *, const char *);
-static void	 network_handle_announce_response(struct bufferevent *, void *);
-static void	 network_handle_write(struct bufferevent *, void *);
-static void	 network_handle_error(struct bufferevent *, short, void *);
-static int 	 network_connect(const char *, const char *);
+/* data associated with a bittorrent session */
+struct session {
+	char *key;
+	char *ip;
+	char *numwant;
+	char *peerid;
+	char *port;
+	char *trackerid;
+
+	struct torrent *tp;
+};
+
+static int	network_announce(struct session *, const char *);
+static void	network_handle_announce_response(struct bufferevent *, void *);
+static void	network_handle_write(struct bufferevent *, void *);
+static void	network_handle_error(struct bufferevent *, short, void *);
+static int	network_connect(const char *, const char *);
 
 static int
-network_announce(struct torrent *tp, const char *peerid, const char *myport, const char *event,
-    const char *ip, const char *key, const char *numwant)
+network_announce(struct session *sc, const char *event)
 {
 	int connfd, i, l;
 	size_t n;
@@ -62,13 +72,13 @@ network_announce(struct torrent *tp, const char *peerid, const char *myport, con
 
 	/* convert binary info hash to url encoded format */
 	for (i = 0; i < SHA1_DIGEST_LENGTH; i++) {
-		l = snprintf(&tbuf[3*i], sizeof(tbuf), "%%%02x", tp->info_hash[i]);
+		l = snprintf(&tbuf[3*i], sizeof(tbuf), "%%%02x", sc->tp->info_hash[i]);
 		if (l == -1 || l >= (int)sizeof(tbuf))
 			goto trunc;
 	}
 #define HTTPLEN 7
 	/* separate out hostname, port and path */
-	c = strstr(tp->announce, "http://");
+	c = strstr(sc->tp->announce, "http://");
 	c += HTTPLEN;
 	n = strcspn(c, ":/") + 1;
 	if (n > sizeof(host) - 1)
@@ -107,11 +117,11 @@ network_announce(struct torrent *tp, const char *peerid, const char *myport, con
 	    "&left=%llu"
 	    "&compact=1",
 	    tbuf,
-	    peerid,
-	    myport,
-	    tp->uploaded,
-	    tp->downloaded,
-	    tp->left);
+	    sc->peerid,
+	    sc->port,
+	    sc->tp->uploaded,
+	    sc->tp->downloaded,
+	    sc->tp->left);
 	if (l == -1 || l >= GETSTRINGLEN)
 		goto trunc;
 	/* these parts are optional */
@@ -121,27 +131,27 @@ network_announce(struct torrent *tp, const char *peerid, const char *myport, con
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
-	if (ip != NULL) {
+	if (sc->ip != NULL) {
 		l = snprintf(params, GETSTRINGLEN, "%s&ip=%s", params,
-		    ip);
+		    sc->ip);
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
-	if (numwant != NULL) {
+	if (sc->numwant != NULL) {
 		l = snprintf(params, GETSTRINGLEN, "%s&numwant=%s", params,
-		    numwant);
+		    sc->numwant);
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
-	if (key != NULL) {
+	if (sc->key != NULL) {
 		l = snprintf(params, GETSTRINGLEN, "%s&key=%s", params,
-		    key);
+		    sc->key);
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
-	if (tp->trackerid != NULL) {
+	if (sc->trackerid != NULL) {
 		l = snprintf(params, GETSTRINGLEN, "%s&trackerid=%s",
-		    params, tp->trackerid);
+		    params, sc->trackerid);
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
@@ -157,7 +167,7 @@ network_announce(struct torrent *tp, const char *peerid, const char *myport, con
 		exit(1);
 	
 	bufev = bufferevent_new(connfd, network_handle_announce_response,
-	    network_handle_write, network_handle_error, tp);
+	    network_handle_write, network_handle_error, sc);
 	bufferevent_enable(bufev, EV_READ);
 	bufferevent_write(bufev, request, strlen(request) + 1);
 
@@ -180,6 +190,7 @@ static void
 network_handle_announce_response(struct bufferevent *bufev, void *arg)
 {
 #define RESBUFLEN 1024
+	struct session *sc;
 	struct torrent *tp;
 	struct benc_node *node, *troot;
 	u_char *c, *res;
@@ -190,7 +201,8 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	memset(res, '\0', RESBUFLEN);
 	len = bufferevent_read(bufev, res, RESBUFLEN);
 
-	tp = arg;
+	sc = arg;
+	tp = sc->tp;
 
 	troot = benc_root_create();
 
@@ -301,8 +313,17 @@ int
 network_start_torrent(struct torrent *tp)
 {
 	int ret;
+	struct session *sc;
 
-	ret = network_announce(tp, "U1234567891234567890", "6668", "started",  NULL, NULL, NULL);
+	sc = xmalloc(sizeof(*sc));
+	memset(sc, 0, sizeof(*sc));
+	
+
+	sc->tp = tp;
+	sc->port = xstrdup("6668");
+	sc->peerid = xstrdup("U1234567891234567890");
+
+	ret = network_announce(sc, "started");
 
 	return (ret);
 }
