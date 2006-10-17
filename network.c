@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.31 2006-10-16 22:24:10 niallo Exp $ */
+/* $Id: network.c,v 1.32 2006-10-17 06:17:33 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -38,17 +38,21 @@
 
 /* data associated with a bittorrent session */
 struct session {
+	int connfd;
 	char *key;
 	char *ip;
 	char *numwant;
 	char *peerid;
 	char *port;
 	char *trackerid;
+	char *request;
+	struct event announce_event;
 
 	struct torrent *tp;
 };
 
 static int	network_announce(struct session *, const char *);
+static void	network_announce_update(int, short, void *);
 static void	network_handle_announce_response(struct bufferevent *, void *);
 static void	network_handle_write(struct bufferevent *, void *);
 static void	network_handle_error(struct bufferevent *, short, void *);
@@ -57,7 +61,7 @@ static int	network_connect(const char *, const char *);
 static int
 network_announce(struct session *sc, const char *event)
 {
-	int connfd, i, l;
+	int i, l;
 	size_t n;
 	char host[MAXHOSTNAMELEN], port[6], path[MAXPATHLEN], *c;
 #define GETSTRINGLEN 2048
@@ -163,19 +167,16 @@ network_announce(struct session *sc, const char *event)
 		goto trunc;
 
 	/* non blocking connect ? */
-	if ((connfd = network_connect(host, port)) == -1)
+	if ((sc->connfd = network_connect(host, port)) == -1)
 		exit(1);
 	
-	bufev = bufferevent_new(connfd, network_handle_announce_response,
+	sc->request = request;
+	bufev = bufferevent_new(sc->connfd, network_handle_announce_response,
 	    network_handle_write, network_handle_error, sc);
 	bufferevent_enable(bufev, EV_READ);
 	bufferevent_write(bufev, request, strlen(request) + 1);
 
-	event_dispatch();
-
 	xfree(params);
-	xfree(request);
-
 	return (0);
 
 trunc:
@@ -190,27 +191,22 @@ static void
 network_handle_announce_response(struct bufferevent *bufev, void *arg)
 {
 #define RESBUFLEN 1024
+	BUF *buf;
+	u_char *c, *res;
+	size_t len;
+	struct benc_node *node, *troot;
 	struct session *sc;
 	struct torrent *tp;
-	struct benc_node *node, *troot;
-	u_char *c, *res;
-	BUF *buf;
-	size_t len;
+	struct timeval tv;
 
+	buf = NULL;
+	troot = node = NULL;
 	res = xmalloc(RESBUFLEN);
 	memset(res, '\0', RESBUFLEN);
 	len = bufferevent_read(bufev, res, RESBUFLEN);
 
 	sc = arg;
 	tp = sc->tp;
-
-	troot = benc_root_create();
-
-	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
-		warnx("network_handle_announce_response: could not allocate buffer");
-		xfree(res);
-		return;
-	}
 
 	c = res;
 	if (strncmp(c, "HTTP/1.0", 8) != 0 && strncmp(c, "HTTP/1.1", 8)) {
@@ -228,18 +224,20 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 		goto err;
 	}
 	c += 4;
+
+	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
+		warnx("network_handle_announce_response: could not allocate buffer");
+		xfree(res);
+		return;
+	}
 	buf_set(buf, c, len - (c - res), 0);
+
 	troot = benc_root_create();
 	if ((troot = benc_parse_buf(buf, troot)) == NULL) {
 		warnx("network_handle_announce_response: HTTP response parsing failed");
 		goto err;
 	}
 	benc_node_print(troot, 0);
-	/* if interval is zero, means we need to set a timer */
-	/*
-	if (tp->interval == 0) {
-	}
-	*/
 	if ((node = benc_node_find(troot, "interval")) == NULL)
 		errx(1, "no interval field");
 
@@ -247,11 +245,16 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 		errx(1, "interval is not a number");
 
 	tp->interval = node->body.number;
-
-err:
-	xfree(res);
-	buf_free(buf);
 	benc_node_freeall(troot);
+	tv.tv_sec = tp->interval;
+	evtimer_set(&sc->announce_event, network_announce_update, arg);
+	evtimer_add(&sc->announce_event, &tv);
+	printf("tracker announce completed, sending next one in %d seconds\n", tp->interval);
+err:
+	bufferevent_free(bufev);
+	buf_free(buf);
+	xfree(res);
+	(void) close(sc->connfd);
 }
 
 static int
@@ -298,7 +301,17 @@ network_handle_error(struct bufferevent *bufev, short what, void *data)
 static void
 network_handle_write(struct bufferevent *bufev, void *data)
 {
+	struct session *sc = data;
 
+	xfree(sc->request);
+}
+
+static void
+network_announce_update(int fd, short type, void *arg)
+{
+	struct session *sc = arg;
+
+	network_announce(sc, NULL);
 }
 
 /* network subsystem init, needs to be called before doing anything */
@@ -324,6 +337,8 @@ network_start_torrent(struct torrent *tp)
 	sc->peerid = xstrdup("U1234567891234567890");
 
 	ret = network_announce(sc, "started");
+
+	event_dispatch();
 
 	return (ret);
 }
