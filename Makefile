@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: Makefile,v 1.15 2006-10-17 17:41:58 niallo Exp $
+# $Id: Makefile,v 1.16 2006-10-17 20:54:53 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
@@ -23,12 +23,12 @@ CFLAGS+= -Wshadow -Wpointer-arith -Wcast-qual
 CFLAGS+= -Wsign-compare -g -ggdb
 
 #
-# If you like to use Boehm's garbage collector (/usr/ports/devel/boehm-gc).
-#LDADD+=                -L/usr/local/lib -lgc
+# Uncomment if you like to use Boehm's garbage collector (/usr/ports/devel/boehm-gc).
+#LDFLAGS+=                -L/usr/local/lib -lgc
 #DPADD+=                /usr/local/lib/libgc.a
-#CFLAGS+=               -DUSE_BOEHM_GC -DGC_DEBUG
+#CFLAGS+=               -DUSE_BOEHM_GC -DGC_DEBUG -DFIND_LEAK -I/usr/local/include
 # You can also use Boehm's garbage collector as a means to find leaks.
-#  # setenv GC_FIND_LEAK
+#  # export GC_FIND_LEAK=1
 
 PROG= unworkable
 
@@ -38,7 +38,7 @@ OBJS= ${SRCS:N*.h:N*.sh:R:S/$/.o/g}
 all: ${PROG}
 
 ${PROG}: ${OBJS}
-	${CC} -o ${.TARGET} -levent ${OBJS}
+	${CC} -o ${.TARGET} ${LDFLAGS} -levent ${OBJS}
 
 clean:
 	rm -rf *.o ${PROG} y.tab.h

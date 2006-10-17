@@ -1,4 +1,4 @@
-/* $Id: xmalloc.h,v 1.3 2006-10-16 21:04:12 niallo Exp $ */
+/* $Id: xmalloc.h,v 1.4 2006-10-17 20:54:54 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -16,9 +16,23 @@
  */
 #ifndef XMALLOC_H
 #define XMALLOC_H
+/*
+ * Support for Boehm's garbage collector, useful for finding leaks.
+ */
+#if defined(USE_BOEHM_GC)
+#include <gc.h>
+#define xmalloc(n) GC_MALLOC(n)
+#define xcalloc(m,n) GC_MALLOC((m)*(n))
+#define xfree(p) GC_FREE(p)
+#define xrealloc(p,n) GC_REALLOC((p),(n))
+#define xstrdup(n) gc_strdup(n)
+#define CHECK_LEAKS() GC_gcollect()
+char *gc_strdup(const char *);
+#else
 void *xmalloc(size_t);
 void *xrealloc(void *, size_t);
 void *xcalloc(size_t, size_t);
 void  xfree(void *);
 char *xstrdup(const char *);
+#endif /* USE_BOEHM_GC */
 #endif /* XMALLOC_H */

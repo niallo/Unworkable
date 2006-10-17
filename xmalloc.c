@@ -1,4 +1,4 @@
-/* $Id: xmalloc.c,v 1.4 2006-10-16 22:23:00 niallo Exp $ */
+/* $Id: xmalloc.c,v 1.5 2006-10-17 20:54:54 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -24,6 +24,7 @@
 
 #define	OOM_MSG	"Out of memory"
 
+#if !defined (USE_BOEHM_GC)
 void *
 xmalloc(size_t size)
 {
@@ -75,3 +76,17 @@ xstrdup(const char *str)
 		errx(1, "xstrdup: string truncated");
 	return cp;
 }
+
+#else
+
+/* Special for compiling with Boehm's GC. See Makefile and xmalloc.h  */
+char *
+gc_strdup(const char *x)
+{
+	char *y = malloc(strlen(x) + 1);
+	/* XXX ja ja, should check return value... */
+	strlcpy(y, x, strlen(x) + 1);
+	return (y);
+}
+
+#endif /* WITH_BOEHM_GC */

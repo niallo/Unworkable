@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.21 2006-10-15 07:01:44 niallo Exp $ */
+/* $Id: main.c,v 1.22 2006-10-17 20:54:54 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -21,6 +21,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#if defined(USE_BOEHM_GC)
+#include <gc.h>
+#endif
 
 #include "bencode.h"
 #include "network.h"
@@ -45,6 +48,9 @@ main(int argc, char **argv)
 	struct torrent *torrent;
 	struct torrent_piece *tpp;
 
+	#if defined(USE_BOEHM_GC)
+	GC_INIT();
+	#endif
 	badflag = 0;
 
 	while ((ch = getopt(argc, argv, "i")) != -1) {

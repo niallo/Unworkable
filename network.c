@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.32 2006-10-17 06:17:33 niallo Exp $ */
+/* $Id: network.c,v 1.33 2006-10-17 20:54:54 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
