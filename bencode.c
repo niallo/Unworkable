@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.30 2006-10-17 06:15:47 niallo Exp $ */
+/* $Id: bencode.c,v 1.31 2006-10-17 19:24:38 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -119,7 +119,7 @@ benc_node_freeall(struct benc_node *node)
 
 	if (node->flags & BDICT_ENTRY) {
 		xfree(node->body.dict_entry.key);
-		xfree(node->body.dict_entry.value);
+		benc_node_freeall(node->body.dict_entry.value);
 	} else if (node->flags & BSTRING) {
 		xfree(node->body.string.value);
 	}
