@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.53 2006-10-15 06:36:41 niallo Exp $ */
+/* $Id: torrent.c,v 1.54 2006-10-17 20:32:05 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -68,7 +68,7 @@ torrent_parse_infohash(const char *file)
 	len = SHA1_DIGEST_LENGTH;
 	ret = xmalloc(len);
 	memcpy(ret, result, SHA1_DIGEST_LENGTH);
-	free(buf);
+	xfree(buf);
 
 	return (ret);
 }
@@ -600,7 +600,7 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 	SHA1Final(results, &sha);
 
 	if (hint == 1)
-		free(d);
+		xfree(d);
 	if (tp->type == MULTIFILE) {
 		s = tp->body.multifile.pieces
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
@@ -645,10 +645,10 @@ torrent_piece_unmap(struct torrent *tp, int idx)
 	}
 	while ((tmmp = TAILQ_FIRST(&tpp->mmaps))) {
 		TAILQ_REMOVE(&tpp->mmaps, tmmp, mmaps);
-		free(tmmp);
+		xfree(tmmp);
 	}
 
 	RB_REMOVE(pieces, &tp->pieces, tpp);
-	free(tpp);
+	xfree(tpp);
 }
 

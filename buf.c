@@ -1,4 +1,4 @@
-/* $Id: buf.c,v 1.2 2006-05-18 23:43:35 niallo Exp $ */
+/* $Id: buf.c,v 1.3 2006-10-17 20:32:52 niallo Exp $ */
 /*
  * Copyright (c) 2003 Jean-Francois Brousseau <jfb@openbsd.org>
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
@@ -139,8 +139,8 @@ void
 buf_free(BUF *b)
 {
 	if (b->cb_buf != NULL)
-		free(b->cb_buf);
-	free(b);
+		xfree(b->cb_buf);
+	xfree(b);
 }
 
 /*
@@ -148,7 +148,7 @@ buf_free(BUF *b)
  *
  * Free the buffer <b>'s structural information but do not free the contents
  * of the buffer.  Instead, they are returned and should be freed later using
- * free().
+ * xfree().
  */
 void *
 buf_release(BUF *b)
@@ -156,7 +156,7 @@ buf_release(BUF *b)
 	u_char *tmp;
 
 	tmp = b->cb_buf;
-	free(b);
+	xfree(b);
 	return (tmp);
 }
 
@@ -311,7 +311,7 @@ buf_fappend(BUF *b, const char *fmt, ...)
 		errx(1, "buf_fappend: failed to format data");
 
 	ret = buf_append(b, str, (size_t)ret);
-	free(str);
+	xfree(str);
 	return (ret);
 }
 

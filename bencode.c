@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.31 2006-10-17 19:24:38 niallo Exp $ */
+/* $Id: bencode.c,v 1.32 2006-10-17 20:32:04 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
