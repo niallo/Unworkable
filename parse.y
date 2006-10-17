@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.48 2006-10-17 06:16:13 niallo Exp $ */
+/* $Id: parse.y,v 1.49 2006-10-17 20:26:05 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -207,6 +207,7 @@ bdict_entry	: bstring bint					{
 			node->body.dict_entry.key = $1->body.string.value;
 			node->body.dict_entry.value = $2;
 
+			xfree($1);
 			$$ = node;
 		}
 		| bstring bstring				{
@@ -217,6 +218,7 @@ bdict_entry	: bstring bint					{
 			node->body.dict_entry.key = $1->body.string.value;
 			node->body.dict_entry.value = $2;
 
+			xfree($1);
 			$$ = node;
 		}
 		| bstring blist					{
@@ -227,6 +229,7 @@ bdict_entry	: bstring bint					{
 			node->body.dict_entry.key = $1->body.string.value;
 			node->body.dict_entry.value = $2;
 
+			xfree($1);
 			$$ = node;
 		}
 		| bstring bdict					{
@@ -237,6 +240,7 @@ bdict_entry	: bstring bint					{
 			node->body.dict_entry.key = $1->body.string.value;
 			node->body.dict_entry.value = $2;
 
+			xfree($1);
 			$$ = node;
 		}
 
