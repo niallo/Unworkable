@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.29 2006-10-17 04:12:50 niallo Exp $ */
+/* $Id: bencode.c,v 1.30 2006-10-17 06:15:47 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -82,29 +82,6 @@ benc_node_find(struct benc_node *node, char *key)
 	return (NULL);
 }
 
-/* recursively free a node tree */
-void
-benc_node_free(struct benc_node *node)
-{
-	struct benc_node *childnode;
-
-	if (node->flags & BDICT_ENTRY) {
-		free(node->body.dict_entry.key);
-		free(node->body.dict_entry.value);
-	}
-
-	if (node->flags & BSTRING && !(node->flags & BDICT_ENTRY))
-		free(node->body.string.value);
-	
-	if (IS_CONTAINER_TYPE(node)) {
-		TAILQ_FOREACH(childnode, &node->children, benc_nodes) {
-			benc_node_free(childnode);
-		}
-		while ((childnode = TAILQ_FIRST(&node->children)))
-			TAILQ_REMOVE(&node->children, childnode, benc_nodes);
-	}
-}
-
 void
 benc_node_print(struct benc_node *node, int level)
 {
@@ -122,11 +99,13 @@ benc_node_print(struct benc_node *node, int level)
 		    node->body.string.value);
 	} else if (node->flags & BINT) {
 		printf("int value: %lld\n", node->body.number);
-	} else if (node->flags & BLIST) {
+	}
+	if (node->flags & BLIST) {
 		printf("blist\n");
 		TAILQ_FOREACH(childnode, &node->children, benc_nodes)
 			benc_node_print(childnode, level + 1);
-	} else if (node->flags & BDICT) {
+	}
+	if (node->flags & BDICT) {
 		printf("bdict\n");
 		TAILQ_FOREACH(childnode, &node->children, benc_nodes)
 			benc_node_print(childnode, level + 1);
@@ -143,12 +122,15 @@ benc_node_freeall(struct benc_node *node)
 		xfree(node->body.dict_entry.value);
 	} else if (node->flags & BSTRING) {
 		xfree(node->body.string.value);
-	} else if (node->flags & BLIST || node->flags & BLIST) {
+	}
+
+	if (IS_CONTAINER_TYPE(node)) {
 		while ((childnode = TAILQ_FIRST(&node->children)) != NULL) {
-			benc_node_freeall(childnode);
 			TAILQ_REMOVE(&node->children, childnode, benc_nodes);
+			benc_node_freeall(childnode);
 		}
 	}
+
 	xfree(node);
 }
 
