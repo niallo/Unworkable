@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.47 2006-10-15 06:36:41 niallo Exp $ */
+/* $Id: parse.y,v 1.48 2006-10-17 06:16:13 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -109,14 +109,14 @@ number		: STRING					{
 			lval = strtonum($1, LLONG_MIN, LLONG_MAX, &errstr);
 			if (errstr) {
 				yyerror("%s is %s", $1, errstr);
-				free($1);
+				xfree($1);
 				YYERROR;
 			} else {
 				$$ = lval;
 				if (bstrflag == 1)
 					bstrlen = lval;
 			}
-			free($1);
+			xfree($1);
 		}
 		;
 
@@ -305,7 +305,7 @@ yylex(void)
 		}
 
 		if ((c = buf_getc(in)) == EOF) {
-			free(buf);
+			xfree(buf);
 			return (0);
 		}
 
@@ -325,7 +325,7 @@ yylex(void)
 			} else {
 				bdone = 0;
 				bcdone = 1;
-				free(buf);
+				xfree(buf);
 				return (COLON);
 			}
 		case 'e':
@@ -337,17 +337,17 @@ yylex(void)
 				return (STRING);
 			} else {
 				bdone = 0;
-				free(buf);
+				xfree(buf);
 				return (END);
 			}
 		case 'i':
-			free(buf);
+			xfree(buf);
 			return (INT_START);
 		case 'd':
-			free(buf);
+			xfree(buf);
 			return (DICT_START);
 		case 'l':
-			free(buf);
+			xfree(buf);
 			return (LIST_START);
 		}
 skip:
