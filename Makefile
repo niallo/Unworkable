@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: Makefile,v 1.14 2006-05-20 12:15:11 niallo Exp $
+# $Id: Makefile,v 1.15 2006-10-17 17:41:58 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
@@ -21,6 +21,14 @@ CFLAGS+= -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS+= -Wmissing-declarations
 CFLAGS+= -Wshadow -Wpointer-arith -Wcast-qual
 CFLAGS+= -Wsign-compare -g -ggdb
+
+#
+# If you like to use Boehm's garbage collector (/usr/ports/devel/boehm-gc).
+#LDADD+=                -L/usr/local/lib -lgc
+#DPADD+=                /usr/local/lib/libgc.a
+#CFLAGS+=               -DUSE_BOEHM_GC -DGC_DEBUG
+# You can also use Boehm's garbage collector as a means to find leaks.
+#  # setenv GC_FIND_LEAK
 
 PROG= unworkable
 
