@@ -1,4 +1,4 @@
-/* $Id: bencode.h,v 1.17 2006-10-17 06:15:47 niallo Exp $ */
+/* $Id: bencode.h,v 1.18 2006-10-18 21:28:13 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -40,7 +40,7 @@ struct benc_node {
 		long long			number;
 		struct {
 			char *value;
-			long len;
+			size_t len;
 		}				string;
 		struct {
 			char *key;
