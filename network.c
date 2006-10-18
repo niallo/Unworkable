@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.33 2006-10-17 20:54:54 niallo Exp $ */
+/* $Id: network.c,v 1.34 2006-10-18 01:40:37 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -18,6 +18,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/queue.h>
 
 #include <ctype.h>
 #include <err.h>
@@ -36,8 +37,18 @@
 #include "parse.h"
 #include "xmalloc.h"
 
+/* bittorrent peer */
+struct peer {
+	TAILQ_ENTRY(peer) peer_list;
+	uint32_t host;
+	uint16_t port;
+};
+
 /* data associated with a bittorrent session */
 struct session {
+	/* don't expect to have huge numbers of peers, or be searching very often, so linked list
+	 * should be fine for storage */
+	TAILQ_HEAD(peers, peer) peers;
 	int connfd;
 	char *key;
 	char *ip;
