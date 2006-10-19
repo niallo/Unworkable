@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.34 2006-10-18 01:40:37 niallo Exp $ */
+/* $Id: network.c,v 1.35 2006-10-19 23:32:50 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -42,6 +42,7 @@ struct peer {
 	TAILQ_ENTRY(peer) peer_list;
 	uint32_t host;
 	uint16_t port;
+	int connfd;
 };
 
 /* data associated with a bittorrent session */
@@ -68,6 +69,7 @@ static void	network_handle_announce_response(struct bufferevent *, void *);
 static void	network_handle_write(struct bufferevent *, void *);
 static void	network_handle_error(struct bufferevent *, short, void *);
 static int	network_connect(const char *, const char *);
+static void	network_peerlist_update(struct session *, struct benc_node *);
 
 static int
 network_announce(struct session *sc, const char *event)
@@ -256,6 +258,10 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 		errx(1, "interval is not a number");
 
 	tp->interval = node->body.number;
+
+	if ((node = benc_node_find(troot, "peers")) == NULL)
+		errx(1, "no peers field");
+	network_peerlist_update(sc, node);
 	benc_node_freeall(troot);
 	tv.tv_sec = tp->interval;
 	evtimer_set(&sc->announce_event, network_announce_update, arg);
@@ -325,6 +331,84 @@ network_announce_update(int fd, short type, void *arg)
 	network_announce(sc, NULL);
 }
 
+static void
+network_peerlist_update(struct session *sc, struct benc_node *peers)
+{
+	char *c, *peerlist;
+	size_t len, i;
+	struct peer *p, *ep, *nxt;
+	int found = 0;
+
+	/* XXX */
+	if (!(peers->flags & BSTRING))
+		errx(1, "long peer lists not supported yet");
+
+	len = peers->body.string.len;
+	c = peerlist = peers->body.string.value;
+	p = NULL;
+
+	/* check for peers to add */
+	for (i = 0; i < len; ) {
+		if (i % 4) {
+			p = xmalloc(sizeof(*p));
+			memset(p, 0, sizeof(*p));
+			memcpy(&p->host, c, 4);
+			c += 4;
+			i += 4;
+			memcpy(&p->port, c, 2);
+			c += 2;
+			i += 2;
+			/* Is this peer already in the list? */
+			found = 0;
+			TAILQ_FOREACH(ep, &sc->peers, peer_list) {
+				if (ep->host == p->host && ep->port == p->host) {
+					found = 1;
+					break;
+				}
+			}
+			if (!found)
+				TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
+			continue;
+		}
+		c++;
+		i++;
+	}
+
+	/* check for peers to remove */
+	c = peerlist = peers->body.string.value;
+	for (ep = TAILQ_FIRST(&sc->peers); ep != TAILQ_END(&sc->peers); ep = nxt) {
+		nxt = TAILQ_NEXT(ep, peer_list);
+		for (i = 0; i < len; ) {
+			if (i % 4) {
+				p = xmalloc(sizeof(*p));
+				memset(p, 0, sizeof(*p));
+				memcpy(&p->host, c, 4);
+				c += 4;
+				i += 4;
+				memcpy(&p->port, c, 2);
+				c += 2;
+				i += 2;
+				/* Is this peer in the new list? */
+				found = 0;
+				if (ep->host == p->host && ep->port == p->host) {
+					found = 1;
+					xfree(p);
+					break;
+				}
+				xfree(p);
+				continue;
+			}
+			c++;
+			i++;
+		}
+		/* if not, remove from list and free memory */
+		if (!found) {
+			TAILQ_REMOVE(&sc->peers, ep, peer_list);
+			xfree(ep);
+		}
+	}
+}
+
 /* network subsystem init, needs to be called before doing anything */
 void
 network_init()
@@ -341,8 +425,9 @@ network_start_torrent(struct torrent *tp)
 
 	sc = xmalloc(sizeof(*sc));
 	memset(sc, 0, sizeof(*sc));
-	
 
+
+	TAILQ_INIT(&sc->peers);
 	sc->tp = tp;
 	sc->port = xstrdup("6668");
 	sc->peerid = xstrdup("U1234567891234567890");
