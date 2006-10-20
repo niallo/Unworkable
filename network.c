@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.41 2006-10-20 06:59:00 niallo Exp $ */
+/* $Id: network.c,v 1.42 2006-10-20 17:39:27 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -457,10 +457,14 @@ network_peer_handshake(struct session *sc, struct peer *p)
 	* handshake: <pstrlen><pstr><reserved><info_hash><peer_id>
 	* pstrlen: string length of <pstr>, as a single raw byte
 	* pstr: string identifier of the protocol
-	* reserved: eight (8) reserved bytes. All current implementations use all zeroes. Each bit in these bytes can be used to change the behavior of the protocol.
-	* An email from Bram suggests that trailing bits should be used first, so that leading bits may be used to change the meaning of trailing bits.
-	* info_hash: 20-byte SHA1 hash of the info key in the metainfo file. This is the same info_hash that is transmitted in tracker requests.
-	* peer_id: 20-byte string used as a unique ID for the client. This is the same peer_id that is transmitted in tracker requests.
+	* reserved: eight (8) reserved bytes. All current implementations use all zeroes. Each bit in
+	* these bytes can be used to change the behavior of the protocol.
+	* An email from Bram suggests that trailing bits should be used first, so that leading bits
+	* may be used to change the meaning of trailing bits.
+	* info_hash: 20-byte SHA1 hash of the info key in the metainfo file. This is the same
+	* info_hash that is transmitted in tracker requests.
+	* peer_id: 20-byte string used as a unique ID for the client. This is the same peer_id that is
+	* transmitted in tracker requests.
 	*
 	* In version 1.0 of the BitTorrent protocol, pstrlen = 19, and pstr = "BitTorrent protocol".
 	*/
