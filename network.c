@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.39 2006-10-20 06:00:30 niallo Exp $ */
+/* $Id: network.c,v 1.40 2006-10-20 06:02:22 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -435,7 +435,7 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 			printf("connected\n");
 		} else {
 			printf("connecting...");
-			network_connect_peer(ep);
+			ep->connfd = network_connect_peer(ep);
 			printf("done\n");
 		}
 	}
