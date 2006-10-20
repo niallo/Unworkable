@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.40 2006-10-20 06:02:22 niallo Exp $ */
+/* $Id: network.c,v 1.41 2006-10-20 06:59:00 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -45,6 +45,8 @@ struct peer {
 	TAILQ_ENTRY(peer) peer_list;
 	struct sockaddr_in sa;
 	int connfd;
+	struct bufferevent *bufev;
+	u_int8_t *msg;
 };
 
 /* data associated with a bittorrent session */
@@ -73,8 +75,12 @@ static void	network_handle_error(struct bufferevent *, short, void *);
 static int	network_connect(int, int, int, const struct sockaddr *,
 		    socklen_t);
 static int	network_connect_tracker(const char *, const char *);
-static int	network_connect_peer(struct peer *p);
+static int	network_connect_peer(struct peer *);
 static void	network_peerlist_update(struct session *, struct benc_node *);
+static void	network_peer_handshake(struct session *, struct peer *);
+static void	network_handle_peer_response(struct bufferevent *, void *);
+static void	network_handle_peer_write(struct bufferevent *, void *);
+static void	network_handle_peer_error(struct bufferevent *, short, void *);
 
 static int
 network_announce(struct session *sc, const char *event)
@@ -434,11 +440,61 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 		if (ep->connfd != 0) {
 			printf("connected\n");
 		} else {
+			/* XXX non-blocking connect? */
 			printf("connecting...");
 			ep->connfd = network_connect_peer(ep);
 			printf("done\n");
+			ep->bufev = bufferevent_new(p->connfd, network_handle_peer_response,
+			    network_handle_peer_write, network_handle_peer_error, sc);
+			bufferevent_enable(ep->bufev, EV_READ);
 		}
 	}
+}
+static void
+network_peer_handshake(struct session *sc, struct peer *p)
+{
+	/*
+	* handshake: <pstrlen><pstr><reserved><info_hash><peer_id>
+	* pstrlen: string length of <pstr>, as a single raw byte
+	* pstr: string identifier of the protocol
+	* reserved: eight (8) reserved bytes. All current implementations use all zeroes. Each bit in these bytes can be used to change the behavior of the protocol.
+	* An email from Bram suggests that trailing bits should be used first, so that leading bits may be used to change the meaning of trailing bits.
+	* info_hash: 20-byte SHA1 hash of the info key in the metainfo file. This is the same info_hash that is transmitted in tracker requests.
+	* peer_id: 20-byte string used as a unique ID for the client. This is the same peer_id that is transmitted in tracker requests.
+	*
+	* In version 1.0 of the BitTorrent protocol, pstrlen = 19, and pstr = "BitTorrent protocol".
+	*/
+	#define HANDSHAKELEN (1 + 19 + 8 + 20 + 20)
+	p->msg = xmalloc(HANDSHAKELEN);
+	memset(p->msg, 0, HANDSHAKELEN);
+	p->msg[0] = 0x19;
+	memcpy(p->msg + 1, "BitTorrent Protocol", 19);
+	memcpy(p->msg + 28, sc->tp->info_hash, 20);
+	memcpy(p->msg + 48, sc->peerid, 20);
+
+	bufferevent_write(p->bufev, p->msg, HANDSHAKELEN);
+}
+
+
+static void
+network_handle_peer_error(struct bufferevent *bufev, short what, void *data)
+{
+
+}
+
+static void
+network_handle_peer_write(struct bufferevent *bufev, void *data)
+{
+	struct peer *p = data;
+
+	xfree(p->msg);
+}
+
+static void
+network_handle_peer_response(struct bufferevent *bufev, void *data)
+{
+	struct peer *p = data;
+
 }
 
 /* network subsystem init, needs to be called before doing anything */
