@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.35 2006-10-19 23:32:50 niallo Exp $ */
+/* $Id: network.c,v 1.36 2006-10-20 04:57:15 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,6 +20,9 @@
 #include <sys/socket.h>
 #include <sys/queue.h>
 
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include <ctype.h>
 #include <err.h>
 #include <event.h>
@@ -40,8 +43,7 @@
 /* bittorrent peer */
 struct peer {
 	TAILQ_ENTRY(peer) peer_list;
-	uint32_t host;
-	uint16_t port;
+	struct sockaddr_in sa;
 	int connfd;
 };
 
@@ -331,10 +333,13 @@ network_announce_update(int fd, short type, void *arg)
 	network_announce(sc, NULL);
 }
 
+/* Yes, this is slow.  But peer lists should not be too long, and we shouldn't be running it
+   often at all (once per announce, interval is often thousands of seconds).
+   So O(n2) should be acceptable worst case. */
 static void
 network_peerlist_update(struct session *sc, struct benc_node *peers)
 {
-	char *c, *peerlist;
+	char *peerlist;
 	size_t len, i;
 	struct peer *p, *ep, *nxt;
 	int found = 0;
@@ -344,24 +349,25 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 		errx(1, "long peer lists not supported yet");
 
 	len = peers->body.string.len;
-	c = peerlist = peers->body.string.value;
+	peerlist = peers->body.string.value;
 	p = NULL;
 
 	/* check for peers to add */
-	for (i = 0; i < len; ) {
-		if (i % 4) {
+	for (i = 0; i < len; i++) {
+		if (i % 6 == 0) {
 			p = xmalloc(sizeof(*p));
 			memset(p, 0, sizeof(*p));
-			memcpy(&p->host, c, 4);
-			c += 4;
-			i += 4;
-			memcpy(&p->port, c, 2);
-			c += 2;
-			i += 2;
+			p->sa.sin_family = AF_INET;
+			memcpy(&p->sa.sin_addr, peerlist + i, 4);
+			memcpy(&p->sa.sin_port, peerlist + i + 4, 2);
+			printf("host=%s, port=%d\n", inet_ntoa(p->sa.sin_addr),
+			    ntohs(p->sa.sin_port));
 			/* Is this peer already in the list? */
 			found = 0;
 			TAILQ_FOREACH(ep, &sc->peers, peer_list) {
-				if (ep->host == p->host && ep->port == p->host) {
+				/* XXX check for ourselves */
+				if (memcmp(&ep->sa.sin_addr, &p->sa.sin_addr, sizeof(ep->sa.sin_addr))
+				    && memcmp(&ep->sa.sin_port, &p->sa.sin_port, sizeof(ep->sa.sin_port))) {
 					found = 1;
 					break;
 				}
@@ -370,36 +376,28 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 				TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
 			continue;
 		}
-		c++;
-		i++;
 	}
 
 	/* check for peers to remove */
-	c = peerlist = peers->body.string.value;
+	peerlist = peers->body.string.value;
 	for (ep = TAILQ_FIRST(&sc->peers); ep != TAILQ_END(&sc->peers); ep = nxt) {
 		nxt = TAILQ_NEXT(ep, peer_list);
-		for (i = 0; i < len; ) {
-			if (i % 4) {
+		for (i = 0; i < len; i++ ) {
+			if (i % 6 == 0) {
 				p = xmalloc(sizeof(*p));
 				memset(p, 0, sizeof(*p));
-				memcpy(&p->host, c, 4);
-				c += 4;
-				i += 4;
-				memcpy(&p->port, c, 2);
-				c += 2;
-				i += 2;
+				memcpy(&p->sa.sin_addr, peerlist + i, 4);
+				memcpy(&p->sa.sin_port, peerlist + i + 4, 2);
 				/* Is this peer in the new list? */
 				found = 0;
-				if (ep->host == p->host && ep->port == p->host) {
+				if (memcmp(&ep->sa.sin_addr, &p->sa.sin_addr, sizeof(p->sa.sin_addr))
+				    && memcmp(&ep->sa.sin_port, &p->sa.sin_port, sizeof(p->sa.sin_addr))) {
 					found = 1;
 					xfree(p);
 					break;
 				}
 				xfree(p);
-				continue;
 			}
-			c++;
-			i++;
 		}
 		/* if not, remove from list and free memory */
 		if (!found) {
