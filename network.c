@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.37 2006-10-20 05:07:53 niallo Exp $ */
+/* $Id: network.c,v 1.38 2006-10-20 05:45:41 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -70,7 +70,9 @@ static void	network_announce_update(int, short, void *);
 static void	network_handle_announce_response(struct bufferevent *, void *);
 static void	network_handle_write(struct bufferevent *, void *);
 static void	network_handle_error(struct bufferevent *, short, void *);
-static int	network_connect(const char *, const char *);
+static int	network_connect(int, int, int, const struct sockaddr *, socklen_t);
+static int	network_connect_tracker(const char *, const char *);
+static int	network_connect_peer(struct peer *p);
 static void	network_peerlist_update(struct session *, struct benc_node *);
 
 static int
@@ -182,7 +184,7 @@ network_announce(struct session *sc, const char *event)
 		goto trunc;
 
 	/* non blocking connect ? */
-	if ((sc->connfd = network_connect(host, port)) == -1)
+	if ((sc->connfd = network_connect_tracker(host, port)) == -1)
 		exit(1);
 	
 	sc->request = request;
@@ -277,7 +279,37 @@ err:
 }
 
 static int
-network_connect(const char *host, const char *port)
+network_connect(int domain, int type, int protocol, const struct sockaddr *name, socklen_t namelen)
+{
+	int sockfd;
+
+	sockfd = socket(domain, type, protocol);
+	if (sockfd == -1) {
+		warn("network_connect: socket");
+		return (-1);
+	}
+	
+	if (connect(sockfd, name, namelen) == -1) {
+		warn("network_connect: connect");
+		return (-1);
+	}
+
+
+	fcntl(sockfd, F_SETFL, O_NONBLOCK);
+
+	return (sockfd);
+
+}
+
+static int
+network_connect_peer(struct peer *p)
+{
+
+	return (0);
+}
+
+static int
+network_connect_tracker(const char *host, const char *port)
 {
 	struct addrinfo hints, *res, *res0;
 	int error, sockfd;
@@ -293,20 +325,9 @@ network_connect(const char *host, const char *port)
 	}
 	/* assume first address is ok */
 	res = res0;
-	sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	if (sockfd == -1) {
-		warn("network_connect: socket");
-		return (-1);
-	}
-	
-	if (connect(sockfd, res->ai_addr, res->ai_addrlen) == -1) {
-		warn("network_tracker_announce: connect");
-		return (-1);
-	}
-
+	sockfd = network_connect(res->ai_family, res->ai_socktype,
+	    res->ai_protocol, res->ai_addr, res->ai_addrlen);
 	freeaddrinfo(res0);
-
-	fcntl(sockfd, F_SETFL, O_NONBLOCK);
 
 	return (sockfd);
 }
