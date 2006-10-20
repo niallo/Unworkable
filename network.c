@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.42 2006-10-20 17:39:27 niallo Exp $ */
+/* $Id: network.c,v 1.43 2006-10-20 17:58:44 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -225,6 +225,7 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 
 	buf = NULL;
 	troot = node = NULL;
+	/* XXX need to handle case where full response is not yet buffered */
 	res = xmalloc(RESBUFLEN);
 	memset(res, '\0', RESBUFLEN);
 	len = bufferevent_read(bufev, res, RESBUFLEN);
