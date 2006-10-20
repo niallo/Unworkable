@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.38 2006-10-20 05:45:41 niallo Exp $ */
+/* $Id: network.c,v 1.39 2006-10-20 06:00:30 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -70,7 +70,8 @@ static void	network_announce_update(int, short, void *);
 static void	network_handle_announce_response(struct bufferevent *, void *);
 static void	network_handle_write(struct bufferevent *, void *);
 static void	network_handle_error(struct bufferevent *, short, void *);
-static int	network_connect(int, int, int, const struct sockaddr *, socklen_t);
+static int	network_connect(int, int, int, const struct sockaddr *,
+		    socklen_t);
 static int	network_connect_tracker(const char *, const char *);
 static int	network_connect_peer(struct peer *p);
 static void	network_peerlist_update(struct session *, struct benc_node *);
@@ -270,7 +271,8 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	tv.tv_sec = tp->interval;
 	evtimer_set(&sc->announce_event, network_announce_update, arg);
 	evtimer_add(&sc->announce_event, &tv);
-	printf("tracker announce completed, sending next one in %d seconds\n", tp->interval);
+	printf("tracker announce completed, sending next one in %d seconds\n",
+	    tp->interval);
 err:
 	bufferevent_free(bufev);
 	buf_free(buf);
@@ -294,7 +296,6 @@ network_connect(int domain, int type, int protocol, const struct sockaddr *name,
 		return (-1);
 	}
 
-
 	fcntl(sockfd, F_SETFL, O_NONBLOCK);
 
 	return (sockfd);
@@ -304,8 +305,8 @@ network_connect(int domain, int type, int protocol, const struct sockaddr *name,
 static int
 network_connect_peer(struct peer *p)
 {
-
-	return (0);
+	return (network_connect(AF_INET, SOCK_STREAM, 0,
+	    (const struct sockaddr *) &p->sa, sizeof(p->sa)));
 }
 
 static int
@@ -421,13 +422,23 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 		/* if not, remove from list and free memory */
 		if (!found) {
 			TAILQ_REMOVE(&sc->peers, ep, peer_list);
+			if (ep->connfd != 0)
+				(void) close(ep->connfd);
 			xfree(ep);
 		}
 	}
 	printf("peer list for url %s: \n", sc->tp->announce);
-	TAILQ_FOREACH(ep, &sc->peers, peer_list)
-		printf("host=%s, port=%d\n", inet_ntoa(ep->sa.sin_addr),
+	TAILQ_FOREACH(ep, &sc->peers, peer_list) {
+		printf("host=%s, port=%d - ", inet_ntoa(ep->sa.sin_addr),
 		    ntohs(ep->sa.sin_port));
+		if (ep->connfd != 0) {
+			printf("connected\n");
+		} else {
+			printf("connecting...");
+			network_connect_peer(ep);
+			printf("done\n");
+		}
+	}
 }
 
 /* network subsystem init, needs to be called before doing anything */
