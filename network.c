@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.36 2006-10-20 04:57:15 niallo Exp $ */
+/* $Id: network.c,v 1.37 2006-10-20 05:07:53 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -360,14 +360,12 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 			p->sa.sin_family = AF_INET;
 			memcpy(&p->sa.sin_addr, peerlist + i, 4);
 			memcpy(&p->sa.sin_port, peerlist + i + 4, 2);
-			printf("host=%s, port=%d\n", inet_ntoa(p->sa.sin_addr),
-			    ntohs(p->sa.sin_port));
 			/* Is this peer already in the list? */
 			found = 0;
 			TAILQ_FOREACH(ep, &sc->peers, peer_list) {
 				/* XXX check for ourselves */
-				if (memcmp(&ep->sa.sin_addr, &p->sa.sin_addr, sizeof(ep->sa.sin_addr))
-				    && memcmp(&ep->sa.sin_port, &p->sa.sin_port, sizeof(ep->sa.sin_port))) {
+				if (memcmp(&ep->sa.sin_addr, &p->sa.sin_addr, sizeof(ep->sa.sin_addr)) == 0
+				    && memcmp(&ep->sa.sin_port, &p->sa.sin_port, sizeof(ep->sa.sin_port)) == 0) {
 					found = 1;
 					break;
 				}
@@ -390,8 +388,8 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 				memcpy(&p->sa.sin_port, peerlist + i + 4, 2);
 				/* Is this peer in the new list? */
 				found = 0;
-				if (memcmp(&ep->sa.sin_addr, &p->sa.sin_addr, sizeof(p->sa.sin_addr))
-				    && memcmp(&ep->sa.sin_port, &p->sa.sin_port, sizeof(p->sa.sin_addr))) {
+				if (memcmp(&ep->sa.sin_addr, &p->sa.sin_addr, sizeof(p->sa.sin_addr)) == 0
+				    && memcmp(&ep->sa.sin_port, &p->sa.sin_port, sizeof(p->sa.sin_addr)) == 0) {
 					found = 1;
 					xfree(p);
 					break;
@@ -405,6 +403,10 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 			xfree(ep);
 		}
 	}
+	printf("peer list for url %s: \n", sc->tp->announce);
+	TAILQ_FOREACH(ep, &sc->peers, peer_list)
+		printf("host=%s, port=%d\n", inet_ntoa(ep->sa.sin_addr),
+		    ntohs(ep->sa.sin_port));
 }
 
 /* network subsystem init, needs to be called before doing anything */
