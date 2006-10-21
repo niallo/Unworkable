@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.43 2006-10-20 17:58:44 niallo Exp $ */
+/* $Id: network.c,v 1.44 2006-10-21 00:01:17 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -45,8 +45,15 @@ struct peer {
 	TAILQ_ENTRY(peer) peer_list;
 	struct sockaddr_in sa;
 	int connfd;
+	int handshook;
+	size_t rxpending;
+	size_t txpending;
 	struct bufferevent *bufev;
-	u_int8_t *msg;
+	size_t txmsglen, rxmsglen;
+	u_int8_t *txmsg, *rxmsg;
+	/* from peer's handshake message */
+	u_int8_t id[20];
+	u_int8_t info_hash[20];
 };
 
 /* data associated with a bittorrent session */
@@ -445,9 +452,12 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 			printf("connecting...");
 			ep->connfd = network_connect_peer(ep);
 			printf("done\n");
-			ep->bufev = bufferevent_new(p->connfd, network_handle_peer_response,
+			ep->bufev = bufferevent_new(ep->connfd, network_handle_peer_response,
 			    network_handle_peer_write, network_handle_peer_error, sc);
 			bufferevent_enable(ep->bufev, EV_READ);
+			printf("handshaking...");
+			network_peer_handshake(sc, ep);
+			printf("done\n");
 		}
 	}
 }
@@ -469,15 +479,17 @@ network_peer_handshake(struct session *sc, struct peer *p)
 	*
 	* In version 1.0 of the BitTorrent protocol, pstrlen = 19, and pstr = "BitTorrent protocol".
 	*/
-	#define HANDSHAKELEN (1 + 19 + 8 + 20 + 20)
-	p->msg = xmalloc(HANDSHAKELEN);
-	memset(p->msg, 0, HANDSHAKELEN);
-	p->msg[0] = 0x19;
-	memcpy(p->msg + 1, "BitTorrent Protocol", 19);
-	memcpy(p->msg + 28, sc->tp->info_hash, 20);
-	memcpy(p->msg + 48, sc->peerid, 20);
+	//#define HANDSHAKELEN (1 + 19 + 8 + 20 + 20)
+	#define HANDSHAKELEN (1 + 19 + 8 + 20)
+	p->txmsg = xmalloc(HANDSHAKELEN);
+	memset(p->txmsg, 0, HANDSHAKELEN);
+	p->txmsg[0] = htons(0x19);
+	memcpy(p->txmsg + 1, "BitTorrent Protocol", 19);
+	memcpy(p->txmsg + 28, sc->tp->info_hash, 20);
+	//memcpy(p->txmsg + 48, sc->peerid, 20);
 
-	bufferevent_write(p->bufev, p->msg, HANDSHAKELEN);
+	if (bufferevent_write(p->bufev, p->txmsg, HANDSHAKELEN) != 0)
+		errx(1, "network_peer_handshake() failure");
 }
 
 
@@ -492,14 +504,56 @@ network_handle_peer_write(struct bufferevent *bufev, void *data)
 {
 	struct peer *p = data;
 
-	xfree(p->msg);
+	printf("handshake write done\n");
+	//xfree(p->txmsg);
 }
 
 static void
 network_handle_peer_response(struct bufferevent *bufev, void *data)
 {
 	struct peer *p = data;
+	/* should always be 19, but just in case... */
+	size_t len;
+	u_int8_t *base, tmp, pstrlen = 0;
 
+	printf("handshake response\n");
+	if (!p->handshook) {
+		if (p->rxpending == 0) {
+			/* this should be a handshake response, minimum of 1 byte read, which is length
+			 * field, so we always know how much data to expect */
+			p->rxmsg = xmalloc(1);
+			len = bufferevent_read(bufev, p->rxmsg, 1);
+			if (len != 1)
+				errx(1, "len should be 1 here!");
+			memcpy(&tmp, p->rxmsg, 1);
+			pstrlen = ntohs(tmp);
+			if (pstrlen != 19)
+				errx(1, "pstrlen is %d not 19!", pstrlen);
+			xfree(p->rxmsg);
+			/* now we can allocate full data buffer, and know when we're done reading... */
+			p->rxmsglen = pstrlen + 8 + 20 + 20;
+			p->rxmsg = xmalloc(p->rxmsglen);
+			p->rxpending = p->rxmsglen;
+			goto read;
+		} else {
+		read:
+			base = p->rxmsg + (p->rxmsglen - p->rxpending);
+			len = bufferevent_read(bufev, p->rxmsg, p->rxmsglen);
+			if (len < p->rxmsglen) {
+				p->rxpending = p->rxmsglen - len;
+				return;
+			}
+			/* if we get this far, means we have got the full handshake */
+			/* XXX assuming 19 for pstrlen is dangerous... */
+			memcpy(&p->info_hash, base + 20 + 8, 20);
+			memcpy(&p->id, base + 20 + 8 + 20, 20);
+
+			xfree(p->rxmsg);
+			printf("parsed incoming handshake\n");
+		}
+	} else {
+
+	}
 }
 
 /* network subsystem init, needs to be called before doing anything */
