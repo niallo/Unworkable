@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.44 2006-10-21 00:01:17 niallo Exp $ */
+/* $Id: network.c,v 1.45 2006-10-27 00:25:08 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -479,14 +479,13 @@ network_peer_handshake(struct session *sc, struct peer *p)
 	*
 	* In version 1.0 of the BitTorrent protocol, pstrlen = 19, and pstr = "BitTorrent protocol".
 	*/
-	//#define HANDSHAKELEN (1 + 19 + 8 + 20 + 20)
-	#define HANDSHAKELEN (1 + 19 + 8 + 20)
+	#define HANDSHAKELEN (1 + 19 + 8 + 20 + 20)
 	p->txmsg = xmalloc(HANDSHAKELEN);
 	memset(p->txmsg, 0, HANDSHAKELEN);
-	p->txmsg[0] = htons(0x19);
-	memcpy(p->txmsg + 1, "BitTorrent Protocol", 19);
+	p->txmsg[0] = 19;
+	memcpy(p->txmsg + 1, "BitTorrent protocol", 19);
 	memcpy(p->txmsg + 28, sc->tp->info_hash, 20);
-	//memcpy(p->txmsg + 48, sc->peerid, 20);
+	memcpy(p->txmsg + 48, sc->peerid, 20);
 
 	if (bufferevent_write(p->bufev, p->txmsg, HANDSHAKELEN) != 0)
 		errx(1, "network_peer_handshake() failure");
