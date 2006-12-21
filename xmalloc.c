@@ -1,4 +1,4 @@
-/* $Id: xmalloc.c,v 1.5 2006-10-17 20:54:54 niallo Exp $ */
+/* $Id: xmalloc.c,v 1.6 2006-12-21 01:40:37 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -83,7 +83,7 @@ xstrdup(const char *str)
 char *
 gc_strdup(const char *x)
 {
-	char *y = malloc(strlen(x) + 1);
+	char *y = xmalloc(strlen(x) + 1);
 	/* XXX ja ja, should check return value... */
 	strlcpy(y, x, strlen(x) + 1);
 	return (y);
