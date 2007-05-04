@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.45 2006-10-27 00:25:08 niallo Exp $ */
+/* $Id: network.c,v 1.46 2007-05-04 21:51:30 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -52,6 +52,7 @@ struct peer {
 	size_t txmsglen, rxmsglen;
 	u_int8_t *txmsg, *rxmsg;
 	/* from peer's handshake message */
+	u_int8_t pstrlen;
 	u_int8_t id[20];
 	u_int8_t info_hash[20];
 };
@@ -77,8 +78,8 @@ struct session {
 static int	network_announce(struct session *, const char *);
 static void	network_announce_update(int, short, void *);
 static void	network_handle_announce_response(struct bufferevent *, void *);
+static void	network_handle_announce_error(struct bufferevent *, short, void *);
 static void	network_handle_write(struct bufferevent *, void *);
-static void	network_handle_error(struct bufferevent *, short, void *);
 static int	network_connect(int, int, int, const struct sockaddr *,
 		    socklen_t);
 static int	network_connect_tracker(const char *, const char *);
@@ -203,10 +204,9 @@ network_announce(struct session *sc, const char *event)
 	
 	sc->request = request;
 	bufev = bufferevent_new(sc->connfd, network_handle_announce_response,
-	    network_handle_write, network_handle_error, sc);
+	    network_handle_write, network_handle_announce_error, sc);
 	bufferevent_enable(bufev, EV_READ);
 	bufferevent_write(bufev, request, strlen(request) + 1);
-
 	xfree(params);
 	return (0);
 
@@ -230,6 +230,7 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	struct torrent *tp;
 	struct timeval tv;
 
+	printf("network_handle_announce_response\n");
 	buf = NULL;
 	troot = node = NULL;
 	/* XXX need to handle case where full response is not yet buffered */
@@ -265,10 +266,9 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	buf_set(buf, c, len - (c - res), 0);
 
 	troot = benc_root_create();
-	if ((troot = benc_parse_buf(buf, troot)) == NULL) {
-		warnx("network_handle_announce_response: HTTP response parsing failed");
-		goto err;
-	}
+	if ((troot = benc_parse_buf(buf, troot)) == NULL)
+		errx(1,"network_handle_announce_response: HTTP response parsing failed");
+
 	benc_node_print(troot, 0);
 	if ((node = benc_node_find(troot, "interval")) == NULL)
 		errx(1, "no interval field");
@@ -282,11 +282,14 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 		errx(1, "no peers field");
 	network_peerlist_update(sc, node);
 	benc_node_freeall(troot);
-	tv.tv_sec = tp->interval;
-	evtimer_set(&sc->announce_event, network_announce_update, arg);
-	evtimer_add(&sc->announce_event, &tv);
+
 	printf("tracker announce completed, sending next one in %d seconds\n",
 	    tp->interval);
+	timerclear(&tv);
+	tv.tv_sec = tp->interval;
+	evtimer_del(&sc->announce_event);
+	evtimer_set(&sc->announce_event, network_announce_update, sc);
+	evtimer_add(&sc->announce_event, &tv);
 err:
 	bufferevent_free(bufev);
 	buf_free(buf);
@@ -304,13 +307,13 @@ network_connect(int domain, int type, int protocol, const struct sockaddr *name,
 		warn("network_connect: socket");
 		return (-1);
 	}
-	
+	if (fcntl(sockfd, F_SETFL, O_NONBLOCK) == -1)
+		err(1, "network_connect");
 	if (connect(sockfd, name, namelen) == -1) {
 		warn("network_connect: connect");
 		return (-1);
 	}
 
-	fcntl(sockfd, F_SETFL, O_NONBLOCK);
 
 	return (sockfd);
 
@@ -319,7 +322,8 @@ network_connect(int domain, int type, int protocol, const struct sockaddr *name,
 static int
 network_connect_peer(struct peer *p)
 {
-	return (network_connect(AF_INET, SOCK_STREAM, 0,
+	printf("network_connect_peer\n");
+	return (network_connect(PF_INET, SOCK_STREAM, 0,
 	    (const struct sockaddr *) &p->sa, sizeof(p->sa)));
 }
 
@@ -329,6 +333,7 @@ network_connect_tracker(const char *host, const char *port)
 	struct addrinfo hints, *res, *res0;
 	int error, sockfd;
 
+	printf("network_connect_tracker\n");
 	memset(&hints, 0, sizeof(hints));
 	/* IPv4-only for now */
 	hints.ai_family = PF_INET;
@@ -348,9 +353,21 @@ network_connect_tracker(const char *host, const char *port)
 }
 
 static void
-network_handle_error(struct bufferevent *bufev, short what, void *data)
+network_handle_announce_error(struct bufferevent *bufev, short error, void *data)
 {
+	struct session *sc = data;
 
+	printf("network error\n");
+	if (error & EVBUFFER_TIMEOUT) {
+		printf("buffer event timeout");
+		bufferevent_free(bufev);
+	}
+	if (error & EVBUFFER_EOF) {
+		printf("EOF on fd %d\n", sc->connfd);
+		bufferevent_disable(bufev, EV_READ|EV_WRITE);
+		bufferevent_free(bufev);
+		(void)close(sc->connfd);
+	}
 }
 
 static void
@@ -358,6 +375,7 @@ network_handle_write(struct bufferevent *bufev, void *data)
 {
 	struct session *sc = data;
 
+	printf("network_handle_write\n");
 	xfree(sc->request);
 }
 
@@ -365,8 +383,14 @@ static void
 network_announce_update(int fd, short type, void *arg)
 {
 	struct session *sc = arg;
+	struct timeval tv;
 
+	printf("network_announce_update\n");
 	network_announce(sc, NULL);
+	timerclear(&tv);
+	tv.tv_sec = sc->tp->interval;
+	evtimer_set(&sc->announce_event, network_announce_update, sc);
+	evtimer_add(&sc->announce_event, &tv);
 }
 
 /* Yes, this is slow.  But peer lists should not be too long, and we shouldn't be running it
@@ -388,6 +412,7 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 	peerlist = peers->body.string.value;
 	p = NULL;
 
+	printf("network_peerlist_update\n");
 	/* check for peers to add */
 	for (i = 0; i < len; i++) {
 		if (i % 6 == 0) {
@@ -453,8 +478,8 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 			ep->connfd = network_connect_peer(ep);
 			printf("done\n");
 			ep->bufev = bufferevent_new(ep->connfd, network_handle_peer_response,
-			    network_handle_peer_write, network_handle_peer_error, sc);
-			bufferevent_enable(ep->bufev, EV_READ);
+			    network_handle_peer_write, network_handle_peer_error, ep);
+			bufferevent_enable(ep->bufev, EV_READ|EV_WRITE);
 			printf("handshaking...");
 			network_peer_handshake(sc, ep);
 			printf("done\n");
@@ -464,6 +489,7 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 static void
 network_peer_handshake(struct session *sc, struct peer *p)
 {
+	printf("network_peer_handshake for peer on fd %d\n", p->connfd);
 	/*
 	* handshake: <pstrlen><pstr><reserved><info_hash><peer_id>
 	* pstrlen: string length of <pstr>, as a single raw byte
@@ -495,7 +521,7 @@ network_peer_handshake(struct session *sc, struct peer *p)
 static void
 network_handle_peer_error(struct bufferevent *bufev, short what, void *data)
 {
-
+	printf("peer error\n");
 }
 
 static void
@@ -503,8 +529,8 @@ network_handle_peer_write(struct bufferevent *bufev, void *data)
 {
 	struct peer *p = data;
 
-	printf("handshake write done\n");
-	//xfree(p->txmsg);
+	printf("network_peer_write for peer on fd %d\n", p->connfd);
+	xfree(p->txmsg);
 }
 
 static void
@@ -513,7 +539,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	struct peer *p = data;
 	/* should always be 19, but just in case... */
 	size_t len;
-	u_int8_t *base, tmp, pstrlen = 0;
+	u_int8_t *base;
 
 	printf("handshake response\n");
 	if (!p->handshook) {
@@ -524,13 +550,12 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			len = bufferevent_read(bufev, p->rxmsg, 1);
 			if (len != 1)
 				errx(1, "len should be 1 here!");
-			memcpy(&tmp, p->rxmsg, 1);
-			pstrlen = ntohs(tmp);
-			if (pstrlen != 19)
-				errx(1, "pstrlen is %d not 19!", pstrlen);
+			memcpy(&p->pstrlen, p->rxmsg, 1);
+			if (p->pstrlen != 19)
+				errx(1, "pstrlen is %d not 19!", p->pstrlen);
 			xfree(p->rxmsg);
 			/* now we can allocate full data buffer, and know when we're done reading... */
-			p->rxmsglen = pstrlen + 8 + 20 + 20;
+			p->rxmsglen = p->pstrlen + 8 + 20 + 20;
 			p->rxmsg = xmalloc(p->rxmsglen);
 			p->rxpending = p->rxmsglen;
 			goto read;
@@ -543,15 +568,17 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				return;
 			}
 			/* if we get this far, means we have got the full handshake */
-			/* XXX assuming 19 for pstrlen is dangerous... */
-			memcpy(&p->info_hash, base + 20 + 8, 20);
-			memcpy(&p->id, base + 20 + 8 + 20, 20);
+			memcpy(&p->info_hash, base + 1 + p->pstrlen + 8, 20);
+			memcpy(&p->id, base + 1 + p->pstrlen + 8 + 20, 20);
 
 			xfree(p->rxmsg);
+			p->rxmsg = NULL;
 			printf("parsed incoming handshake\n");
+			p->handshook = 1;
+			return;
 		}
 	} else {
-
+		printf("handshake done, other data\n");
 	}
 }
 
@@ -571,7 +598,6 @@ network_start_torrent(struct torrent *tp)
 
 	sc = xmalloc(sizeof(*sc));
 	memset(sc, 0, sizeof(*sc));
-
 
 	TAILQ_INIT(&sc->peers);
 	sc->tp = tp;
