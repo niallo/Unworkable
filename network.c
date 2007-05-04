@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.46 2007-05-04 21:51:30 niallo Exp $ */
+/* $Id: network.c,v 1.47 2007-05-04 22:04:35 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -541,8 +541,8 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	size_t len;
 	u_int8_t *base;
 
-	printf("handshake response\n");
 	if (!p->handshook) {
+		printf("handshake response\n");
 		if (p->rxpending == 0) {
 			/* this should be a handshake response, minimum of 1 byte read, which is length
 			 * field, so we always know how much data to expect */
