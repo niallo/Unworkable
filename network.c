@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.47 2007-05-04 22:04:35 niallo Exp $ */
+/* $Id: network.c,v 1.48 2007-05-05 00:13:28 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -40,6 +40,16 @@
 #include "parse.h"
 #include "xmalloc.h"
 
+#define PEER_MSG_ID_CHOKE		0
+#define PEER_MSG_ID_UNCHOKE		1
+#define PEER_MSG_ID_INTERESTED		2
+#define PEER_MSG_ID_NOTINTERESTED	3
+#define PEER_MSG_ID_HAVE		4
+#define PEER_MSG_ID_BITFIELD		5
+#define PEER_MSG_ID_REQUEST		6
+#define PEER_MSG_ID_PIECE		7
+#define PEER_MSG_ID_CANCEL		8
+
 /* bittorrent peer */
 struct peer {
 	TAILQ_ENTRY(peer) peer_list;
@@ -49,7 +59,7 @@ struct peer {
 	size_t rxpending;
 	size_t txpending;
 	struct bufferevent *bufev;
-	size_t txmsglen, rxmsglen;
+	u_int32_t txmsglen, rxmsglen;
 	u_int8_t *txmsg, *rxmsg;
 	/* from peer's handshake message */
 	u_int8_t pstrlen;
@@ -539,7 +549,9 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	struct peer *p = data;
 	/* should always be 19, but just in case... */
 	size_t len;
-	u_int8_t *base;
+	int i;
+	u_int32_t msglen;
+	u_int8_t *base, id = 0;
 
 	if (!p->handshook) {
 		printf("handshake response\n");
@@ -574,11 +586,63 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			xfree(p->rxmsg);
 			p->rxmsg = NULL;
 			printf("parsed incoming handshake\n");
+			printf("peer hash:\t0x");
+			for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
+				printf("%02x", p->info_hash[i]);
+			printf("\n");
 			p->handshook = 1;
 			return;
 		}
 	} else {
 		printf("handshake done, other data\n");
+		len = bufferevent_read(bufev, &msglen, 4);
+		if (len != 4)
+			errx(1, "len should be 4 here!");
+		p->rxmsglen = ntohl(msglen);
+		printf("message length: %d\n", p->rxmsglen);
+		/* keep-alive: do nothing */
+		if (p->rxmsglen == 0)
+			return;
+		p->rxmsg = xmalloc(p->rxmsglen);
+		memset(p->rxmsg, 0, p->rxmsglen);
+		p->rxpending = p->rxmsglen;
+		base = p->rxmsg + (p->rxmsglen - p->rxpending);
+		len = bufferevent_read(bufev, p->rxmsg, p->rxmsglen);
+		if (len < p->rxmsglen) {
+			p->rxpending = p->rxmsglen - len;
+			return;
+		}
+		/* if we get this far, means we have the entire message */
+		memcpy(&id, base, 1);
+		switch (id) {
+			case PEER_MSG_ID_CHOKE:
+				printf("peer sez choke\n");
+				break;
+			case PEER_MSG_ID_UNCHOKE:
+				printf("peer sez unchoke\n");
+				break;
+			case PEER_MSG_ID_INTERESTED:
+				printf("peer sez interested\n");
+				break;
+			case PEER_MSG_ID_NOTINTERESTED:
+				printf("peer sez notinterested\n");
+				break;
+			case PEER_MSG_ID_HAVE:
+				printf("peer sez have\n");
+				break;
+			case PEER_MSG_ID_BITFIELD:
+				printf("peer sez bitfield\n");
+				break;
+			case PEER_MSG_ID_REQUEST:
+				printf("peer sez request\n");
+				break;
+			case PEER_MSG_ID_PIECE:
+				printf("peer sez piece\n");
+				break;
+			case PEER_MSG_ID_CANCEL:
+				printf("peer sez cancel\n");
+				break;
+		}
 	}
 }
 
