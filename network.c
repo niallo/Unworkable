@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.51 2007-05-05 01:50:34 niallo Exp $ */
+/* $Id: network.c,v 1.52 2007-05-05 22:53:11 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -41,7 +41,7 @@
 #include "xmalloc.h"
 
 #define PEER_STATE_HANDSHAKE		(1<<0)
-#define PEER_STATE_BITMAP		(1<<1)
+#define PEER_STATE_BITFIELD		(1<<1)
 #define PEER_STATE_ESTABLISHED		(1<<2)
 
 #define PEER_MSG_ID_CHOKE		0
@@ -70,6 +70,8 @@ struct peer {
 	u_int8_t pstrlen;
 	u_int8_t id[20];
 	u_int8_t info_hash[20];
+
+	struct session *sc;
 };
 
 /* data associated with a bittorrent session */
@@ -372,14 +374,11 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 {
 	struct session *sc = data;
 
-	printf("network error\n");
 	if (error & EVBUFFER_TIMEOUT) {
 		printf("buffer event timeout");
 		bufferevent_free(bufev);
 	}
 	if (error & EVBUFFER_EOF) {
-		printf("EOF on fd %d\n", sc->connfd);
-		bufferevent_disable(bufev, EV_READ|EV_WRITE);
 		bufferevent_free(bufev);
 		(void)close(sc->connfd);
 	}
@@ -433,6 +432,7 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 		if (i % 6 == 0) {
 			p = xmalloc(sizeof(*p));
 			memset(p, 0, sizeof(*p));
+			p->sc = sc;
 			p->sa.sin_family = AF_INET;
 			memcpy(&p->sa.sin_addr, peerlist + i, 4);
 			memcpy(&p->sa.sin_port, peerlist + i + 4, 2);
@@ -551,7 +551,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	/* should always be 19, but just in case... */
 	size_t len;
 	int i;
-	u_int32_t msglen;
+	u_int32_t msglen, bitfieldlen;
 	u_int8_t *base, id = 0;
 
 	if (p->state & PEER_STATE_HANDSHAKE) {
@@ -591,7 +591,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
 				printf("%02x", p->info_hash[i]);
 			printf("\n");
-			p->state = PEER_STATE_BITMAP;
+			p->state = PEER_STATE_BITFIELD;
 			return;
 		}
 	} else {
@@ -633,8 +633,14 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				break;
 			case PEER_MSG_ID_BITFIELD:
 				printf("peer sez bitfield\n");
-				p->bitfield = xmalloc(p->rxmsglen - 1);
-				memcpy(p->bitfield, base+1, p->rxmsglen - 1);
+				if (!(p->state & PEER_STATE_BITFIELD)) {
+					printf("not expecting bitfield!\n");
+					return;
+				}
+				bitfieldlen = p->rxmsglen - 1;
+				printf("pieces: %d bitfield: %d\n", p->sc->tp->num_pieces, bitfieldlen * 8);
+				p->bitfield = xmalloc(bitfieldlen);
+				memcpy(p->bitfield, base+1, bitfieldlen);
 				break;
 			case PEER_MSG_ID_REQUEST:
 				printf("peer sez request\n");
