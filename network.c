@@ -1,6 +1,6 @@
-/* $Id: network.c,v 1.48 2007-05-05 00:13:28 niallo Exp $ */
+/* $Id: network.c,v 1.49 2007-05-05 01:30:06 niallo Exp $ */
 /*
- * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
+ * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -324,7 +324,6 @@ network_connect(int domain, int type, int protocol, const struct sockaddr *name,
 		return (-1);
 	}
 
-
 	return (sockfd);
 
 }
@@ -481,18 +480,14 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 		printf("host=%s, port=%d - ", inet_ntoa(ep->sa.sin_addr),
 		    ntohs(ep->sa.sin_port));
 		if (ep->connfd != 0) {
-			printf("connected\n");
+			/* XXX */
 		} else {
 			/* XXX non-blocking connect? */
-			printf("connecting...");
 			ep->connfd = network_connect_peer(ep);
-			printf("done\n");
 			ep->bufev = bufferevent_new(ep->connfd, network_handle_peer_response,
 			    network_handle_peer_write, network_handle_peer_error, ep);
 			bufferevent_enable(ep->bufev, EV_READ|EV_WRITE);
-			printf("handshaking...");
 			network_peer_handshake(sc, ep);
-			printf("done\n");
 		}
 	}
 }
