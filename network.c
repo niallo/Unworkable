@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.49 2007-05-05 01:30:06 niallo Exp $ */
+/* $Id: network.c,v 1.50 2007-05-05 01:34:38 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -40,6 +40,10 @@
 #include "parse.h"
 #include "xmalloc.h"
 
+#define PEER_STATE_HANDSHAKE		(1<<0)
+#define PEER_STATE_BITMAP		(1<<1)
+#define PEER_STATE_ESTABLISHED		(1<<2)
+
 #define PEER_MSG_ID_CHOKE		0
 #define PEER_MSG_ID_UNCHOKE		1
 #define PEER_MSG_ID_INTERESTED		2
@@ -55,7 +59,7 @@ struct peer {
 	TAILQ_ENTRY(peer) peer_list;
 	struct sockaddr_in sa;
 	int connfd;
-	int handshook;
+	int state;
 	size_t rxpending;
 	size_t txpending;
 	struct bufferevent *bufev;
@@ -332,6 +336,7 @@ static int
 network_connect_peer(struct peer *p)
 {
 	printf("network_connect_peer\n");
+	p->state = PEER_STATE_HANDSHAKE;
 	return (network_connect(PF_INET, SOCK_STREAM, 0,
 	    (const struct sockaddr *) &p->sa, sizeof(p->sa)));
 }
@@ -548,7 +553,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	u_int32_t msglen;
 	u_int8_t *base, id = 0;
 
-	if (!p->handshook) {
+	if (p->state & PEER_STATE_HANDSHAKE) {
 		printf("handshake response\n");
 		if (p->rxpending == 0) {
 			/* this should be a handshake response, minimum of 1 byte read, which is length
@@ -585,7 +590,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
 				printf("%02x", p->info_hash[i]);
 			printf("\n");
-			p->handshook = 1;
+			p->state = PEER_STATE_BITMAP;
 			return;
 		}
 	} else {
