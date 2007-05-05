@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.50 2007-05-05 01:34:38 niallo Exp $ */
+/* $Id: network.c,v 1.51 2007-05-05 01:50:34 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -65,6 +65,7 @@ struct peer {
 	struct bufferevent *bufev;
 	u_int32_t txmsglen, rxmsglen;
 	u_int8_t *txmsg, *rxmsg;
+	u_int8_t *bitfield;
 	/* from peer's handshake message */
 	u_int8_t pstrlen;
 	u_int8_t id[20];
@@ -632,6 +633,8 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				break;
 			case PEER_MSG_ID_BITFIELD:
 				printf("peer sez bitfield\n");
+				p->bitfield = xmalloc(p->rxmsglen - 1);
+				memcpy(p->bitfield, base+1, p->rxmsglen - 1);
 				break;
 			case PEER_MSG_ID_REQUEST:
 				printf("peer sez request\n");
