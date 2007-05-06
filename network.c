@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.53 2007-05-06 00:22:48 niallo Exp $ */
+/* $Id: network.c,v 1.54 2007-05-06 00:36:51 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -382,7 +382,7 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 	}
 	if (error & EVBUFFER_EOF) {
 		bufferevent_free(bufev);
-		(void)close(sc->connfd);
+		(void) close(sc->connfd);
 	}
 }
 
@@ -631,6 +631,14 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				break;
 			case PEER_MSG_ID_HAVE:
 				printf("peer sez have\n");
+				u_int32_t idx;
+				memcpy(&idx, base+1, 4);
+				idx = ntohl(idx);
+				if (idx > p->sc->tp->num_pieces - 1) {
+					printf("have index overflow, ignoring\n");
+					return;
+				}
+				setbit(p->bitfield, idx);
 				break;
 			case PEER_MSG_ID_BITFIELD:
 				printf("peer sez bitfield\n");
