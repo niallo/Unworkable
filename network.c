@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.56 2007-05-06 01:32:14 niallo Exp $ */
+/* $Id: network.c,v 1.57 2007-05-06 01:45:36 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -44,6 +44,10 @@
 #define PEER_STATE_HANDSHAKE		(1<<0)
 #define PEER_STATE_BITFIELD		(1<<1)
 #define PEER_STATE_ESTABLISHED		(1<<2)
+#define PEER_STATE_AMCHOKING		(1<<3)
+#define PEER_STATE_CHOKED		(1<<4)
+#define PEER_STATE_AMINTERESTED		(1<<5)
+#define PEER_STATE_INTERESTED		(1<<6)
 
 #define PEER_MSG_ID_CHOKE		0
 #define PEER_MSG_ID_UNCHOKE		1
@@ -350,7 +354,7 @@ static int
 network_connect_peer(struct peer *p)
 {
 	printf("network_connect_peer\n");
-	p->state = PEER_STATE_HANDSHAKE;
+	p->state |= PEER_STATE_HANDSHAKE;
 	return (network_connect(PF_INET, SOCK_STREAM, 0,
 	    (const struct sockaddr *) &p->sa, sizeof(p->sa)));
 }
@@ -601,7 +605,8 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
 				printf("%02x", p->info_hash[i]);
 			printf("\n");
-			p->state = PEER_STATE_BITFIELD;
+			p->state |= PEER_STATE_BITFIELD;
+			p->state &= ~PEER_STATE_HANDSHAKE;
 			return;
 		}
 	} else {
@@ -629,14 +634,18 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 		switch (id) {
 			case PEER_MSG_ID_CHOKE:
 				printf("peer sez choke\n");
+				p->state |= PEER_STATE_CHOKED;
 				break;
 			case PEER_MSG_ID_UNCHOKE:
+				p->state &= ~PEER_STATE_CHOKED;
 				printf("peer sez unchoke\n");
 				break;
 			case PEER_MSG_ID_INTERESTED:
+				p->state |= PEER_STATE_INTERESTED;
 				printf("peer sez interested\n");
 				break;
 			case PEER_MSG_ID_NOTINTERESTED:
+				p->state &= ~PEER_STATE_INTERESTED;
 				printf("peer sez notinterested\n");
 				break;
 			case PEER_MSG_ID_HAVE:
@@ -665,6 +674,8 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				}
 				p->bitfield = xmalloc(bitfieldlen);
 				memcpy(p->bitfield, base+1, bitfieldlen);
+				p->state &= ~PEER_STATE_BITFIELD;
+				p->state |= PEER_STATE_ESTABLISHED;
 				break;
 			case PEER_MSG_ID_REQUEST:
 				memcpy(&idx, base+1, 4);
@@ -687,6 +698,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				break;
 			case PEER_MSG_ID_CANCEL:
 				printf("peer sez cancel\n");
+				/* XXX: not sure how to cancel a write */
 				break;
 		}
 	}
@@ -749,6 +761,7 @@ network_init()
 static void
 network_scheduler(int fd, short type, void *arg)
 {
+	struct peer *p;
 	struct session *sc = arg;
 	struct timeval tv;
 
@@ -757,6 +770,11 @@ network_scheduler(int fd, short type, void *arg)
 	tv.tv_sec = 1;
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
+
+
+	TAILQ_FOREACH(p, &sc->peers, peer_list) {
+
+	}
 }
 
 /* start handling network stuff for a new torrent */
