@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.55 2007-05-06 01:25:08 niallo Exp $ */
+/* $Id: network.c,v 1.56 2007-05-06 01:32:14 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -89,6 +89,7 @@ struct session {
 	char *trackerid;
 	char *request;
 	struct event announce_event;
+	struct event scheduler_event;
 
 	struct torrent *tp;
 };
@@ -110,6 +111,7 @@ static void	network_peer_free(struct peer *);
 static void	network_handle_peer_response(struct bufferevent *, void *);
 static void	network_handle_peer_write(struct bufferevent *, void *);
 static void	network_handle_peer_error(struct bufferevent *, short, void *);
+static void	network_scheduler(int, short, void *);
 
 static int
 network_announce(struct session *sc, const char *event)
@@ -311,6 +313,11 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	evtimer_del(&sc->announce_event);
 	evtimer_set(&sc->announce_event, network_announce_update, sc);
 	evtimer_add(&sc->announce_event, &tv);
+	/* now that we've announced, kick off the scheduler */
+	timerclear(&tv);
+	tv.tv_sec = 1;
+	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
+	evtimer_add(&sc->scheduler_event, &tv);
 err:
 	bufferevent_free(bufev);
 	buf_free(buf);
@@ -737,6 +744,19 @@ void
 network_init()
 {
 	event_init();
+}
+
+static void
+network_scheduler(int fd, short type, void *arg)
+{
+	struct session *sc = arg;
+	struct timeval tv;
+
+	printf("network_scheduler\n");
+	timerclear(&tv);
+	tv.tv_sec = 1;
+	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
+	evtimer_add(&sc->scheduler_event, &tv);
 }
 
 /* start handling network stuff for a new torrent */
