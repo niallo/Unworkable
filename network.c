@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.52 2007-05-05 22:53:11 niallo Exp $ */
+/* $Id: network.c,v 1.53 2007-05-06 00:22:48 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -15,6 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <sys/param.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -103,6 +104,7 @@ static int	network_connect_tracker(const char *, const char *);
 static int	network_connect_peer(struct peer *);
 static void	network_peerlist_update(struct session *, struct benc_node *);
 static void	network_peer_handshake(struct session *, struct peer *);
+static void	network_peer_free(struct peer *);
 static void	network_handle_peer_response(struct bufferevent *, void *);
 static void	network_handle_peer_write(struct bufferevent *, void *);
 static void	network_handle_peer_error(struct bufferevent *, short, void *);
@@ -300,7 +302,7 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	network_peerlist_update(sc, node);
 	benc_node_freeall(troot);
 
-	printf("tracker announce completed, sending next one in %d seconds\n",
+	printf("tracker announce completed, sending next one in %zd seconds\n",
 	    tp->interval);
 	timerclear(&tv);
 	tv.tv_sec = tp->interval;
@@ -549,8 +551,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 {
 	struct peer *p = data;
 	/* should always be 19, but just in case... */
-	size_t len;
-	int i;
+	size_t len, i;
 	u_int32_t msglen, bitfieldlen;
 	u_int8_t *base, id = 0;
 
@@ -638,7 +639,13 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					return;
 				}
 				bitfieldlen = p->rxmsglen - 1;
-				printf("pieces: %d bitfield: %d\n", p->sc->tp->num_pieces, bitfieldlen * 8);
+				printf("pieces: %zd bitfield: %d\n", p->sc->tp->num_pieces, bitfieldlen * 8);
+				if (bitfieldlen * 8 > p->sc->tp->num_pieces + 7
+				    || bitfieldlen * 8 < p->sc->tp->num_pieces - 7) {
+					printf("bitfield is wrong size! killing peer connection\n");
+					network_peer_free(p);
+					return;
+				}
 				p->bitfield = xmalloc(bitfieldlen);
 				memcpy(p->bitfield, base+1, bitfieldlen);
 				break;
@@ -653,6 +660,23 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				break;
 		}
 	}
+}
+
+static void
+network_peer_free(struct peer *p)
+{
+	if (p->bufev != NULL)
+		bufferevent_free(p->bufev);
+	if (p->rxmsg != NULL)
+		xfree(p->rxmsg);
+	if (p->txmsg != NULL)
+		xfree(p->txmsg);
+	if (p->bitfield != NULL)
+		xfree(p->bitfield);
+	if (p->connfd != 0)
+		(void)  close(p->connfd);
+
+	xfree(p);
 }
 
 /* network subsystem init, needs to be called before doing anything */
