@@ -1,4 +1,4 @@
-/* $Id: torrent.h,v 1.23 2006-10-16 22:24:10 niallo Exp $ */
+/* $Id: torrent.h,v 1.24 2007-05-06 01:45:06 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -35,7 +35,7 @@ struct torrent_mmap {
 struct torrent_piece {
 	int				flags;
 	size_t				len;
-	int				index;
+	size_t				index;
 	TAILQ_HEAD(mmaps, torrent_mmap)	mmaps;
 	RB_ENTRY(torrent_piece)		entry;
 };
@@ -46,7 +46,7 @@ struct torrent_file {
 	char					*md5sum;
 	char					*path;
 	int					fd;
-	int					refs;
+	size_t					refs;
 };
 
 struct torrent {
@@ -68,15 +68,15 @@ struct torrent {
 	char					*comment;
 	char					*created_by;
 	u_int8_t				*info_hash;
-	int					num_pieces;
-	int					piece_length;
+	size_t					num_pieces;
+	size_t					piece_length;
 	RB_HEAD(pieces, torrent_piece)		pieces;
 	enum type				type;
 	unsigned long long			uploaded;
 	unsigned long long			downloaded;
 	unsigned long long			left;
 	struct benc_node			*broot;
-	int					interval;
+	size_t					interval;
 	char					*trackerid;
 };
 
@@ -90,9 +90,9 @@ struct torrent		*torrent_parse_file(const char *);
 u_int8_t		*torrent_parse_infohash(const char *);
 int			 torrent_piece_checkhash(struct torrent *,
 			    struct torrent_piece *);
-struct torrent_piece	*torrent_piece_find(struct torrent *, int);
-struct torrent_piece	*torrent_piece_map(struct torrent *, int);
-void			 torrent_piece_unmap(struct torrent *, int);
+struct torrent_piece	*torrent_piece_find(struct torrent *, size_t);
+struct torrent_piece	*torrent_piece_map(struct torrent *, size_t);
+void			 torrent_piece_unmap(struct torrent *, size_t);
 void			 torrent_print(struct torrent *);
 int			 torrent_intcmp(struct torrent_piece *,
 			    struct torrent_piece *);

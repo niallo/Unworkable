@@ -1,6 +1,6 @@
-/* $Id: torrent.c,v 1.54 2006-10-17 20:32:05 niallo Exp $ */
+/* $Id: torrent.c,v 1.55 2007-05-06 01:45:06 niallo Exp $ */
 /*
- * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
+ * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -272,14 +272,14 @@ torrent_print(struct torrent *torrent)
 	for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
 		printf("%02x", torrent->info_hash[i]);
 	putchar('\n');
-	printf("pieces:\t\t%d\n", torrent->num_pieces);
+	printf("pieces:\t\t%zd\n", torrent->num_pieces);
 	printf("type:\t\t");
 	if (torrent->type == SINGLEFILE) {
 		tfile = &torrent->body.singlefile.tfp;
 		printf("single file\n");
 		printf("length:\t\t%lld bytes\n", tfile->file_length);
 		printf("file name:\t%s\n", tfile->path);
-		printf("piece length:\t%d bytes\n",
+		printf("piece length:\t%zd bytes\n",
 		    torrent->piece_length);
 		printf("md5sum:\t\t");
 		if (tfile->md5sum == NULL)
@@ -290,7 +290,7 @@ torrent_print(struct torrent *torrent)
 		printf("multi file\n");
 		printf("base path:\t%s\n",
 		    torrent->body.multifile.name);
-		printf("piece length:\t%d bytes\n",
+		printf("piece length:\t%zd bytes\n",
 		    torrent->piece_length);
 		printf("--files--\n");
 		TAILQ_FOREACH(tfile, &torrent->body.multifile.files, files) {
@@ -410,13 +410,16 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, size_t len, int *hint)
 }
 
 struct torrent_piece *
-torrent_piece_find(struct torrent *tp, int idx)
+torrent_piece_find(struct torrent *tp, size_t idx)
 {
 	struct torrent_piece find, *res;
 	find.index = idx;
-	res = RB_FIND(pieces, &tp->pieces, &find);
-	if (res == NULL)
-		errx(1, "torrent_piece_find: no such piece `%d'", idx);
+	if ((res = RB_FIND(pieces, &tp->pieces, &find)) == NULL) {
+		/* piece not already mapped, try to map it */
+		if ((res = torrent_piece_map(tp, idx)) == NULL)
+			warnx("could not map piece at index: %zd", idx);
+	}
+
 	return (res);
 }
 
@@ -462,7 +465,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 }
 
 struct torrent_piece *
-torrent_piece_map(struct torrent *tp, int idx)
+torrent_piece_map(struct torrent *tp, size_t idx)
 {
 	struct torrent_piece *tpp;
 	struct torrent_file  *nxttfp, *tfp, *lasttfp;
@@ -624,7 +627,7 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 }
 
 void
-torrent_piece_unmap(struct torrent *tp, int idx)
+torrent_piece_unmap(struct torrent *tp, size_t idx)
 {
 	struct torrent_piece *tpp;
 	struct torrent_mmap *tmmp;
