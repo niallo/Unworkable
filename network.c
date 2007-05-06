@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.54 2007-05-06 00:36:51 niallo Exp $ */
+/* $Id: network.c,v 1.55 2007-05-06 01:25:08 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -104,6 +104,8 @@ static int	network_connect_tracker(const char *, const char *);
 static int	network_connect_peer(struct peer *);
 static void	network_peerlist_update(struct session *, struct benc_node *);
 static void	network_peer_handshake(struct session *, struct peer *);
+static void	network_peer_write_piece(struct peer *, size_t, off_t, size_t);
+static void	network_peer_read_piece(struct peer *, size_t, off_t, size_t, void *);
 static void	network_peer_free(struct peer *);
 static void	network_handle_peer_response(struct bufferevent *, void *);
 static void	network_handle_peer_write(struct bufferevent *, void *);
@@ -552,7 +554,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	struct peer *p = data;
 	/* should always be 19, but just in case... */
 	size_t len, i;
-	u_int32_t msglen, bitfieldlen;
+	u_int32_t msglen, bitfieldlen, idx, blocklen, off;
 	u_int8_t *base, id = 0;
 
 	if (p->state & PEER_STATE_HANDSHAKE) {
@@ -616,6 +618,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 		}
 		/* if we get this far, means we have the entire message */
 		memcpy(&id, base, 1);
+		/* XXX: safety-check for correct message lengths */
 		switch (id) {
 			case PEER_MSG_ID_CHOKE:
 				printf("peer sez choke\n");
@@ -631,7 +634,6 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				break;
 			case PEER_MSG_ID_HAVE:
 				printf("peer sez have\n");
-				u_int32_t idx;
 				memcpy(&idx, base+1, 4);
 				idx = ntohl(idx);
 				if (idx > p->sc->tp->num_pieces - 1) {
@@ -658,16 +660,59 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				memcpy(p->bitfield, base+1, bitfieldlen);
 				break;
 			case PEER_MSG_ID_REQUEST:
-				printf("peer sez request\n");
+				memcpy(&idx, base+1, 4);
+				idx = ntohl(idx);
+				memcpy(&off, base+5, 4);
+				off = ntohl(off);
+				memcpy(&blocklen, base+9, 4);
+				blocklen = ntohl(blocklen);
+				printf("peer REQUEST idx: %d offset: %d blocklen: %d\n", idx, off, blocklen);
+				network_peer_write_piece(p, idx, off, blocklen);
 				break;
 			case PEER_MSG_ID_PIECE:
 				printf("peer sez piece\n");
+				memcpy(&idx, base+1, 4);
+				idx = ntohl(idx);
+				memcpy(&off, base+5, 4);
+				off = ntohl(off);
+				printf("peer PIECE idx: %d offset: %d\n", idx, off);
+				network_peer_read_piece(p, idx, off, p->rxmsglen - 9, base+9);
 				break;
 			case PEER_MSG_ID_CANCEL:
 				printf("peer sez cancel\n");
 				break;
 		}
 	}
+}
+
+static void
+network_peer_write_piece(struct peer *p, size_t idx, off_t offset, size_t len)
+{
+	struct torrent_piece *tpp;
+	void *data;
+	int hint;
+
+	if ((tpp = torrent_piece_find(p->sc->tp, idx)) == NULL) {
+		printf("REQUEST for piece %zd - failed at torrent_piece_find(), returning\n", idx);
+		return;
+	}
+	if ((data = torrent_block_read(tpp, offset, len, &hint)) == NULL) {
+		printf("REQUEST for piece %zd - failed at torrent_block_read(), returning\n", idx);
+		return;
+	}
+	bufferevent_write(p->bufev, data, len);
+}
+
+static void
+network_peer_read_piece(struct peer *p, size_t idx, off_t offset, size_t len, void *data)
+{
+	struct torrent_piece *tpp;
+
+	if ((tpp = torrent_piece_find(p->sc->tp, idx)) == NULL) {
+		printf("REQUEST for piece %zd - failed at torrent_piece_find(), returning\n", idx);
+		return;
+	}
+	torrent_block_write(tpp, offset, len, data);
 }
 
 static void
