@@ -1,7 +1,7 @@
 /*$Id#*/
 /*
  * Copyright (c) 2003 Jean-Francois Brousseau <jfb@openbsd.org>
- * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
+ * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

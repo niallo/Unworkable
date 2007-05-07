@@ -1,6 +1,6 @@
-/* $Id: main.c,v 1.22 2006-10-17 20:54:54 niallo Exp $ */
+/* $Id: main.c,v 1.23 2007-05-07 17:09:47 niallo Exp $ */
 /*
- * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
+ * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
