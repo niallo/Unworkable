@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.56 2007-05-08 19:42:07 niallo Exp $ */
+/* $Id: torrent.c,v 1.57 2007-05-08 20:12:04 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -649,5 +649,22 @@ torrent_piece_unmap(struct torrent *tp, size_t idx)
 
 	RB_REMOVE(pieces, &tp->pieces, tpp);
 	xfree(tpp);
+}
+
+u_int8_t *
+torrent_bitfield_get(struct torrent *tp)
+{
+	struct torrent_piece find, *res;
+	size_t i;
+	u_int8_t *bitfield;
+
+	bitfield = xmalloc(tp->num_pieces / 8);
+	memset(bitfield, 0, tp->num_pieces / 8);
+	for (i = 0; i < tp->num_pieces - 1; i++) {
+		find.index = i;
+		if ((res = RB_FIND(pieces, &tp->pieces, &find)) != NULL)
+			setbit(bitfield, i);
+	}
+	return (bitfield);
 }
 
