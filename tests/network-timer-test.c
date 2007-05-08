@@ -1,4 +1,4 @@
-/* $Id: network-timer-test.c,v 1.2 2007-05-08 19:42:07 niallo Exp $ */
+/* $Id: network-timer-test.c,v 1.3 2007-05-08 19:43:01 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -171,8 +171,6 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 static void
 network_handle_write(struct bufferevent *bufev, void *data)
 {
-	struct session *sc = data;
-
 	printf("network_handle_write\n");
 }
 
@@ -195,7 +193,6 @@ main(int argc, char **argv)
 {
 	int ret;
 	struct session *sc;
-	struct timeval tv;
 
 	event_init();
 
@@ -206,7 +203,7 @@ main(int argc, char **argv)
 	sc->port = xstrdup("6668");
 	sc->peerid = xstrdup("U1234567891234567890");
 
-	network_announce(sc, "started");
+	ret = network_announce(sc, "started");
 	event_dispatch();
 
 	return (ret);
