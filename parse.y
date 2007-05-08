@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.50 2007-05-07 17:09:47 niallo Exp $ */
+/* $Id: parse.y,v 1.51 2007-05-08 19:42:07 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -33,10 +33,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "bencode.h"
-#include "buf.h"
-#include "parse.h"
-#include "xmalloc.h"
+#include "includes.h"
 
 /* Assume no more than 16 nested dictionaries/lists. */
 #define  BENC_STACK_SIZE	16

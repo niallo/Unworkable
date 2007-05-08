@@ -1,4 +1,4 @@
-/* $Id: buf.c,v 1.4 2007-05-07 17:09:47 niallo Exp $ */
+/* $Id: buf.c,v 1.5 2007-05-08 19:42:07 niallo Exp $ */
 /*
  * Copyright (c) 2003 Jean-Francois Brousseau <jfb@openbsd.org>
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
@@ -36,8 +36,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "buf.h"
-#include "xmalloc.h"
+#include "includes.h"
 
 #define BUF_INCR	128
 

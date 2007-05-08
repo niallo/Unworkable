@@ -1,4 +1,4 @@
-/* $Id: network-timer-test.c,v 1.1 2007-05-04 00:37:13 niallo Exp $ */
+/* $Id: network-timer-test.c,v 1.2 2007-05-08 19:42:07 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -34,11 +34,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "bencode.h"
-#include "buf.h"
-#include "network.h"
-#include "parse.h"
-#include "xmalloc.h"
+#include "includes.h"
 
 /* data associated with a bittorrent session */
 struct session {

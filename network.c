@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.57 2007-05-06 01:45:36 niallo Exp $ */
+/* $Id: network.c,v 1.58 2007-05-08 19:42:07 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -35,11 +35,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "bencode.h"
-#include "buf.h"
-#include "network.h"
-#include "parse.h"
-#include "xmalloc.h"
+#include "includes.h"
 
 #define PEER_STATE_HANDSHAKE		(1<<0)
 #define PEER_STATE_BITFIELD		(1<<1)

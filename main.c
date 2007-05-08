@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.23 2007-05-07 17:09:47 niallo Exp $ */
+/* $Id: main.c,v 1.24 2007-05-08 19:42:07 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -25,9 +25,7 @@
 #include <gc.h>
 #endif
 
-#include "bencode.h"
-#include "network.h"
-#include "torrent.h"
+#include "includes.h"
 
 void usage(void);
 

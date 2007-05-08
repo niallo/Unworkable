@@ -1,4 +1,4 @@
-/* $Id: xmalloc.c,v 1.6 2006-12-21 01:40:37 niallo Exp $ */
+/* $Id: xmalloc.c,v 1.7 2007-05-08 19:42:07 niallo Exp $ */
 /*
  * Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "xmalloc.h"
+#include "includes.h"
 
 #define	OOM_MSG	"Out of memory"
 

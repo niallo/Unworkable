@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.33 2007-05-07 17:09:47 niallo Exp $ */
+/* $Id: bencode.c,v 1.34 2007-05-08 19:42:07 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,8 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "bencode.h"
-#include "xmalloc.h"
+#include "includes.h"
 
 #define IS_CONTAINER_TYPE(x) \
 	(x->flags & BDICT || x->flags & BLIST)

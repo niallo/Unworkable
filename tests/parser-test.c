@@ -2,12 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
-#include "bencode.h"
-#include "buf.h"
-#include "parse.h"
-#include "xmalloc.h"
-
+#include "includes.h"
 
 int
 main(int argc, char **argv)

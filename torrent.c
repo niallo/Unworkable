@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.55 2007-05-06 01:45:06 niallo Exp $ */
+/* $Id: torrent.c,v 1.56 2007-05-08 19:42:07 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -30,11 +30,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "bencode.h"
-#include "buf.h"
-#include "parse.h"
-#include "torrent.h"
-#include "xmalloc.h"
+#include "includes.h"
 
 RB_PROTOTYPE(pieces, torrent_piece, entry, torrent_intcmp)
 RB_GENERATE(pieces, torrent_piece, entry, torrent_intcmp)
