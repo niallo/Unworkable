@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.57 2007-05-08 20:12:04 niallo Exp $ */
+/* $Id: torrent.c,v 1.58 2007-05-08 20:19:04 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -668,3 +668,8 @@ torrent_bitfield_get(struct torrent *tp)
 	return (bitfield);
 }
 
+int
+torrent_empty(struct torrent *tp)
+{
+	return RB_EMPTY(&tp->pieces);
+}
