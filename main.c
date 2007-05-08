@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.24 2007-05-08 19:42:07 niallo Exp $ */
+/* $Id: main.c,v 1.25 2007-05-08 20:36:04 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -42,7 +42,8 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	int ch, i, j, k, iflag, badflag;
+	int ch, j, iflag, badflag;
+	size_t i;
 	struct torrent *torrent;
 	struct torrent_piece *tpp;
 
@@ -69,31 +70,22 @@ main(int argc, char **argv)
 
 	torrent = torrent_parse_file(argv[0]);
 	torrent_print(torrent);
-	#if 0
 	for (i = 0; i < torrent->num_pieces; i++) {
 		torrent_piece_map(torrent, i);
 		tpp = torrent_piece_find(torrent, i);
-		if (tpp == NULL)
-			printf("could not find piece: %d\n", i);
 		j = torrent_piece_checkhash(torrent, tpp);
 		if (j != 0) {
-			errx(1, "hash mismatch for piece: %d\n", i);
+			warnx("hash mismatch for piece: %zd\n", i);
 			badflag = 1;
-		}
-		/* lazy unmapping */
-		if (i % 8 == 0 && i > 0) {
-			for (k = 0; k < 8; k++)
-				torrent_piece_unmap(torrent, i - k);
+			tpp->flags |= TORRENT_PIECE_CKSUMOK;
 		}
 	}
 	if (badflag == 0)
 		printf("torrent matches hash\n");
-	#endif
 
 
 	network_init();
 	network_start_torrent(torrent);
-	//network_announce(torrent, "http://127.0.0.1:8080/announce", torrent->info_hash, "U1234567891234567890", "6881", "0", "0", "100", "1",  "started", NULL, NULL, NULL, NULL);
-	exit(0);
 
+	exit(0);
 }

@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.3 2007-05-08 20:19:04 niallo Exp $ */
+/* $Id: includes.h,v 1.4 2007-05-08 20:36:04 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -58,6 +58,9 @@ struct torrent_mmap {
 	struct torrent_file		*tfp;
 	TAILQ_ENTRY(torrent_mmap)	mmaps;
 };
+
+
+#define TORRENT_PIECE_CKSUMOK		(1<<0)
 
 struct torrent_piece {
 	int				flags;
