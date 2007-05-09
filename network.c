@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.59 2007-05-08 20:31:18 niallo Exp $ */
+/* $Id: network.c,v 1.60 2007-05-09 01:44:37 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -54,6 +54,8 @@
 #define PEER_MSG_ID_REQUEST		6
 #define PEER_MSG_ID_PIECE		7
 #define PEER_MSG_ID_CANCEL		8
+
+#define BLOCK_SIZE			16384 /* 16KB */
 
 /* bittorrent peer */
 struct peer {
@@ -781,6 +783,7 @@ network_init()
 	event_init();
 }
 
+/* bulk of decision making happens here.  run every second, once announce is complete. */
 static void
 network_scheduler(int fd, short type, void *arg)
 {
@@ -796,7 +799,7 @@ network_scheduler(int fd, short type, void *arg)
 
 
 	TAILQ_FOREACH(p, &sc->peers, peer_list) {
-
+		
 	}
 }
 

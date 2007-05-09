@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.4 2007-05-08 20:36:04 niallo Exp $ */
+/* $Id: includes.h,v 1.5 2007-05-09 01:44:37 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -63,9 +63,15 @@ struct torrent_mmap {
 #define TORRENT_PIECE_CKSUMOK		(1<<0)
 
 struct torrent_piece {
+	/* misc info about the piece */
 	int				flags;
-	size_t				len;
-	size_t				index;
+	/* how many blocks we currently have */
+	size_t                          blocks;
+	/* how long the piece actually is */
+	size_t                          len;
+	/* index of this piece in the torrent */
+	size_t                          index;
+	/* list of low-level mmaps containing the blocks */
 	TAILQ_HEAD(mmaps, torrent_mmap)	mmaps;
 	RB_ENTRY(torrent_piece)		entry;
 };
