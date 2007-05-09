@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.61 2007-05-09 21:58:15 niallo Exp $ */
+/* $Id: network.c,v 1.62 2007-05-09 22:01:48 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -758,7 +758,7 @@ network_peer_write_bitfield(struct peer *p)
 	memcpy(p->txmsg+4, &id, 1);
 	memcpy(p->txmsg+5, bitfield, p->sc->tp->num_pieces / 8);
 
-	printf("msglen: %zd\n", msglen);
+	printf("msglen: %u\n", msglen);
 	if (bufferevent_write(p->bufev, p->txmsg, msglen) != 0)
 		errx(1, "network_peer_write_bitfield: bufferevent_write failure");
 	
