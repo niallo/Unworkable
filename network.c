@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.60 2007-05-09 01:44:37 niallo Exp $ */
+/* $Id: network.c,v 1.61 2007-05-09 21:58:15 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -607,8 +607,11 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			p->state |= PEER_STATE_BITFIELD;
 			p->state &= ~PEER_STATE_HANDSHAKE;
 			/* if we have some pieces, send our bitfield */
-			if (!torrent_empty(p->sc->tp))
+			if (!torrent_empty(p->sc->tp)) {
+				printf("t\n");
 				network_peer_write_bitfield(p);
+			}
+			printf("p\n");
 			return;
 		}
 	} else {
@@ -743,9 +746,11 @@ network_peer_write_bitfield(struct peer *p)
 	u_int32_t msglen;
 
 	id = 5;
+	printf("s\n");
 	bitfield = torrent_bitfield_get(p->sc->tp);
+	printf("q pieces: %zd\n", p->sc->tp->num_pieces);
 
-	msglen = 4 + 1 + p->sc->tp->num_pieces / 8;
+	msglen = 4 + 1 + (p->sc->tp->num_pieces / 8);
 	p->txmsg = xmalloc(msglen);
 	memset(p->txmsg, 0, msglen);
 	msglen = htonl(msglen);
@@ -753,9 +758,11 @@ network_peer_write_bitfield(struct peer *p)
 	memcpy(p->txmsg+4, &id, 1);
 	memcpy(p->txmsg+5, bitfield, p->sc->tp->num_pieces / 8);
 
+	printf("msglen: %zd\n", msglen);
 	if (bufferevent_write(p->bufev, p->txmsg, msglen) != 0)
 		errx(1, "network_peer_write_bitfield: bufferevent_write failure");
 	
+	printf("z\n");
 	xfree(bitfield);
 }
 

@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.59 2007-05-09 00:46:06 niallo Exp $ */
+/* $Id: torrent.c,v 1.60 2007-05-09 21:58:15 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -426,11 +426,10 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	FILE *fp;
 	struct torrent_mmap *tmmp;
 	struct stat sb;
-	char buf[MAXPATHLEN];
+	char buf[MAXPATHLEN], zero = 0x00;
 	int fd = 0, l;
-	char *zero = "0";
-	
-#define OPEN_FLAGS O_RDWR|O_CREAT
+	size_t i;
+
 	if (tfp->fd == 0) {
 		if (tp->type == SINGLEFILE)
 			l = snprintf(buf, sizeof(buf), "%s", tfp->path);
@@ -439,23 +438,28 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 			    tp->body.multifile.name, tfp->path);
 		if (l == -1 || l >= (int)sizeof(buf))
 			errx(1, "torrent_data_open: path too long");
-		if ((fd = open(buf, OPEN_FLAGS, 0600)) == -1)
+		if ((fd = open(buf, O_RDWR|O_CREAT, 0600)) == -1)
 			err(1, "torrent_data_open: open `%s'", buf);
 		tfp->fd = fd;
 	}
-	/* printf("mmap: len: %zd off: %llu fd: %d\n", len, off, tfp->fd); */
 	if (fstat(tfp->fd, &sb) == -1)
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
 	if (sb.st_size < ((off_t)len + off)) {
-		warnx("empty or too-small mapping, have to write zeros");
-		if ((fp = fdopen(fd, "w")) == NULL)
+		if ((fp = fdopen(tfp->fd, "a+")) == NULL)
 			err(1, "torrent_mmap_create: fwrite() faliure");
-		fwrite(&zero, len, 1, fp);
+		if (fseeko(fp, off, SEEK_CUR) != 0)
+			err(1, "torrent_mmap_create: fseeko() failure");
+		for (i = 0; i < len; i ++)
+			if (fwrite(&zero, 1, 1, fp) < 1)
+				err(1, "torrent_mmap_create: fwrite() failure");
+		/* has to be flushed to disk before mmap() */
+		fflush(fp);
 	}
+	/* printf("mmap: len: %zd off: %llu sbsiz: %llu fd: %d\n", len, off, sb.st_size, tfp->fd); */
 	tmmp = xmalloc(sizeof(*tmmp));
 	memset(tmmp, 0, sizeof(*tmmp));
 	
-	tmmp->addr = mmap(0, len, PROT_READ|PROT_WRITE, MAP_SHARED, tfp->fd, off);
+	tmmp->addr = mmap(0, len, PROT_READ|PROT_WRITE, 0, tfp->fd, off);
 	if (tmmp->addr == MAP_FAILED)
 		err(1, "torrent_mmap_create: mmap");
 	if (madvise(tmmp->addr, len, MADV_SEQUENTIAL|MADV_WILLNEED) == -1)
