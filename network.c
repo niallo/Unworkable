@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.64 2007-05-09 22:33:00 niallo Exp $ */
+/* $Id: network.c,v 1.65 2007-05-09 22:43:29 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -232,7 +232,8 @@ network_announce(struct session *sc, const char *event)
 	bufev = bufferevent_new(sc->connfd, network_handle_announce_response,
 	    network_handle_write, network_handle_announce_error, sc);
 	bufferevent_enable(bufev, EV_READ);
-	bufferevent_write(bufev, request, strlen(request) + 1);
+	if (bufferevent_write(bufev, request, strlen(request) + 1) != 0)
+		errx(1, "network_announce: bufferevent_write failure");
 	xfree(params);
 	return (0);
 
@@ -721,7 +722,8 @@ network_peer_write_piece(struct peer *p, size_t idx, off_t offset, size_t len)
 		printf("REQUEST for piece %zd - failed at torrent_block_read(), returning\n", idx);
 		return;
 	}
-	bufferevent_write(p->bufev, data, len);
+	if (bufferevent_write(p->bufev, data, len) != 0)
+		errx(1, "network_peer_write_piece: bufferevent_write failure");
 }
 
 static void
