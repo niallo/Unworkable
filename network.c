@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.63 2007-05-09 22:28:01 niallo Exp $ */
+/* $Id: network.c,v 1.64 2007-05-09 22:33:00 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -607,11 +607,8 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			p->state |= PEER_STATE_BITFIELD;
 			p->state &= ~PEER_STATE_HANDSHAKE;
 			/* if we have some pieces, send our bitfield */
-			if (!torrent_empty(p->sc->tp)) {
-				printf("t\n");
+			if (!torrent_empty(p->sc->tp))
 				network_peer_write_bitfield(p);
-			}
-			printf("p\n");
 			return;
 		}
 	} else {
