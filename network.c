@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.62 2007-05-09 22:01:48 niallo Exp $ */
+/* $Id: network.c,v 1.63 2007-05-09 22:28:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -670,7 +670,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					return;
 				}
 				bitfieldlen = p->rxmsglen - 1;
-				printf("pieces: %zd bitfield: %d\n", p->sc->tp->num_pieces, bitfieldlen * 8);
+				printf("pieces: %u bitfield: %d\n", p->sc->tp->num_pieces, bitfieldlen * 8);
 				if (bitfieldlen * 8 > p->sc->tp->num_pieces + 7
 				    || bitfieldlen * 8 < p->sc->tp->num_pieces - 7) {
 					printf("bitfield is wrong size! killing peer connection\n");
@@ -743,26 +743,22 @@ static void
 network_peer_write_bitfield(struct peer *p)
 {
 	u_int8_t *bitfield, id;
-	u_int32_t msglen;
+	u_int32_t msglen, msglen2;
 
 	id = 5;
-	printf("s\n");
 	bitfield = torrent_bitfield_get(p->sc->tp);
-	printf("q pieces: %zd\n", p->sc->tp->num_pieces);
 
 	msglen = 4 + 1 + (p->sc->tp->num_pieces / 8);
 	p->txmsg = xmalloc(msglen);
 	memset(p->txmsg, 0, msglen);
-	msglen = htonl(msglen);
-	memcpy(p->txmsg, &msglen, 4);
+	msglen2 = htonl(msglen);
+	memcpy(p->txmsg, &msglen2, 4);
 	memcpy(p->txmsg+4, &id, 1);
 	memcpy(p->txmsg+5, bitfield, p->sc->tp->num_pieces / 8);
 
-	printf("msglen: %u\n", msglen);
 	if (bufferevent_write(p->bufev, p->txmsg, msglen) != 0)
 		errx(1, "network_peer_write_bitfield: bufferevent_write failure");
 	
-	printf("z\n");
 	xfree(bitfield);
 }
 

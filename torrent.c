@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.60 2007-05-09 21:58:15 niallo Exp $ */
+/* $Id: torrent.c,v 1.61 2007-05-09 22:28:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -268,14 +268,14 @@ torrent_print(struct torrent *torrent)
 	for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
 		printf("%02x", torrent->info_hash[i]);
 	putchar('\n');
-	printf("pieces:\t\t%zd\n", torrent->num_pieces);
+	printf("pieces:\t\t%u\n", torrent->num_pieces);
 	printf("type:\t\t");
 	if (torrent->type == SINGLEFILE) {
 		tfile = &torrent->body.singlefile.tfp;
 		printf("single file\n");
 		printf("length:\t\t%lld bytes\n", tfile->file_length);
 		printf("file name:\t%s\n", tfile->path);
-		printf("piece length:\t%zd bytes\n",
+		printf("piece length:\t%u bytes\n",
 		    torrent->piece_length);
 		printf("md5sum:\t\t");
 		if (tfile->md5sum == NULL)
@@ -286,7 +286,7 @@ torrent_print(struct torrent *torrent)
 		printf("multi file\n");
 		printf("base path:\t%s\n",
 		    torrent->body.multifile.name);
-		printf("piece length:\t%zd bytes\n",
+		printf("piece length:\t%u bytes\n",
 		    torrent->piece_length);
 		printf("--files--\n");
 		TAILQ_FOREACH(tfile, &torrent->body.multifile.files, files) {
