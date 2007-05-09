@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.58 2007-05-08 20:19:04 niallo Exp $ */
+/* $Id: torrent.c,v 1.59 2007-05-09 00:46:06 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -423,10 +423,12 @@ struct torrent_mmap *
 torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
     size_t len)
 {
+	FILE *fp;
 	struct torrent_mmap *tmmp;
 	struct stat sb;
 	char buf[MAXPATHLEN];
 	int fd = 0, l;
+	char *zero = "0";
 	
 #define OPEN_FLAGS O_RDWR|O_CREAT
 	if (tfp->fd == 0) {
@@ -441,18 +443,23 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 			err(1, "torrent_data_open: open `%s'", buf);
 		tfp->fd = fd;
 	}
-	//printf("mmap: len: %zd off: %llu fd: %d\n", len, off, tfp->fd);
+	/* printf("mmap: len: %zd off: %llu fd: %d\n", len, off, tfp->fd); */
 	if (fstat(tfp->fd, &sb) == -1)
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
-	if (sb.st_size < ((off_t)len + off))
-		errx(1, "torrent_mmap_create: insufficient data in file");
-#define MMAP_FLAGS PROT_READ|PROT_WRITE
+	if (sb.st_size < ((off_t)len + off)) {
+		warnx("empty or too-small mapping, have to write zeros");
+		if ((fp = fdopen(fd, "w")) == NULL)
+			err(1, "torrent_mmap_create: fwrite() faliure");
+		fwrite(&zero, len, 1, fp);
+	}
 	tmmp = xmalloc(sizeof(*tmmp));
 	memset(tmmp, 0, sizeof(*tmmp));
 	
-	tmmp->addr = mmap(0, len, MMAP_FLAGS, 0, tfp->fd, off);
+	tmmp->addr = mmap(0, len, PROT_READ|PROT_WRITE, MAP_SHARED, tfp->fd, off);
 	if (tmmp->addr == MAP_FAILED)
 		err(1, "torrent_mmap_create: mmap");
+	if (madvise(tmmp->addr, len, MADV_SEQUENTIAL|MADV_WILLNEED) == -1)
+		err(1, "torrent_mmap_create: madvise");
 	tmmp->len = len;
 
 	tmmp->tfp = tfp;
