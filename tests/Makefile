@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: Makefile,v 1.1 2007-05-04 00:37:13 niallo Exp $
+# $Id: Makefile,v 1.2 2007-05-09 00:43:50 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
@@ -36,11 +36,11 @@ CFLAGS+= -I../
 .c.o:
 	${CC} -I../ ${CFLAGS} -c ${.IMPSRC} -o ${.PREFIX}.o
 
-all: network-test parser-test
+all: network-test parser-test mmap-test
 	@parser-test parser-data/* > /dev/null
 	
 clean:
-	rm -rf network-test parser-test ../*.o *.o y.tab.h
+	rm -rf network-test parser-test ../*.o *.o y.tab.h ./test_file
 
 COMPILE: .USE
 	${CC} ${CFLAGS} -o  ${.TARGET} ${LDFLAGS} -levent ${.ALLSRC}
@@ -50,3 +50,6 @@ network-test: ${NETWORK_TEST_SRCS:N*.h:N*.sh:R:S/$/.o/g}  COMPILE
 
 PARSER_TEST_SRCS= ../xmalloc.c ../buf.c ../bencode.c ../parse.y parser-test.c
 parser-test: ${PARSER_TEST_SRCS:N*.h:N*.sh:R:S/$/.o/g}  COMPILE
+
+MMAP_TEST_SRCS= mmap-test.c
+mmap-test: ${MMAP_TEST_SRCS:N*.h:N*.sh:R:S/$/.o/g}  COMPILE
