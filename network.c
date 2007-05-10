@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.67 2007-05-10 00:06:56 niallo Exp $ */
+/* $Id: network.c,v 1.68 2007-05-10 00:07:47 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -827,7 +827,7 @@ network_session_sorted_pieces(struct session *sc)
 	int count;
 	u_int32_t i, **pieces;
 
-	pieces = xcalloc(sc->tp->num_pieces, sizeof(u_int32_t));
+	pieces = xcalloc(sc->tp->num_pieces, sizeof(**pieces));
 
 	/* counts for each piece */
 	for (i = 0; i < sc->tp->num_pieces; i++) {
@@ -841,7 +841,7 @@ network_session_sorted_pieces(struct session *sc)
 		*pieces[i] = count;
 	}
 	/* sort the rarity array */
-	qsort(pieces, sc->tp->num_pieces, sizeof(u_int32_t),
+	qsort(pieces, sc->tp->num_pieces, sizeof(**pieces),
 	    network_session_sorted_pieces_cmp);
 
 	return (pieces);
