@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.71 2007-05-10 00:39:16 niallo Exp $ */
+/* $Id: network.c,v 1.72 2007-05-10 00:57:37 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -120,7 +120,7 @@ static void	network_handle_peer_response(struct bufferevent *, void *);
 static void	network_handle_peer_write(struct bufferevent *, void *);
 static void	network_handle_peer_error(struct bufferevent *, short, void *);
 static void	network_scheduler(int, short, void *);
-static struct piececounter **network_session_sorted_pieces(struct session *);
+static struct piececounter *network_session_sorted_pieces(struct session *);
 static int	network_session_sorted_pieces_cmp(const void *, const void *);
 
 static int
@@ -799,7 +799,7 @@ network_scheduler(int fd, short type, void *arg)
 	struct session *sc = arg;
 	struct timeval tv;
 	/* piece rarity array */
-	struct piececounter **pieces;
+	struct piececounter *pieces;
 
 	printf("network_scheduler\n");
 	timerclear(&tv);
@@ -809,6 +809,9 @@ network_scheduler(int fd, short type, void *arg)
 	
 	pieces = network_session_sorted_pieces(sc);
 
+	printf("rarest piece is %u with count %u\n", pieces[0].idx,
+	     pieces[0].count);
+	xfree(pieces);
 }
 
 static int
@@ -824,14 +827,14 @@ network_session_sorted_pieces_cmp(const void *a, const void *b)
 }
 
 /* for a given session return sorted array of piece counts*/
-static struct piececounter **
+static struct piececounter *
 network_session_sorted_pieces(struct session *sc)
 {
-	struct piececounter **pieces, *piece;
+	struct piececounter *pieces;
 	struct peer *p;
 	u_int32_t i, count;
 
-	pieces = xcalloc(sc->tp->num_pieces, sizeof(**pieces));
+	pieces = xcalloc(sc->tp->num_pieces, sizeof(*pieces));
 
 	/* counts for each piece */
 	for (i = 0; i < sc->tp->num_pieces; i++) {
@@ -842,12 +845,11 @@ network_session_sorted_pieces(struct session *sc)
 			if (isset(p->bitfield, i))
 				count++;
 		}
-		piece = pieces + (i * sizeof(*piece));
-		piece->count = count;
-		piece->idx = i;
+		pieces[i].count = count;
+		pieces[i].idx = i;
 	}
 	/* sort the rarity array */
-	qsort(pieces, sc->tp->num_pieces, sizeof(**pieces),
+	qsort(pieces, sc->tp->num_pieces, sizeof(*pieces),
 	    network_session_sorted_pieces_cmp);
 
 	return (pieces);
