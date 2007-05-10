@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.73 2007-05-10 05:54:28 niallo Exp $ */
+/* $Id: network.c,v 1.74 2007-05-10 06:08:29 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -55,6 +55,7 @@
 #define PEER_MSG_ID_CANCEL		8
 
 #define BLOCK_SIZE			16384 /* 16KB */
+#define MAX_BACKLOG			65536 /* 64KB */
 
 #define BIT_SET(a,i)			((a)[(i)/8] |= 1<<(7-((i)%8)))
 #define BIT_CLR(a,i)			((a)[(i)/8] &= ~(1<<(7-((i)%8))))
@@ -87,6 +88,7 @@ struct session {
 	 * should be fine for storage */
 	TAILQ_HEAD(peers, peer) peers;
 	int connfd;
+	int servfd;
 	char *key;
 	char *ip;
 	char *numwant;
@@ -126,6 +128,7 @@ static void	network_handle_peer_error(struct bufferevent *, short, void *);
 static void	network_scheduler(int, short, void *);
 static struct piececounter *network_session_sorted_pieces(struct session *);
 static int	network_session_sorted_pieces_cmp(const void *, const void *);
+static int	network_listen(char *, char *);
 
 static int
 network_announce(struct session *sc, const char *event)
@@ -328,6 +331,8 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	evtimer_del(&sc->announce_event);
 	evtimer_set(&sc->announce_event, network_announce_update, sc);
 	evtimer_add(&sc->announce_event, &tv);
+	/* time to set up the server socket */
+
 	/* now that we've announced, kick off the scheduler */
 	timerclear(&tv);
 	tv.tv_sec = 1;
@@ -338,6 +343,33 @@ err:
 	buf_free(buf);
 	xfree(res);
 	(void) close(sc->connfd);
+}
+
+static int
+network_listen(char *host, char *port)
+{
+	int error = 0;
+	int fd;
+	int option_value = 1;
+	struct addrinfo hints, *res;
+	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+		errx(1, "could not create server socket");
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = PF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	error = getaddrinfo(host, port, &hints, &res);
+	if (error != 0)
+		errx(1, "\"%s\" - %s", host, gai_strerror(error));
+	if (bind(fd, res->ai_addr, res->ai_addrlen) == -1)
+		err(1, "could not bind to %s", host);
+	if (listen(fd, MAX_BACKLOG) == -1)
+		err(1, "could not listen on server socket");
+	freeaddrinfo(res);
+	error = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+		    (char *) &option_value, sizeof(option_value));
+	if (error == -1)
+		errx(1, "could not set socket options");
+	return fd;
 }
 
 static int
