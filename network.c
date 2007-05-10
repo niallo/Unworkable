@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.70 2007-05-10 00:20:14 niallo Exp $ */
+/* $Id: network.c,v 1.71 2007-05-10 00:39:16 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -827,7 +827,7 @@ network_session_sorted_pieces_cmp(const void *a, const void *b)
 static struct piececounter **
 network_session_sorted_pieces(struct session *sc)
 {
-	struct piececounter **pieces;
+	struct piececounter **pieces, *piece;
 	struct peer *p;
 	u_int32_t i, count;
 
@@ -842,8 +842,9 @@ network_session_sorted_pieces(struct session *sc)
 			if (isset(p->bitfield, i))
 				count++;
 		}
-		pieces[i]->count = count;
-		pieces[i]->idx = i;
+		piece = pieces + (i * sizeof(*piece));
+		piece->count = count;
+		piece->idx = i;
 	}
 	/* sort the rarity array */
 	qsort(pieces, sc->tp->num_pieces, sizeof(**pieces),
