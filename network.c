@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.66 2007-05-10 00:02:06 niallo Exp $ */
+/* $Id: network.c,v 1.67 2007-05-10 00:06:56 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -115,8 +115,8 @@ static void	network_handle_peer_response(struct bufferevent *, void *);
 static void	network_handle_peer_write(struct bufferevent *, void *);
 static void	network_handle_peer_error(struct bufferevent *, short, void *);
 static void	network_scheduler(int, short, void *);
-static u_int32_t network_session_rarest_piece(struct session *);
-static int	network_session_rarest_piece_cmp(const void *, const void *);
+static u_int32_t **network_session_sorted_pieces(struct session *);
+static int	network_session_sorted_pieces_cmp(const void *, const void *);
 
 static int
 network_announce(struct session *sc, const char *event)
@@ -808,7 +808,7 @@ network_scheduler(int fd, short type, void *arg)
 }
 
 static int
-network_session_rarest_piece_cmp(const void *a, const void *b)
+network_session_sorted_pieces_cmp(const void *a, const void *b)
 {
 	const u_int32_t *x, *y;
 
@@ -819,13 +819,13 @@ network_session_rarest_piece_cmp(const void *a, const void *b)
 
 }
 
-/* for a given session, figure out the rarest piece among its peers */
-static u_int32_t
-network_session_rarest_piece(struct session *sc)
+/* for a given session return sorted array of piece counts*/
+static u_int32_t **
+network_session_sorted_pieces(struct session *sc)
 {
 	struct peer *p;
 	int count;
-	u_int32_t i, **pieces, ret;
+	u_int32_t i, **pieces;
 
 	pieces = xcalloc(sc->tp->num_pieces, sizeof(u_int32_t));
 
@@ -842,12 +842,9 @@ network_session_rarest_piece(struct session *sc)
 	}
 	/* sort the rarity array */
 	qsort(pieces, sc->tp->num_pieces, sizeof(u_int32_t),
-	    network_session_rarest_piece_cmp);
+	    network_session_sorted_pieces_cmp);
 
-	/* qsort is ascending - rarest piece is always first element of array */
-	ret = *pieces[0];
-	xfree(pieces);
-	return (ret);
+	return (pieces);
 }
 
 /* start handling network stuff for a new torrent */
