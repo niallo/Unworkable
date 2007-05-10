@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.65 2007-05-09 22:43:29 niallo Exp $ */
+/* $Id: network.c,v 1.66 2007-05-10 00:02:06 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -115,6 +115,8 @@ static void	network_handle_peer_response(struct bufferevent *, void *);
 static void	network_handle_peer_write(struct bufferevent *, void *);
 static void	network_handle_peer_error(struct bufferevent *, short, void *);
 static void	network_scheduler(int, short, void *);
+static u_int32_t network_session_rarest_piece(struct session *);
+static int	network_session_rarest_piece_cmp(const void *, const void *);
 
 static int
 network_announce(struct session *sc, const char *event)
@@ -803,6 +805,49 @@ network_scheduler(int fd, short type, void *arg)
 	TAILQ_FOREACH(p, &sc->peers, peer_list) {
 		
 	}
+}
+
+static int
+network_session_rarest_piece_cmp(const void *a, const void *b)
+{
+	const u_int32_t *x, *y;
+
+	x = a;
+	y = b;
+
+	return (*x - *y);
+
+}
+
+/* for a given session, figure out the rarest piece among its peers */
+static u_int32_t
+network_session_rarest_piece(struct session *sc)
+{
+	struct peer *p;
+	int count;
+	u_int32_t i, **pieces, ret;
+
+	pieces = xcalloc(sc->tp->num_pieces, sizeof(u_int32_t));
+
+	/* counts for each piece */
+	for (i = 0; i < sc->tp->num_pieces; i++) {
+		count = 0;
+		TAILQ_FOREACH(p, &sc->peers, peer_list) {
+			if (!(p->state & PEER_STATE_ESTABLISHED))
+				continue;
+			if (isset(p->bitfield, i))
+				count++;
+		}
+		*pieces[i] = count;
+	}
+	/* sort the rarity array */
+	qsort(pieces, sc->tp->num_pieces, sizeof(u_int32_t),
+	    network_session_rarest_piece_cmp);
+
+	/* qsort is ascending - rarest piece is always first element of array */
+	ret = *pieces[0];
+	xfree(pieces);
+	return (ret);
 }
 
 /* start handling network stuff for a new torrent */
