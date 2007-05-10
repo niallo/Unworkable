@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.69 2007-05-10 00:09:23 niallo Exp $ */
+/* $Id: network.c,v 1.70 2007-05-10 00:20:14 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -96,6 +96,11 @@ struct session {
 	struct torrent *tp;
 };
 
+struct piececounter {
+	u_int32_t count;
+	u_int32_t idx;
+};
+
 static int	network_announce(struct session *, const char *);
 static void	network_announce_update(int, short, void *);
 static void	network_handle_announce_response(struct bufferevent *, void *);
@@ -115,7 +120,7 @@ static void	network_handle_peer_response(struct bufferevent *, void *);
 static void	network_handle_peer_write(struct bufferevent *, void *);
 static void	network_handle_peer_error(struct bufferevent *, short, void *);
 static void	network_scheduler(int, short, void *);
-static u_int32_t **network_session_sorted_pieces(struct session *);
+static struct piececounter **network_session_sorted_pieces(struct session *);
 static int	network_session_sorted_pieces_cmp(const void *, const void *);
 
 static int
@@ -791,40 +796,40 @@ network_init()
 static void
 network_scheduler(int fd, short type, void *arg)
 {
-	struct peer *p;
 	struct session *sc = arg;
 	struct timeval tv;
+	/* piece rarity array */
+	struct piececounter **pieces;
 
 	printf("network_scheduler\n");
 	timerclear(&tv);
 	tv.tv_sec = 1;
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
+	
+	pieces = network_session_sorted_pieces(sc);
 
-
-	TAILQ_FOREACH(p, &sc->peers, peer_list) {
-		
-	}
 }
 
 static int
 network_session_sorted_pieces_cmp(const void *a, const void *b)
 {
-	const u_int32_t *x, *y;
+	const struct piececounter *x, *y;
 
 	x = a;
 	y = b;
 
-	return (*x - *y);
+	return (x->count - y->count);
 
 }
 
 /* for a given session return sorted array of piece counts*/
-static u_int32_t **
+static struct piececounter **
 network_session_sorted_pieces(struct session *sc)
 {
+	struct piececounter **pieces;
 	struct peer *p;
-	u_int32_t i, **pieces, count;
+	u_int32_t i, count;
 
 	pieces = xcalloc(sc->tp->num_pieces, sizeof(**pieces));
 
@@ -837,7 +842,8 @@ network_session_sorted_pieces(struct session *sc)
 			if (isset(p->bitfield, i))
 				count++;
 		}
-		*pieces[i] = count;
+		pieces[i]->count = count;
+		pieces[i]->idx = i;
 	}
 	/* sort the rarity array */
 	qsort(pieces, sc->tp->num_pieces, sizeof(**pieces),
