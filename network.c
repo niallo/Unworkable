@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.72 2007-05-10 00:57:37 niallo Exp $ */
+/* $Id: network.c,v 1.73 2007-05-10 05:54:28 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -15,7 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <sys/param.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -56,6 +55,11 @@
 #define PEER_MSG_ID_CANCEL		8
 
 #define BLOCK_SIZE			16384 /* 16KB */
+
+#define BIT_SET(a,i)			((a)[(i)/8] |= 1<<(7-((i)%8)))
+#define BIT_CLR(a,i)			((a)[(i)/8] &= ~(1<<(7-((i)%8))))
+#define BIT_ISSET(a,i)			((a)[(i)/8] & (1<<(7-((i)%8))))
+#define BIT_ISCLR(a,i)			(((a)[(i)/8] & (1<<(7-((i)%8)))) == 0)
 
 /* bittorrent peer */
 struct peer {
@@ -796,12 +800,17 @@ network_init()
 static void
 network_scheduler(int fd, short type, void *arg)
 {
+	struct peer *p;
 	struct session *sc = arg;
 	struct timeval tv;
 	/* piece rarity array */
 	struct piececounter *pieces;
+	int count = 0;
 
 	printf("network_scheduler\n");
+	TAILQ_FOREACH(p, &sc->peers, peer_list)
+		count++;
+	printf("we have %d peers\n", count);
 	timerclear(&tv);
 	tv.tv_sec = 1;
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
@@ -842,7 +851,7 @@ network_session_sorted_pieces(struct session *sc)
 		TAILQ_FOREACH(p, &sc->peers, peer_list) {
 			if (!(p->state & PEER_STATE_ESTABLISHED))
 				continue;
-			if (isset(p->bitfield, i))
+			if (BIT_ISSET(p->bitfield, i))
 				count++;
 		}
 		pieces[i].count = count;
