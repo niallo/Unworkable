@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.74 2007-05-10 06:08:29 niallo Exp $ */
+/* $Id: network.c,v 1.75 2007-05-10 18:50:33 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -353,7 +353,9 @@ network_listen(char *host, char *port)
 	int option_value = 1;
 	struct addrinfo hints, *res;
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-		errx(1, "could not create server socket");
+		err(1, "could not create server socket");
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
+		err(1, "network_listen");
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = PF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
@@ -366,9 +368,9 @@ network_listen(char *host, char *port)
 		err(1, "could not listen on server socket");
 	freeaddrinfo(res);
 	error = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
-		    (char *) &option_value, sizeof(option_value));
+		    &option_value, sizeof(option_value));
 	if (error == -1)
-		errx(1, "could not set socket options");
+		err(1, "could not set socket options");
 	return fd;
 }
 
