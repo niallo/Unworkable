@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.68 2007-05-10 00:07:47 niallo Exp $ */
+/* $Id: network.c,v 1.69 2007-05-10 00:09:23 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -824,8 +824,7 @@ static u_int32_t **
 network_session_sorted_pieces(struct session *sc)
 {
 	struct peer *p;
-	int count;
-	u_int32_t i, **pieces;
+	u_int32_t i, **pieces, count;
 
 	pieces = xcalloc(sc->tp->num_pieces, sizeof(**pieces));
 
