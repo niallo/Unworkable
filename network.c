@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.75 2007-05-10 18:50:33 niallo Exp $ */
+/* $Id: network.c,v 1.76 2007-05-11 05:44:18 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -25,6 +25,7 @@
 
 #include <ctype.h>
 #include <err.h>
+#include <errno.h>
 #include <event.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -122,6 +123,7 @@ static void	network_peer_write_piece(struct peer *, size_t, off_t, size_t);
 static void	network_peer_read_piece(struct peer *, size_t, off_t, size_t, void *);
 static void	network_peer_write_bitfield(struct peer *);
 static void	network_peer_free(struct peer *);
+static void	network_handle_peer_connect(struct bufferevent *, short, void *);
 static void	network_handle_peer_response(struct bufferevent *, void *);
 static void	network_handle_peer_write(struct bufferevent *, void *);
 static void	network_handle_peer_error(struct bufferevent *, short, void *);
@@ -270,6 +272,7 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	struct session *sc;
 	struct torrent *tp;
 	struct timeval tv;
+	struct bufferevent *bev;
 
 	printf("network_handle_announce_response\n");
 	buf = NULL;
@@ -332,7 +335,10 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	evtimer_set(&sc->announce_event, network_announce_update, sc);
 	evtimer_add(&sc->announce_event, &tv);
 	/* time to set up the server socket */
-
+	sc->servfd = network_listen(NULL, sc->port);
+	bev = bufferevent_new(sc->servfd, NULL,
+	    NULL, network_handle_peer_connect, sc);
+	bufferevent_enable(bev, EV_READ);
 	/* now that we've announced, kick off the scheduler */
 	timerclear(&tv);
 	tv.tv_sec = 1;
@@ -345,6 +351,27 @@ err:
 	(void) close(sc->connfd);
 }
 
+static void
+network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
+{
+	struct session *sc;
+	struct peer *p;
+	socklen_t addrlen;
+
+	sc = data;
+	p = xmalloc(sizeof(*p));
+	memset(p, 0, sizeof(*p));
+
+	printf("received an incoming peer connection\n");
+	if ((p->connfd = accept(sc->servfd, (struct sockaddr *) &p->sa, &addrlen)) == -1)
+		err(1, "network_handle_peer_connect: accept");
+
+	p->bufev = bufferevent_new(p->connfd, network_handle_peer_response,
+	    network_handle_peer_write, network_handle_peer_error, p);
+	bufferevent_enable(p->bufev, EV_READ|EV_WRITE);
+	network_peer_handshake(sc, p);
+}
+
 static int
 network_listen(char *host, char *port)
 {
@@ -352,18 +379,19 @@ network_listen(char *host, char *port)
 	int fd;
 	int option_value = 1;
 	struct addrinfo hints, *res;
-	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+
+	if ((fd = socket(PF_INET, SOCK_STREAM, 0)) == -1)
 		err(1, "could not create server socket");
 	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
 		err(1, "network_listen");
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = PF_UNSPEC;
+	hints.ai_family = PF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	error = getaddrinfo(host, port, &hints, &res);
 	if (error != 0)
 		errx(1, "\"%s\" - %s", host, gai_strerror(error));
 	if (bind(fd, res->ai_addr, res->ai_addrlen) == -1)
-		err(1, "could not bind to %s", host);
+		err(1, "could not bind to port %s", port);
 	if (listen(fd, MAX_BACKLOG) == -1)
 		err(1, "could not listen on server socket");
 	freeaddrinfo(res);
@@ -841,10 +869,8 @@ network_scheduler(int fd, short type, void *arg)
 	struct piececounter *pieces;
 	int count = 0;
 
-	printf("network_scheduler\n");
 	TAILQ_FOREACH(p, &sc->peers, peer_list)
 		count++;
-	printf("we have %d peers\n", count);
 	timerclear(&tv);
 	tv.tv_sec = 1;
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
@@ -852,8 +878,6 @@ network_scheduler(int fd, short type, void *arg)
 	
 	pieces = network_session_sorted_pieces(sc);
 
-	printf("rarest piece is %u with count %u\n", pieces[0].idx,
-	     pieces[0].count);
 	xfree(pieces);
 }
 
