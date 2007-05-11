@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.76 2007-05-11 05:44:18 niallo Exp $ */
+/* $Id: network.c,v 1.77 2007-05-11 05:46:37 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -383,7 +383,7 @@ network_listen(char *host, char *port)
 	if ((fd = socket(PF_INET, SOCK_STREAM, 0)) == -1)
 		err(1, "could not create server socket");
 	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
-		err(1, "network_listen");
+		err(1, "network_listen: fcntl");
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = PF_INET;
 	hints.ai_socktype = SOCK_STREAM;
