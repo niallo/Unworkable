@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.81 2007-05-13 06:21:28 niallo Exp $ */
+/* $Id: network.c,v 1.82 2007-05-13 06:25:29 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -739,7 +739,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				break;
 			case PEER_MSG_ID_HAVE:
 				printf("peer sez have\n");
-				memcpy(&idx, base+1, 4);
+				memcpy(&idx, base+sizeof(id), sizeof(idx));
 				idx = ntohl(idx);
 				if (idx > p->sc->tp->num_pieces - 1) {
 					printf("have index overflow, ignoring\n");
@@ -762,28 +762,28 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					return;
 				}
 				p->bitfield = xmalloc(bitfieldlen);
-				memcpy(p->bitfield, base+1, bitfieldlen);
+				memcpy(p->bitfield, base+sizeof(id), bitfieldlen);
 				p->state &= ~PEER_STATE_BITFIELD;
 				p->state |= PEER_STATE_ESTABLISHED;
 				break;
 			case PEER_MSG_ID_REQUEST:
-				memcpy(&idx, base+1, 4);
+				memcpy(&idx, base+sizeof(id), sizeof(idx));
 				idx = ntohl(idx);
-				memcpy(&off, base+5, 4);
+				memcpy(&off, base+sizeof(idx), sizeof(off));
 				off = ntohl(off);
-				memcpy(&blocklen, base+9, 4);
+				memcpy(&blocklen, base+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
 				blocklen = ntohl(blocklen);
 				printf("peer REQUEST idx: %d offset: %d blocklen: %d\n", idx, off, blocklen);
 				network_peer_write_piece(p, idx, off, blocklen);
 				break;
 			case PEER_MSG_ID_PIECE:
 				printf("peer sez piece\n");
-				memcpy(&idx, base+1, 4);
+				memcpy(&idx, base+sizeof(id), sizeof(idx));
 				idx = ntohl(idx);
-				memcpy(&off, base+5, 4);
+				memcpy(&off, base+sizeof(id)+sizeof(idx), sizeof(off));
 				off = ntohl(off);
 				printf("peer PIECE idx: %d offset: %d\n", idx, off);
-				network_peer_read_piece(p, idx, off, p->rxmsglen - 9, base+9);
+				network_peer_read_piece(p, idx, off, p->rxmsglen - 9, base+sizeof(id)+sizeof(off)+sizeof(idx));
 				break;
 			case PEER_MSG_ID_CANCEL:
 				printf("peer sez cancel\n");
