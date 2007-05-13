@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.62 2007-05-13 00:31:58 niallo Exp $ */
+/* $Id: torrent.c,v 1.63 2007-05-13 05:51:43 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -619,7 +619,8 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
 	}
 	res = memcmp(results, s, SHA1_DIGEST_LENGTH);
-	tpp->flags |= TORRENT_PIECE_CKSUMOK;
+	if (res)
+		tpp->flags |= TORRENT_PIECE_CKSUMOK;
 
 
 	return (res);
@@ -665,7 +666,8 @@ torrent_bitfield_get(struct torrent *tp)
 	memset(bitfield, 0, tp->num_pieces / 8);
 	for (i = 0; i < tp->num_pieces - 1; i++) {
 		find.index = i;
-		if ((res = RB_FIND(pieces, &tp->pieces, &find)) != NULL)
+		if ((res = RB_FIND(pieces, &tp->pieces, &find)) != NULL
+		    && (res->flags & TORRENT_PIECE_CKSUMOK))
 			setbit(bitfield, i);
 	}
 	return (bitfield);
@@ -674,5 +676,11 @@ torrent_bitfield_get(struct torrent *tp)
 int
 torrent_empty(struct torrent *tp)
 {
-	return RB_EMPTY(&tp->pieces);
+	struct torrent_piece *tpp;
+
+	RB_FOREACH(tpp, pieces, &tp->pieces) {
+		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
+			return (1);
+	}
+	return (0);
 }
