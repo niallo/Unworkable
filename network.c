@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.82 2007-05-13 06:25:29 niallo Exp $ */
+/* $Id: network.c,v 1.83 2007-05-13 06:28:41 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -929,9 +929,9 @@ network_peer_request_piece(struct peer *p, u_int32_t idx, u_int32_t off)
 	u_int32_t msglen, msglen2, blocklen;
 	u_int8_t  *msg, id;
 
-	msglen = 13 + 4;
+	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx) + sizeof(off) + sizeof(blocklen);
 	msg = xmalloc(msglen);
-	msglen2 = htonl(13);
+	msglen2 = htonl(msglen - sizeof(msglen));
 	id = PEER_MSG_ID_REQUEST;
 	idx = htonl(idx);
 	off = htonl(off);
