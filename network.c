@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.79 2007-05-13 01:20:31 niallo Exp $ */
+/* $Id: network.c,v 1.80 2007-05-13 06:01:24 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -854,6 +854,7 @@ network_peer_free(struct peer *p)
 {
 	printf("freeing peer\n");
 	struct session *sc = p->sc;
+	TAILQ_REMOVE(&sc->peers, p, peer_list);
 	if (p->bufev != NULL)
 		bufferevent_free(p->bufev);
 	if (p->rxmsg != NULL)
@@ -865,7 +866,6 @@ network_peer_free(struct peer *p)
 	if (p->connfd != 0)
 		(void)  close(p->connfd);
 
-	TAILQ_REMOVE(&sc->peers, p, peer_list);
 	xfree(p);
 }
 
@@ -891,12 +891,15 @@ network_scheduler(int fd, short type, void *arg)
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
 	
+	/* XXX: probably this should be some sane threshold like 10 */
 	if (!TAILQ_EMPTY(&sc->peers)) {
 		pieces = network_session_sorted_pieces(sc);
 		TAILQ_FOREACH(p, &sc->peers, peer_list)
 			if (!(p->state & PEER_STATE_ISTRANSFERRING))
 				network_peer_request_piece(p, pieces[0].idx, p->block);
 		xfree(pieces);
+	} else {
+		/* XXX: try to connect some more peers */
 	}
 }
 
