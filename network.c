@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.78 2007-05-13 00:31:58 niallo Exp $ */
+/* $Id: network.c,v 1.79 2007-05-13 01:20:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -73,7 +73,7 @@ struct peer {
 	size_t rxpending;
 	size_t txpending;
 	struct bufferevent *bufev;
-	u_int32_t txmsglen, rxmsglen, piece, block;
+	u_int32_t rxmsglen, piece, block;
 	u_int8_t *txmsg, *rxmsg;
 	u_int8_t *bitfield;
 	/* from peer's handshake message */
@@ -885,41 +885,40 @@ network_scheduler(int fd, short type, void *arg)
 	struct timeval tv;
 	/* piece rarity array */
 	struct piececounter *pieces;
-	u_int32_t idx;
 
 	timerclear(&tv);
 	tv.tv_sec = 1;
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
 	
-	pieces = network_session_sorted_pieces(sc);
-	idx = pieces[0].idx;
-	TAILQ_FOREACH(p, &sc->peers, peer_list)
-		if (!(p->state & PEER_STATE_ISTRANSFERRING))
-			network_peer_request_piece(p, idx, p->block);
-
-	xfree(pieces);
+	if (!TAILQ_EMPTY(&sc->peers)) {
+		pieces = network_session_sorted_pieces(sc);
+		TAILQ_FOREACH(p, &sc->peers, peer_list)
+			if (!(p->state & PEER_STATE_ISTRANSFERRING))
+				network_peer_request_piece(p, pieces[0].idx, p->block);
+		xfree(pieces);
+	}
 }
 
 static void
 network_peer_request_piece(struct peer *p, u_int32_t idx, u_int32_t off)
 {
-	u_int32_t len, msglen, blocklen;
+	u_int32_t msglen, msglen2, blocklen;
 	u_int8_t  *msg, id;
 
-	msglen = 13;
+	msglen = 13 + 4;
 	msg = xmalloc(msglen);
-	len = htonl(msglen);
+	msglen2 = htonl(13);
 	id = PEER_MSG_ID_REQUEST;
 	idx = htonl(idx);
 	off = htonl(off);
 	blocklen = htonl(BLOCK_SIZE);
 
-	memcpy(msg, &len, sizeof(len));
-	memcpy(msg+sizeof(len), &id, sizeof(id));
-	memcpy(msg+sizeof(len)+sizeof(id), &idx, sizeof(idx));
-	memcpy(msg+sizeof(len)+sizeof(id)+sizeof(idx), &off, sizeof(off));
-	memcpy(msg+sizeof(len)+sizeof(id)+sizeof(idx)+sizeof(off), &blocklen, sizeof(blocklen));
+	memcpy(msg, &msglen2, sizeof(msglen2));
+	memcpy(msg+sizeof(msglen2), &id, sizeof(id));
+	memcpy(msg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
+	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx), &off, sizeof(off));
+	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(off), &blocklen, sizeof(blocklen));
 
 	p->txmsg = msg;
 	if (bufferevent_write(p->bufev, msg, msglen) != 0)
