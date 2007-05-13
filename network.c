@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.83 2007-05-13 06:28:41 niallo Exp $ */
+/* $Id: network.c,v 1.84 2007-05-13 06:38:11 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -726,8 +726,9 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				p->state |= PEER_STATE_CHOKED;
 				break;
 			case PEER_MSG_ID_UNCHOKE:
-				p->state &= ~PEER_STATE_CHOKED;
 				printf("peer sez unchoke\n");
+				p->state &= ~PEER_STATE_CHOKED;
+				network_peer_request_piece(p, p->piece, p->block);
 				break;
 			case PEER_MSG_ID_INTERESTED:
 				p->state |= PEER_STATE_INTERESTED;
@@ -913,9 +914,10 @@ network_scheduler(int fd, short type, void *arg)
 	if (!TAILQ_EMPTY(&sc->peers)) {
 		pieces = network_session_sorted_pieces(sc);
 		TAILQ_FOREACH(p, &sc->peers, peer_list)
-			if (!(p->state & PEER_STATE_ISTRANSFERRING)) {
+			if (!(p->state & PEER_STATE_ISTRANSFERRING)
+			    &&!(p->state & PEER_STATE_AMINTERESTED)) {
 				network_peer_write_interested(p);
-				network_peer_request_piece(p, pieces[0].idx, p->block);
+				p->piece = pieces[0].idx;
 			}
 		xfree(pieces);
 	} else {
