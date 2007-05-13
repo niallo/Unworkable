@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.6 2007-05-09 22:28:01 niallo Exp $ */
+/* $Id: includes.h,v 1.7 2007-05-13 00:31:58 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -54,7 +54,7 @@ enum type { MULTIFILE, SINGLEFILE };
 
 struct torrent_mmap {
 	void				*addr;
-	size_t				len;
+	u_int32_t			len;
 	struct torrent_file		*tfp;
 	TAILQ_ENTRY(torrent_mmap)	mmaps;
 };
@@ -66,11 +66,11 @@ struct torrent_piece {
 	/* misc info about the piece */
 	int				flags;
 	/* how many blocks we currently have */
-	size_t                          blocks;
+	u_int32_t                          blocks;
 	/* how long the piece actually is */
-	size_t                          len;
+	u_int32_t                          len;
 	/* index of this piece in the torrent */
-	size_t                          index;
+	u_int32_t                          index;
 	/* list of low-level mmaps containing the blocks */
 	TAILQ_HEAD(mmaps, torrent_mmap)	mmaps;
 	RB_ENTRY(torrent_piece)		entry;
@@ -161,18 +161,18 @@ struct benc_node		*benc_parse_buf(BUF *b, struct benc_node *);
 
 extern BUF			*in;
 void			*torrent_block_read(struct torrent_piece *, off_t,
-			    size_t, int *);
+			    u_int32_t, int *);
 void			 torrent_block_write(struct torrent_piece *, off_t,
-			    size_t, void *);
+			    u_int32_t, void *);
 struct torrent_mmap	*torrent_mmap_create(struct torrent *,
-			    struct torrent_file *, off_t, size_t);
+			    struct torrent_file *, off_t, u_int32_t);
 struct torrent		*torrent_parse_file(const char *);
 u_int8_t		*torrent_parse_infohash(const char *);
 int			 torrent_piece_checkhash(struct torrent *,
 			    struct torrent_piece *);
-struct torrent_piece	*torrent_piece_find(struct torrent *, size_t);
-struct torrent_piece	*torrent_piece_map(struct torrent *, size_t);
-void			 torrent_piece_unmap(struct torrent *, size_t);
+struct torrent_piece	*torrent_piece_find(struct torrent *, u_int32_t);
+struct torrent_piece	*torrent_piece_map(struct torrent *, u_int32_t);
+void			 torrent_piece_unmap(struct torrent *, u_int32_t);
 void			 torrent_print(struct torrent *);
 int			 torrent_intcmp(struct torrent_piece *,
 			    struct torrent_piece *);

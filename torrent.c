@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.61 2007-05-09 22:28:01 niallo Exp $ */
+/* $Id: torrent.c,v 1.62 2007-05-13 00:31:58 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -308,11 +308,11 @@ torrent_intcmp(struct torrent_piece *p1, struct torrent_piece *p2)
 }
 
 void
-torrent_block_write(struct torrent_piece *tpp, off_t off, size_t len, void *d)
+torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d)
 {
 	struct torrent_mmap *tmmp;
 	off_t cntlen = 0, cntbase = 0;
-	size_t tlen = len;
+	u_int32_t tlen = len;
 	char *aptr;
 
 	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps) {
@@ -343,13 +343,13 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, size_t len, void *d)
 
 /* hint will be set to 1 if the return value needs to be freed */
 void *
-torrent_block_read(struct torrent_piece *tpp, off_t off, size_t len, int *hint)
+torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hint)
 {
 	void *block;
 	char *aptr, *bptr;
 	struct torrent_mmap *tmmp;
 	off_t cntlen = 0, cntbase = 0;
-	size_t tlen = len;
+	u_int32_t tlen = len;
 
 	*hint = 0;
 	block = NULL;
@@ -406,14 +406,14 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, size_t len, int *hint)
 }
 
 struct torrent_piece *
-torrent_piece_find(struct torrent *tp, size_t idx)
+torrent_piece_find(struct torrent *tp, u_int32_t idx)
 {
 	struct torrent_piece find, *res;
 	find.index = idx;
 	if ((res = RB_FIND(pieces, &tp->pieces, &find)) == NULL) {
 		/* piece not already mapped, try to map it */
 		if ((res = torrent_piece_map(tp, idx)) == NULL)
-			warnx("could not map piece at index: %zd", idx);
+			warnx("could not map piece at index: %u", idx);
 	}
 
 	return (res);
@@ -421,14 +421,14 @@ torrent_piece_find(struct torrent *tp, size_t idx)
 
 struct torrent_mmap *
 torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
-    size_t len)
+    u_int32_t len)
 {
 	FILE *fp;
 	struct torrent_mmap *tmmp;
 	struct stat sb;
 	char buf[MAXPATHLEN], zero = 0x00;
 	int fd = 0, l;
-	size_t i;
+	u_int32_t i;
 
 	if (tfp->fd == 0) {
 		if (tp->type == SINGLEFILE)
@@ -472,12 +472,12 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 }
 
 struct torrent_piece *
-torrent_piece_map(struct torrent *tp, size_t idx)
+torrent_piece_map(struct torrent *tp, u_int32_t idx)
 {
 	struct torrent_piece *tpp;
 	struct torrent_file  *nxttfp, *tfp, *lasttfp;
 	struct torrent_mmap  *tmmp;
-	size_t len;
+	u_int32_t len;
 	off_t off;
 
 	tpp = xmalloc(sizeof(*tpp));
@@ -599,7 +599,7 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 {
 	SHA1_CTX sha;
 	u_int8_t *d, *s, results[SHA1_DIGEST_LENGTH];
-	int hint;
+	int hint, res;
 
 	d = torrent_block_read(tpp, 0, tpp->len, &hint);
 	if (d == NULL)
@@ -618,23 +618,15 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 		s = tp->body.singlefile.pieces
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
 	}
+	res = memcmp(results, s, SHA1_DIGEST_LENGTH);
+	tpp->flags |= TORRENT_PIECE_CKSUMOK;
 
-	#if 0
-	printf("actual hash: 0x");
-	for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
-		printf("%02x", s[i]);
-	printf("\n");
-	printf("genera hash: 0x");
-	for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
-		printf("%02x", results[i]);
-	printf("\n");
-	#endif
-	
-	return (memcmp(results, s, SHA1_DIGEST_LENGTH));
+
+	return (res);
 }
 
 void
-torrent_piece_unmap(struct torrent *tp, size_t idx)
+torrent_piece_unmap(struct torrent *tp, u_int32_t idx)
 {
 	struct torrent_piece *tpp;
 	struct torrent_mmap *tmmp;
@@ -666,7 +658,7 @@ u_int8_t *
 torrent_bitfield_get(struct torrent *tp)
 {
 	struct torrent_piece find, *res;
-	size_t i;
+	u_int32_t i;
 	u_int8_t *bitfield;
 
 	bitfield = xmalloc(tp->num_pieces / 8);
