@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.86 2007-05-14 01:18:25 niallo Exp $ */
+/* $Id: network.c,v 1.87 2007-05-14 04:29:58 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -765,7 +765,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					printf("not expecting bitfield!\n");
 					return;
 				}
-				bitfieldlen = p->rxmsglen - 1;
+				bitfieldlen = p->rxmsglen - sizeof(id);
 				printf("pieces: %u bitfield: %d\n", p->sc->tp->num_pieces, bitfieldlen * 8);
 				if (bitfieldlen * 8 > p->sc->tp->num_pieces + 7
 				    || bitfieldlen * 8 < p->sc->tp->num_pieces - 7) {
@@ -796,7 +796,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				off = ntohl(off);
 				printf("peer PIECE idx: %d offset: %d\n", idx, off);
 				tpp = torrent_piece_find(p->sc->tp, idx);
-				network_peer_read_piece(p, idx, off, p->rxmsglen - 9, p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
+				network_peer_read_piece(p, idx, off, p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)), p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
 				/* if there are more blocks in this piece, ask for another */
 				printf("bytes: %u tpp->len: %u\n", p->bytes, tpp->len);
 				if (p->bytes < tpp->len) {
