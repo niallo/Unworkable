@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.85 2007-05-14 00:06:22 niallo Exp $ */
+/* $Id: network.c,v 1.86 2007-05-14 01:18:25 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -73,7 +73,7 @@ struct peer {
 	u_int32_t rxpending;
 	u_int32_t txpending;
 	struct bufferevent *bufev;
-	u_int32_t rxmsglen, piece, block;
+	u_int32_t rxmsglen, piece, bytes;
 	u_int8_t *txmsg, *rxmsg;
 	u_int8_t *bitfield;
 	/* from peer's handshake message */
@@ -650,10 +650,12 @@ static void
 network_handle_peer_response(struct bufferevent *bufev, void *data)
 {
 	struct peer *p = data;
+	struct torrent_piece *tpp;
 	/* should always be 19, but just in case... */
 	size_t len, i;
 	u_int32_t msglen, bitfieldlen, idx, blocklen, off;
 	u_int8_t *base, id = 0;
+	int res;
 
 	if (p->state & PEER_STATE_HANDSHAKE) {
 		printf("handshake response\n");
@@ -737,7 +739,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			case PEER_MSG_ID_UNCHOKE:
 				printf("peer sez unchoke\n");
 				p->state &= ~PEER_STATE_CHOKED;
-				network_peer_request_piece(p, p->piece, p->block);
+				network_peer_request_piece(p, p->piece, p->bytes);
 				break;
 			case PEER_MSG_ID_INTERESTED:
 				p->state |= PEER_STATE_INTERESTED;
@@ -793,7 +795,19 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				memcpy(&off, p->rxmsg+sizeof(id)+sizeof(idx), sizeof(off));
 				off = ntohl(off);
 				printf("peer PIECE idx: %d offset: %d\n", idx, off);
-				network_peer_read_piece(p, idx, off, p->rxmsglen - 13, p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
+				tpp = torrent_piece_find(p->sc->tp, idx);
+				network_peer_read_piece(p, idx, off, p->rxmsglen - 9, p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
+				/* if there are more blocks in this piece, ask for another */
+				printf("bytes: %u tpp->len: %u\n", p->bytes, tpp->len);
+				if (p->bytes < tpp->len) {
+					network_peer_request_piece(p, p->piece, p->bytes);
+				} else {
+					res = torrent_piece_checkhash(p->sc->tp, tpp);
+					if (!res)
+						printf("piece failed hash check\n");
+					else
+						printf("piece passed hash check\n");
+				}
 				break;
 			case PEER_MSG_ID_CANCEL:
 				printf("peer sez cancel\n");
@@ -835,7 +849,7 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 		return;
 	}
 	torrent_block_write(tpp, offset, len, data);
-	p->block += len;
+	p->bytes += len;
 	p->state &= ~PEER_STATE_ISTRANSFERRING;
 }
 
@@ -916,6 +930,7 @@ network_scheduler(int fd, short type, void *arg)
 	struct timeval tv;
 	/* piece rarity array */
 	struct piececounter *pieces;
+	struct torrent_piece *tpp;
 
 	timerclear(&tv);
 	tv.tv_sec = 1;
@@ -925,12 +940,23 @@ network_scheduler(int fd, short type, void *arg)
 	/* XXX: probably this should be some sane threshold like 10 */
 	if (!TAILQ_EMPTY(&sc->peers)) {
 		pieces = network_session_sorted_pieces(sc);
-		TAILQ_FOREACH(p, &sc->peers, peer_list)
-			if (!(p->state & PEER_STATE_ISTRANSFERRING)
-			    &&!(p->state & PEER_STATE_AMINTERESTED)) {
-				network_peer_write_interested(p);
-				p->piece = pieces[0].idx;
+		TAILQ_FOREACH(p, &sc->peers, peer_list) {
+			/* if we are not transferring to/from this peer */
+			if (!(p->state & PEER_STATE_ISTRANSFERRING)) {
+				tpp = torrent_piece_find(p->sc->tp, p->piece);
+				/* if we are not transferring and interested, tell the peer */
+				if (!(p->state & PEER_STATE_AMINTERESTED)) {
+					network_peer_write_interested(p);
+					p->piece = pieces[0].idx;
+				}
+				/* if this piece is complete, start a new one */
+				if (p->bytes == tpp->len) {
+					p->piece = pieces[0].idx;
+					p->bytes = 0;
+					network_peer_request_piece(p, p->piece, p->bytes);
+				}
 			}
+		}
 		xfree(pieces);
 	} else {
 		/* XXX: try to connect some more peers */
