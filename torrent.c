@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.63 2007-05-13 05:51:43 niallo Exp $ */
+/* $Id: torrent.c,v 1.64 2007-05-14 00:06:22 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -336,6 +336,8 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d
 				 * but return the mmaped base address directly
 				 */
 				memcpy(aptr, d, tlen);
+				printf("copied %u bytes\n", tlen);
+				msync(aptr, tlen, MS_ASYNC);
 			}
 		}
 	}

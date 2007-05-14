@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.84 2007-05-13 06:38:11 niallo Exp $ */
+/* $Id: network.c,v 1.85 2007-05-14 00:06:22 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -70,8 +70,8 @@ struct peer {
 	struct sockaddr_in sa;
 	int connfd;
 	int state;
-	size_t rxpending;
-	size_t txpending;
+	u_int32_t rxpending;
+	u_int32_t txpending;
 	struct bufferevent *bufev;
 	u_int32_t rxmsglen, piece, block;
 	u_int8_t *txmsg, *rxmsg;
@@ -697,28 +697,37 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			/* if we have some pieces, send our bitfield */
 			if (!torrent_empty(p->sc->tp))
 				network_peer_write_bitfield(p);
+			p->rxpending = 0;
 			return;
 		}
 	} else {
-		len = bufferevent_read(bufev, &msglen, 4);
-		if (len != 4)
-			errx(1, "len should be 4 here!");
-		p->rxmsglen = ntohl(msglen);
-		printf("message length: %u\n", p->rxmsglen);
-		/* keep-alive: do nothing */
-		if (p->rxmsglen == 0)
-			return;
-		p->rxmsg = xmalloc(p->rxmsglen);
-		memset(p->rxmsg, 0, p->rxmsglen);
-		p->rxpending = p->rxmsglen;
-		base = p->rxmsg + (p->rxmsglen - p->rxpending);
-		len = bufferevent_read(bufev, p->rxmsg, p->rxmsglen);
-		if (len < p->rxmsglen) {
-			p->rxpending = p->rxmsglen - len;
-			return;
+		if (p->rxpending == 0) {
+			/* this is a new message */
+			len = bufferevent_read(bufev, &msglen, 4);
+			if (len != 4)
+				errx(1, "len should be 4 here!");
+			p->rxmsglen = ntohl(msglen);
+			printf("message length: %u\n", p->rxmsglen);
+			/* keep-alive: do nothing */
+			if (p->rxmsglen == 0)
+				return;
+			p->rxmsg = xmalloc(p->rxmsglen);
+			memset(p->rxmsg, 0, p->rxmsglen);
+			p->rxpending = p->rxmsglen;
+			goto read2;
+		} else {
+		read2:
+			/* continuing a large message */
+			printf("pending: %u\n", p->rxpending);
+			base = p->rxmsg + (p->rxmsglen - p->rxpending);
+			len = bufferevent_read(bufev, base, p->rxpending);
+			printf("read: %zd\n", len);
+			p->rxpending -= len;
+			if (p->rxpending > 0)
+				return;
 		}
 		/* if we get this far, means we have the entire message */
-		memcpy(&id, base, 1);
+		memcpy(&id, p->rxmsg, 1);
 		/* XXX: safety-check for correct message lengths */
 		switch (id) {
 			case PEER_MSG_ID_CHOKE:
@@ -740,7 +749,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				break;
 			case PEER_MSG_ID_HAVE:
 				printf("peer sez have\n");
-				memcpy(&idx, base+sizeof(id), sizeof(idx));
+				memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
 				idx = ntohl(idx);
 				if (idx > p->sc->tp->num_pieces - 1) {
 					printf("have index overflow, ignoring\n");
@@ -763,32 +772,35 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					return;
 				}
 				p->bitfield = xmalloc(bitfieldlen);
-				memcpy(p->bitfield, base+sizeof(id), bitfieldlen);
+				memcpy(p->bitfield, p->rxmsg+sizeof(id), bitfieldlen);
 				p->state &= ~PEER_STATE_BITFIELD;
 				p->state |= PEER_STATE_ESTABLISHED;
 				break;
 			case PEER_MSG_ID_REQUEST:
-				memcpy(&idx, base+sizeof(id), sizeof(idx));
+				memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
 				idx = ntohl(idx);
-				memcpy(&off, base+sizeof(idx), sizeof(off));
+				memcpy(&off, p->rxmsg+sizeof(idx), sizeof(off));
 				off = ntohl(off);
-				memcpy(&blocklen, base+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
+				memcpy(&blocklen, p->rxmsg+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
 				blocklen = ntohl(blocklen);
 				printf("peer REQUEST idx: %d offset: %d blocklen: %d\n", idx, off, blocklen);
 				network_peer_write_piece(p, idx, off, blocklen);
 				break;
 			case PEER_MSG_ID_PIECE:
 				printf("peer sez piece\n");
-				memcpy(&idx, base+sizeof(id), sizeof(idx));
+				memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
 				idx = ntohl(idx);
-				memcpy(&off, base+sizeof(id)+sizeof(idx), sizeof(off));
+				memcpy(&off, p->rxmsg+sizeof(id)+sizeof(idx), sizeof(off));
 				off = ntohl(off);
 				printf("peer PIECE idx: %d offset: %d\n", idx, off);
-				network_peer_read_piece(p, idx, off, p->rxmsglen - 9, base+sizeof(id)+sizeof(off)+sizeof(idx));
+				network_peer_read_piece(p, idx, off, p->rxmsglen - 13, p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
 				break;
 			case PEER_MSG_ID_CANCEL:
 				printf("peer sez cancel\n");
 				/* XXX: not sure how to cancel a write */
+				break;
+			default:
+				printf("unknown message id: %u\n", id);
 				break;
 		}
 	}
