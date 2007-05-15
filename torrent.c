@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.65 2007-05-15 18:49:50 niallo Exp $ */
+/* $Id: torrent.c,v 1.66 2007-05-15 21:12:56 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -431,7 +431,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	char buf[MAXPATHLEN], zero = 0x00;
 	int fd = 0, l;
 	u_int32_t i;
-
+	open:
 	if (tfp->fd == 0) {
 		if (tp->type == SINGLEFILE)
 			l = snprintf(buf, sizeof(buf), "%s", tfp->path);
@@ -454,21 +454,22 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 		for (i = 0; i < len; i ++)
 			if (fwrite(&zero, 1, 1, fp) < 1)
 				err(1, "torrent_mmap_create: fwrite() failure");
-		/* has to be flushed to disk before mmap() */
-		fflush(fp);
+		fclose(fp);
+		tfp->fd = 0;
+		goto open;
 	}
 	/* printf("mmap: len: %zd off: %llu sbsiz: %llu fd: %d\n", len, off, sb.st_size, tfp->fd); */
 	tmmp = xmalloc(sizeof(*tmmp));
 	memset(tmmp, 0, sizeof(*tmmp));
 	
-	tmmp->addr = mmap(0, len, PROT_READ|PROT_WRITE, 0, tfp->fd, off);
+	tmmp->tfp = tfp;
+	tmmp->addr = mmap(0, len, PROT_READ|PROT_WRITE, MAP_SHARED, tfp->fd, off);
 	if (tmmp->addr == MAP_FAILED)
 		err(1, "torrent_mmap_create: mmap");
 	if (madvise(tmmp->addr, len, MADV_SEQUENTIAL|MADV_WILLNEED) == -1)
 		err(1, "torrent_mmap_create: madvise");
 	tmmp->len = len;
 
-	tmmp->tfp = tfp;
 	tfp->refs++;
 	return (tmmp);
 }
@@ -640,13 +641,15 @@ torrent_piece_unmap(struct torrent *tp, u_int32_t idx)
 		errx(1, "torrent_piece_unmap: NULL piece");
 
 	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps) {
-		if (munmap(tmmp->addr, tmmp->len) == -1)
-			err(1, "torrent_piece_unmap: munmap");
 		tmmp->tfp->refs--;
 		if (tmmp->tfp->refs == 0) {
-			(void) close(tmmp->tfp->fd);
+			(void)  close(tmmp->tfp->fd);
 			tmmp->tfp->fd = 0;
 		}
+		if (msync(tmmp->addr, tmmp->len, MS_SYNC) == -1)
+			err(1, "torrent_piece_unmape: msync");
+		if (munmap(tmmp->addr, tmmp->len) == -1)
+			err(1, "torrent_piece_unmap: munmap");
 	}
 	while ((tmmp = TAILQ_FIRST(&tpp->mmaps))) {
 		TAILQ_REMOVE(&tpp->mmaps, tmmp, mmaps);

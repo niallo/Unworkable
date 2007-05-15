@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.88 2007-05-15 18:49:50 niallo Exp $ */
+/* $Id: network.c,v 1.89 2007-05-15 21:12:56 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -803,10 +803,12 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					network_peer_request_piece(p, p->piece, p->bytes);
 				} else {
 					res = torrent_piece_checkhash(p->sc->tp, tpp);
-					if (res == 0)
-						printf("piece passed hash check\n");
-					else
+					if (res == 0) {
+						printf("piece passed hash check, unmapping\n");
+						torrent_piece_unmap(p->sc->tp, tpp->index);
+					} else {
 						printf("piece failed hash check\n");
+					}
 				}
 				break;
 			case PEER_MSG_ID_CANCEL:
