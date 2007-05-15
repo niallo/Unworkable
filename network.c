@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.90 2007-05-15 21:19:16 niallo Exp $ */
+/* $Id: network.c,v 1.91 2007-05-15 23:21:03 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -105,7 +105,7 @@ struct session {
 };
 
 struct piececounter {
-	u_int32_t count;
+	int count;
 	u_int32_t idx;
 };
 
@@ -709,7 +709,6 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			if (len != 4)
 				errx(1, "len should be 4 here!");
 			p->rxmsglen = ntohl(msglen);
-			printf("message length: %u\n", p->rxmsglen);
 			/* keep-alive: do nothing */
 			if (p->rxmsglen == 0)
 				return;
@@ -720,10 +719,8 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 		} else {
 		read2:
 			/* continuing a large message */
-			printf("pending: %u\n", p->rxpending);
 			base = p->rxmsg + (p->rxmsglen - p->rxpending);
 			len = bufferevent_read(bufev, base, p->rxpending);
-			printf("read: %zd\n", len);
 			p->rxpending -= len;
 			if (p->rxpending > 0)
 				return;
@@ -804,8 +801,8 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				} else {
 					res = torrent_piece_checkhash(p->sc->tp, tpp);
 					if (res == 0) {
-						printf("piece passed hash check, unmapping\n");
-						torrent_piece_unmap(p->sc->tp, tpp->index);
+						printf("piece passed hash check, syncing to disk\n");
+						torrent_piece_sync(p->sc->tp, tpp->index);
 					} else {
 						printf("piece failed hash check\n");
 					}
@@ -959,10 +956,13 @@ network_scheduler(int fd, short type, void *arg)
 				}
 				/* if this piece is complete, start a new one */
 				if (p->bytes == tpp->len) {
+					if (p->piece == pieces[0].idx)
+						errx(1, "just got this piece!");
 					p->piece = pieces[0].idx;
 					p->bytes = 0;
 					printf("requesting piece %d\n", p->piece);
 					network_peer_request_piece(p, p->piece, p->bytes);
+					
 				}
 			}
 		}
@@ -1029,11 +1029,13 @@ network_session_sorted_pieces(struct session *sc)
 
 	/* counts for each piece */
 	for (i = 0; i < sc->tp->num_pieces; i++) {
-		/* if we have this piece, eliminate it from the array */
-		tpp = torrent_piece_find(sc->tp, i);
-		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
-			continue;
 		count = 0;
+		/* XXX: if we have this piece, weight it as extremely common */
+		tpp = torrent_piece_find(sc->tp, i);
+		if (tpp->flags & TORRENT_PIECE_CKSUMOK) {
+			count = 0xffff;
+			goto skip;
+		}
 		/* otherwise count it */
 		TAILQ_FOREACH(p, &sc->peers, peer_list) {
 			if (!(p->state & PEER_STATE_ESTABLISHED))
@@ -1041,6 +1043,7 @@ network_session_sorted_pieces(struct session *sc)
 			if (BIT_ISSET(p->bitfield, i))
 				count++;
 		}
+	skip:
 		pieces[i].count = count;
 		pieces[i].idx = i;
 	}

@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.66 2007-05-15 21:12:56 niallo Exp $ */
+/* $Id: torrent.c,v 1.67 2007-05-15 23:21:03 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -622,11 +622,31 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
 	}
 	res = memcmp(results, s, SHA1_DIGEST_LENGTH);
-	if (res == 0)
+	if (res == 0) {
+		printf("##############set flags\n");
 		tpp->flags |= TORRENT_PIECE_CKSUMOK;
+		printf("piece %u flags: 0x%x\n", tpp->index, tpp->flags);
+	}
 
 
 	return (res);
+}
+
+void
+torrent_piece_sync(struct torrent *tp, u_int32_t idx)
+{
+	struct torrent_piece *tpp;
+	struct torrent_mmap *tmmp;
+
+	tpp = torrent_piece_find(tp, idx);
+
+	if (tpp == NULL)
+		errx(1, "torrent_piece_sync: NULL piece");
+
+	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps)
+		if (msync(tmmp->addr, tmmp->len, MS_SYNC) == -1)
+			err(1, "torrent_piece_sync: msync");
+
 }
 
 void
