@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.87 2007-05-14 04:29:58 niallo Exp $ */
+/* $Id: network.c,v 1.88 2007-05-15 18:49:50 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -697,7 +697,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			p->state |= PEER_STATE_BITFIELD;
 			p->state &= ~PEER_STATE_HANDSHAKE;
 			/* if we have some pieces, send our bitfield */
-			if (!torrent_empty(p->sc->tp))
+			if (torrent_empty(p->sc->tp) == 1)
 				network_peer_write_bitfield(p);
 			p->rxpending = 0;
 			return;
@@ -803,10 +803,10 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					network_peer_request_piece(p, p->piece, p->bytes);
 				} else {
 					res = torrent_piece_checkhash(p->sc->tp, tpp);
-					if (!res)
-						printf("piece failed hash check\n");
-					else
+					if (res == 0)
 						printf("piece passed hash check\n");
+					else
+						printf("piece failed hash check\n");
 				}
 				break;
 			case PEER_MSG_ID_CANCEL:
@@ -827,6 +827,7 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t 
 	void *data;
 	int hint;
 
+	printf("[TX] writing a piece\n");
 	if ((tpp = torrent_piece_find(p->sc->tp, idx)) == NULL) {
 		printf("REQUEST for piece %u - failed at torrent_piece_find(), returning\n", idx);
 		return;
@@ -859,6 +860,7 @@ network_peer_write_interested(struct peer *p)
 	u_int8_t id;
 	u_int32_t len;
 
+	printf("[TX] sending interested message\n");
 	len = htonl(sizeof(id));
 	id = PEER_MSG_ID_INTERESTED;
 
@@ -877,6 +879,7 @@ network_peer_write_bitfield(struct peer *p)
 	u_int8_t *bitfield, id;
 	u_int32_t msglen, msglen2;
 
+	printf("[TX] writing bitfield\n");
 	id = PEER_MSG_ID_BITFIELD;
 	bitfield = torrent_bitfield_get(p->sc->tp);
 
@@ -946,6 +949,7 @@ network_scheduler(int fd, short type, void *arg)
 				tpp = torrent_piece_find(p->sc->tp, p->piece);
 				/* if we are not transferring and interested, tell the peer */
 				if (!(p->state & PEER_STATE_AMINTERESTED)) {
+					printf("telling peer we're interested\n");
 					network_peer_write_interested(p);
 					p->piece = pieces[0].idx;
 				}
@@ -953,6 +957,7 @@ network_scheduler(int fd, short type, void *arg)
 				if (p->bytes == tpp->len) {
 					p->piece = pieces[0].idx;
 					p->bytes = 0;
+					printf("requesting piece %d\n", p->piece);
 					network_peer_request_piece(p, p->piece, p->bytes);
 				}
 			}
@@ -968,6 +973,7 @@ network_peer_request_piece(struct peer *p, u_int32_t idx, u_int32_t off)
 {
 	u_int32_t msglen, msglen2, blocklen;
 	u_int8_t  *msg, id;
+	struct torrent_piece *tpp;
 
 	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx) + sizeof(off) + sizeof(blocklen);
 	msg = xmalloc(msglen);
@@ -975,7 +981,12 @@ network_peer_request_piece(struct peer *p, u_int32_t idx, u_int32_t off)
 	id = PEER_MSG_ID_REQUEST;
 	idx = htonl(idx);
 	off = htonl(off);
-	blocklen = htonl(BLOCK_SIZE);
+	tpp = torrent_piece_find(p->sc->tp, p->piece);
+	if (tpp->len - p->bytes >= BLOCK_SIZE)
+		blocklen = htonl(BLOCK_SIZE);
+	else
+		blocklen = htonl(tpp->len - p->bytes);
+
 
 	memcpy(msg, &msglen2, sizeof(msglen2));
 	memcpy(msg+sizeof(msglen2), &id, sizeof(id));

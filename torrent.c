@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.64 2007-05-14 00:06:22 niallo Exp $ */
+/* $Id: torrent.c,v 1.65 2007-05-15 18:49:50 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -621,7 +621,7 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
 	}
 	res = memcmp(results, s, SHA1_DIGEST_LENGTH);
-	if (res)
+	if (res == 0)
 		tpp->flags |= TORRENT_PIECE_CKSUMOK;
 
 
