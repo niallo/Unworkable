@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.25 2007-05-08 20:36:04 niallo Exp $ */
+/* $Id: main.c,v 1.26 2007-05-15 16:59:52 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -77,7 +77,6 @@ main(int argc, char **argv)
 		if (j != 0) {
 			warnx("hash mismatch for piece: %zd\n", i);
 			badflag = 1;
-			tpp->flags |= TORRENT_PIECE_CKSUMOK;
 		}
 	}
 	if (badflag == 0)
