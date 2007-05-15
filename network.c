@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.89 2007-05-15 21:12:56 niallo Exp $ */
+/* $Id: network.c,v 1.90 2007-05-15 21:19:16 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -913,8 +913,10 @@ network_peer_free(struct peer *p)
 		xfree(p->txmsg);
 	if (p->bitfield != NULL)
 		xfree(p->bitfield);
-	if (p->connfd != 0)
+	if (p->connfd != 0) {
 		(void)  close(p->connfd);
+		p->connfd = 0;
+	}
 
 	xfree(p);
 }
