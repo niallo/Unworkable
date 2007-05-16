@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.8 2007-05-15 23:21:03 niallo Exp $ */
+/* $Id: includes.h,v 1.9 2007-05-16 03:55:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -107,10 +107,11 @@ struct torrent {
 	u_int32_t				num_pieces;
 	u_int32_t				piece_length;
 	RB_HEAD(pieces, torrent_piece)		pieces;
+	u_int32_t				good_pieces;
 	enum type				type;
-	unsigned long long			uploaded;
-	unsigned long long			downloaded;
-	unsigned long long			left;
+	u_int64_t				uploaded;
+	u_int64_t				downloaded;
+	u_int64_t				left;
 	struct benc_node			*broot;
 	size_t					interval;
 	char					*trackerid;

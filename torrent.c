@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.67 2007-05-15 23:21:03 niallo Exp $ */
+/* $Id: torrent.c,v 1.68 2007-05-16 03:55:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -336,8 +336,6 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d
 				 * but return the mmaped base address directly
 				 */
 				memcpy(aptr, d, tlen);
-				printf("copied %u bytes\n", tlen);
-				msync(aptr, tlen, MS_ASYNC);
 			}
 		}
 	}
@@ -622,11 +620,8 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
 	}
 	res = memcmp(results, s, SHA1_DIGEST_LENGTH);
-	if (res == 0) {
-		printf("##############set flags\n");
+	if (res == 0)
 		tpp->flags |= TORRENT_PIECE_CKSUMOK;
-		printf("piece %u flags: 0x%x\n", tpp->index, tpp->flags);
-	}
 
 
 	return (res);
