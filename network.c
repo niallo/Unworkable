@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.95 2007-05-16 07:05:32 niallo Exp $ */
+/* $Id: network.c,v 1.96 2007-05-16 18:31:11 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -794,6 +794,9 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 						torrent_piece_sync(p->sc->tp, tpp->index);
 						p->sc->tp->good_pieces++;
 					} else {
+						/* hash check failed, try re-downloading this piece */
+						p->bytes = 0;
+						network_peer_request_piece(p, p->piece, p->bytes);
 					}
 				}
 				break;
@@ -927,6 +930,9 @@ network_scheduler(int fd, short type, void *arg)
 	tv.tv_sec = 1;
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
+
+	if (sc->tp->good_pieces == sc->tp->num_pieces)
+		exit(0);
 	
 	/* XXX: probably this should be some sane threshold like 11 */
 	if (!TAILQ_EMPTY(&sc->peers)) {
