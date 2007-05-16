@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.94 2007-05-16 06:29:17 niallo Exp $ */
+/* $Id: network.c,v 1.95 2007-05-16 07:05:32 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -253,7 +253,7 @@ network_announce(struct session *sc, const char *event)
 	    network_handle_write, network_handle_announce_error, sc);
 	if (bufev == NULL)
 		errx(1, "network_announce: bufferevent_new failure");
-	bufferevent_enable(bufev, EV_READ);
+	bufferevent_enable(bufev, EV_READ|EV_PERSIST);
 	if (bufferevent_write(bufev, request, strlen(request) + 1) != 0)
 		errx(1, "network_announce: bufferevent_write failure");
 	xfree(params);
@@ -342,7 +342,7 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	    NULL, network_handle_peer_connect, sc);
 	if (bufev == NULL)
 		errx(1, "network_handle_announce_response: bufferevent_new failure");
-	bufferevent_enable(bev, EV_READ);
+	bufferevent_enable(bev, EV_READ|EV_PERSIST);
 	/* now that we've announced, kick off the scheduler */
 	timerclear(&tv);
 	tv.tv_sec = 1;
@@ -374,7 +374,7 @@ network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
 	    network_handle_peer_write, network_handle_peer_error, p);
 	if (p->bufev == NULL)
 		errx(1, "network_announce: bufferevent_new failure");
-	bufferevent_enable(p->bufev, EV_READ|EV_WRITE);
+	bufferevent_enable(p->bufev, EV_READ|EV_WRITE|EV_PERSIST);
 	network_peer_handshake(sc, p);
 }
 
@@ -586,7 +586,7 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 			    network_handle_peer_write, network_handle_peer_error, ep);
 			if (ep->bufev == NULL)
 				errx(1, "network_peerlist_update: bufferevent_new failure");
-			bufferevent_enable(ep->bufev, EV_READ|EV_WRITE);
+			bufferevent_enable(ep->bufev, EV_READ|EV_WRITE|EV_PERSIST);
 			network_peer_handshake(sc, ep);
 		}
 	}
@@ -900,6 +900,7 @@ network_peer_free(struct peer *p)
 	}
 
 	xfree(p);
+	p = NULL;
 }
 
 /* network subsystem init, needs to be called before doing anything */
@@ -931,7 +932,7 @@ network_scheduler(int fd, short type, void *arg)
 	if (!TAILQ_EMPTY(&sc->peers)) {
 		pieces = network_session_sorted_pieces(sc);
 		idx = pieces[0].idx;
-		//xfree(pieces);
+		xfree(pieces);
 		for (p = TAILQ_FIRST(&sc->peers); p; p = nxt) {
 			nxt = TAILQ_NEXT(p, peer_list);
 			/* if peer is marked dead, free it */
@@ -1013,13 +1014,14 @@ network_session_sorted_pieces(struct session *sc)
 	struct torrent_piece *tpp;
 	struct piececounter *pieces;
 	struct peer *p;
-	u_int32_t i, count, pos;
+	u_int32_t i, count, pos, len;
 
 	pos = 0;
-	pieces = xcalloc(sc->tp->num_pieces - sc->tp->good_pieces, sizeof(*pieces));
+	len = sc->tp->num_pieces - sc->tp->good_pieces;
+	pieces = xcalloc(len, sizeof(*pieces));
 
 	/* counts for each piece */
-	for (i = 0; i < sc->tp->num_pieces; i++) {
+	for (i = 0; i < len - 1; i++) {
 		/* if we have this piece, weight it as extremely common */
 		tpp = torrent_piece_find(sc->tp, i);
 		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
@@ -1032,12 +1034,15 @@ network_session_sorted_pieces(struct session *sc)
 			if (BIT_ISSET(p->bitfield, i))
 				count++;
 		}
+		if (pos > (len - 1))
+			errx(1, "pos is %u should be %u\n", pos, (sc->tp->num_pieces - sc->tp->good_pieces - 1));
+
 		pieces[pos].count = count;
 		pieces[pos].idx = i;
 		pos++;
 	}
 	/* sort the rarity array */
-	qsort(pieces, sc->tp->num_pieces - sc->tp->good_pieces, sizeof(*pieces),
+	qsort(pieces, len, sizeof(*pieces),
 	    network_session_sorted_pieces_cmp);
 
 	return (pieces);
