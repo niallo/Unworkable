@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.28 2007-05-16 04:54:38 niallo Exp $ */
+/* $Id: main.c,v 1.29 2007-05-16 21:53:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -35,14 +35,14 @@ extern int  optind;
 void
 usage(void)
 {
-	fprintf(stderr, "unworkable: [-i] file\n");
+	fprintf(stderr, "unworkable: [-t] torrent\n");
 	exit(1);
 }
 
 int
 main(int argc, char **argv)
 {
-	int ch, j, iflag, badflag;
+	int ch, j, badflag;
 	u_int32_t i;
 	struct torrent *torrent;
 	struct torrent_piece *tpp;
@@ -51,10 +51,10 @@ main(int argc, char **argv)
 	GC_INIT();
 	#endif
 
-	while ((ch = getopt(argc, argv, "i")) != -1) {
+	while ((ch = getopt(argc, argv, "t:")) != -1) {
 		switch (ch) {
-		case 'i':
-			iflag = 1;
+		case 't':
+			unworkable_trace = xstrdup(optarg);
 			break;
 		default:
 			usage();

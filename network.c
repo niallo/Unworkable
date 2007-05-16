@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.96 2007-05-16 18:31:11 niallo Exp $ */
+/* $Id: network.c,v 1.97 2007-05-16 21:53:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -147,6 +147,7 @@ network_announce(struct session *sc, const char *event)
 	char tbuf[3*SHA1_DIGEST_LENGTH+1];
 	struct bufferevent *bufev;
 
+	trace("network_announce");
 	params = xmalloc(GETSTRINGLEN);
 	request = xmalloc(GETSTRINGLEN);
 	memset(params, '\0', GETSTRINGLEN);
@@ -163,17 +164,23 @@ network_announce(struct session *sc, const char *event)
 	c = strstr(sc->tp->announce, "http://");
 	c += HTTPLEN;
 	n = strcspn(c, ":/") + 1;
-	if (n > sizeof(host) - 1)
+	if (n > sizeof(host) - 1) {
+		warnx("network_announce: n > host");
 		goto err;
+	}
 
 	memcpy(host, c, n - 1);
 	host[n - 1] = '\0';
 
-	c += n;
+	trace("host: %s", host);
+	c += (n - 1);
+	trace("c: %c", *c);
 	if (*c != '/') {
 		n = strcspn(c, "/") + 1;
-		if (n > sizeof(port) - 1)
+		if (n > sizeof(port) - 1) {
+			warnx("network_announce: n %zd longer than port: %zd", n, sizeof(port) - 1);
 			goto err;
+		}
 
 		memcpy(port, c, n - 1);
 		port[n - 1] = '\0';
@@ -182,6 +189,7 @@ network_announce(struct session *sc, const char *event)
 			goto trunc;
 	}
 	c += n - 1;
+	trace("port: %s", port);
 
 	if (strlcpy(path, c, sizeof(path)) >= sizeof(path))
 		goto trunc;
@@ -248,6 +256,7 @@ network_announce(struct session *sc, const char *event)
 	if ((sc->connfd = network_connect_tracker(host, port)) == -1)
 		exit(1);
 	
+	trace("network_announce() to %s on port %d\n", host, port);
 	sc->request = request;
 	bufev = bufferevent_new(sc->connfd, network_handle_announce_response,
 	    network_handle_write, network_handle_announce_error, sc);
@@ -297,7 +306,8 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	}
 	c += 9;
 	if (strncmp(c, "200", 3) != 0) {
-		warnx("network_handle_announce_response: HTTP response indicates error");
+		*(c + 3) = '\0';
+		warnx("network_handle_announce_response: HTTP response indicates error (code: %s)", c);
 		goto err;
 	}
 	c = strstr(c, "\r\n\r\n");
@@ -418,12 +428,12 @@ network_connect(int domain, int type, int protocol, const struct sockaddr *name,
 		warn("network_connect: socket");
 		return (-1);
 	}
-	if (fcntl(sockfd, F_SETFL, O_NONBLOCK) == -1)
-		err(1, "network_connect");
 	if (connect(sockfd, name, namelen) == -1) {
 		warn("network_connect: connect");
 		return (-1);
 	}
+	if (fcntl(sockfd, F_SETFL, O_NONBLOCK) == -1)
+		err(1, "network_connect");
 
 	return (sockfd);
 
@@ -931,8 +941,8 @@ network_scheduler(int fd, short type, void *arg)
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
 
-	if (sc->tp->good_pieces == sc->tp->num_pieces)
-		exit(0);
+	if (sc->tp->good_pieces == sc->tp->num_pieces) {
+	}
 	
 	/* XXX: probably this should be some sane threshold like 11 */
 	if (!TAILQ_EMPTY(&sc->peers)) {
@@ -1080,6 +1090,7 @@ network_start_torrent(struct torrent *tp)
 
 	event_dispatch();
 
+	printf("returning\n");
 	return (ret);
 }
 

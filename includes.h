@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.10 2007-05-16 04:54:38 niallo Exp $ */
+/* $Id: includes.h,v 1.11 2007-05-16 21:53:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -209,3 +209,7 @@ size_t	atomicio(ssize_t (*)(int, void *, size_t), int, void *, size_t);
 #define vwrite (ssize_t (*)(int, void *, size_t))write
 void	start_progress_meter(char *, off_t, off_t *);
 void	stop_progress_meter(void);
+
+void	trace(const char *, ...);
+
+extern char *unworkable_trace;
