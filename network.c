@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.97 2007-05-16 21:53:53 niallo Exp $ */
+/* $Id: network.c,v 1.98 2007-05-16 21:55:18 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -361,7 +361,8 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 err:
 	bufferevent_free(bufev);
 	bufev = NULL;
-	buf_free(buf);
+	if (buf != NULL)
+		buf_free(buf);
 	xfree(res);
 	(void) close(sc->connfd);
 }
