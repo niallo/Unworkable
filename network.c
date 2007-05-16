@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.98 2007-05-16 21:55:18 niallo Exp $ */
+/* $Id: network.c,v 1.99 2007-05-16 21:55:44 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1091,7 +1091,6 @@ network_start_torrent(struct torrent *tp)
 
 	event_dispatch();
 
-	printf("returning\n");
 	return (ret);
 }
 
