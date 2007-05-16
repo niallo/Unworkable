@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.9 2007-05-16 03:55:31 niallo Exp $ */
+/* $Id: includes.h,v 1.10 2007-05-16 04:54:38 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -109,12 +109,13 @@ struct torrent {
 	RB_HEAD(pieces, torrent_piece)		pieces;
 	u_int32_t				good_pieces;
 	enum type				type;
-	u_int64_t				uploaded;
-	u_int64_t				downloaded;
-	u_int64_t				left;
+	off_t					uploaded;
+	off_t					downloaded;
+	off_t					left;
 	struct benc_node			*broot;
 	size_t					interval;
 	char					*trackerid;
+	char					*name;
 };
 
 void			 benc_node_add(struct benc_node *, struct benc_node *);
@@ -200,3 +201,11 @@ void  xfree(void *);
 char *xstrdup(const char *);
 #endif /* USE_BOEHM_GC */
 #endif /* INCLUDES_H */
+/*
+ * Ensure all of data on socket comes through. f==read || f==vwrite
+ */
+size_t	atomicio(ssize_t (*)(int, void *, size_t), int, void *, size_t);
+
+#define vwrite (ssize_t (*)(int, void *, size_t))write
+void	start_progress_meter(char *, off_t, off_t *);
+void	stop_progress_meter(void);
