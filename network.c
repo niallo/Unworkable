@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.93 2007-05-16 04:54:38 niallo Exp $ */
+/* $Id: network.c,v 1.94 2007-05-16 06:29:17 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -45,6 +45,7 @@
 #define PEER_STATE_AMINTERESTED		(1<<5)
 #define PEER_STATE_INTERESTED		(1<<6)
 #define PEER_STATE_ISTRANSFERRING	(1<<7)
+#define PEER_STATE_DEAD			(1<<8)
 
 #define PEER_MSG_ID_CHOKE		0
 #define PEER_MSG_ID_UNCHOKE		1
@@ -250,6 +251,8 @@ network_announce(struct session *sc, const char *event)
 	sc->request = request;
 	bufev = bufferevent_new(sc->connfd, network_handle_announce_response,
 	    network_handle_write, network_handle_announce_error, sc);
+	if (bufev == NULL)
+		errx(1, "network_announce: bufferevent_new failure");
 	bufferevent_enable(bufev, EV_READ);
 	if (bufferevent_write(bufev, request, strlen(request) + 1) != 0)
 		errx(1, "network_announce: bufferevent_write failure");
@@ -328,8 +331,6 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	network_peerlist_update(sc, node);
 	benc_node_freeall(troot);
 
-	printf("tracker announce completed, sending next one in %zd seconds\n",
-	    tp->interval);
 	timerclear(&tv);
 	tv.tv_sec = tp->interval;
 	evtimer_del(&sc->announce_event);
@@ -339,6 +340,8 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	sc->servfd = network_listen(NULL, sc->port);
 	bev = bufferevent_new(sc->servfd, NULL,
 	    NULL, network_handle_peer_connect, sc);
+	if (bufev == NULL)
+		errx(1, "network_handle_announce_response: bufferevent_new failure");
 	bufferevent_enable(bev, EV_READ);
 	/* now that we've announced, kick off the scheduler */
 	timerclear(&tv);
@@ -347,6 +350,7 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	evtimer_add(&sc->scheduler_event, &tv);
 err:
 	bufferevent_free(bufev);
+	bufev = NULL;
 	buf_free(buf);
 	xfree(res);
 	(void) close(sc->connfd);
@@ -368,6 +372,8 @@ network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
 
 	p->bufev = bufferevent_new(p->connfd, network_handle_peer_response,
 	    network_handle_peer_write, network_handle_peer_error, p);
+	if (p->bufev == NULL)
+		errx(1, "network_announce: bufferevent_new failure");
 	bufferevent_enable(p->bufev, EV_READ|EV_WRITE);
 	network_peer_handshake(sc, p);
 }
@@ -463,9 +469,11 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 	if (error & EVBUFFER_TIMEOUT) {
 		printf("buffer event timeout");
 		bufferevent_free(bufev);
+		bufev = NULL;
 	}
 	if (error & EVBUFFER_EOF) {
 		bufferevent_free(bufev);
+		bufev = NULL;
 		(void) close(sc->connfd);
 	}
 }
@@ -564,10 +572,11 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 			xfree(ep);
 		}
 	}
-	printf("peer list for url %s: \n", sc->tp->announce);
 	TAILQ_FOREACH(ep, &sc->peers, peer_list) {
+#if 0
 		printf("host=%s, port=%d - ", inet_ntoa(ep->sa.sin_addr),
 		    ntohs(ep->sa.sin_port));
+#endif
 		if (ep->connfd != 0) {
 			/* XXX */
 		} else {
@@ -575,6 +584,8 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 			ep->connfd = network_connect_peer(ep);
 			ep->bufev = bufferevent_new(ep->connfd, network_handle_peer_response,
 			    network_handle_peer_write, network_handle_peer_error, ep);
+			if (ep->bufev == NULL)
+				errx(1, "network_peerlist_update: bufferevent_new failure");
 			bufferevent_enable(ep->bufev, EV_READ|EV_WRITE);
 			network_peer_handshake(sc, ep);
 		}
@@ -583,7 +594,6 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 static void
 network_peer_handshake(struct session *sc, struct peer *p)
 {
-	printf("network_peer_handshake for peer on fd %d\n", p->connfd);
 	/*
 	* handshake: <pstrlen><pstr><reserved><info_hash><peer_id>
 	* pstrlen: string length of <pstr>, as a single raw byte
@@ -622,8 +632,9 @@ network_handle_peer_error(struct bufferevent *bufev, short error, void *data)
 		printf("buffer event timeout\n");
 	}
 	if (error & EVBUFFER_EOF) {
-		printf("buffer event EOF\n");
-		network_peer_free(p);
+		printf("peer buffer event EOF\n");
+		p->state = 0;
+		p->state |= PEER_STATE_DEAD;
 	}
 	else
 		printf("peer buffer error\n");
@@ -633,8 +644,8 @@ static void
 network_handle_peer_write(struct bufferevent *bufev, void *data)
 {
 	struct peer *p = data;
-
-	xfree(p->txmsg);
+	if (p->txmsg != NULL)
+		xfree(p->txmsg);
 }
 
 static void
@@ -643,7 +654,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	struct peer *p = data;
 	struct torrent_piece *tpp;
 	/* should always be 19, but just in case... */
-	size_t len, i;
+	size_t len;
 	u_int32_t msglen, bitfieldlen, idx, blocklen, off;
 	u_int8_t *base, id = 0;
 	int res;
@@ -679,11 +690,6 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 
 			xfree(p->rxmsg);
 			p->rxmsg = NULL;
-			printf("parsed incoming handshake\n");
-			printf("peer hash:\t0x");
-			for (i = 0; i < SHA1_DIGEST_LENGTH; i++)
-				printf("%02x", p->info_hash[i]);
-			printf("\n");
 			p->state |= PEER_STATE_BITFIELD;
 			p->state &= ~PEER_STATE_HANDSHAKE;
 			/* if we have some pieces, send our bitfield */
@@ -745,17 +751,16 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				setbit(p->bitfield, idx);
 				break;
 			case PEER_MSG_ID_BITFIELD:
-				printf("peer sez bitfield\n");
 				if (!(p->state & PEER_STATE_BITFIELD)) {
 					printf("not expecting bitfield!\n");
 					return;
 				}
 				bitfieldlen = p->rxmsglen - sizeof(id);
-				printf("pieces: %u bitfield: %d\n", p->sc->tp->num_pieces, bitfieldlen * 8);
 				if (bitfieldlen * 8 > p->sc->tp->num_pieces + 7
 				    || bitfieldlen * 8 < p->sc->tp->num_pieces - 7) {
 					printf("bitfield is wrong size! killing peer connection\n");
-					network_peer_free(p);
+					p->state = 0;
+					p->state |= PEER_STATE_DEAD;
 					return;
 				}
 				p->bitfield = xmalloc(bitfieldlen);
@@ -881,27 +886,19 @@ network_peer_write_bitfield(struct peer *p)
 static void
 network_peer_free(struct peer *p)
 {
-	struct session *sc = p->sc;
-	TAILQ_REMOVE(&sc->peers, p, peer_list);
-	printf("bufev\n");
 	if (p->bufev != NULL)
 		bufferevent_free(p->bufev);
-	printf("rxmsg\n");
 	if (p->rxmsg != NULL)
 		xfree(p->rxmsg);
-	printf("txmsg\n");
 	if (p->txmsg != NULL)
 		xfree(p->txmsg);
-	printf("bitfield\n");
 	if (p->bitfield != NULL)
 		xfree(p->bitfield);
-	printf("connfd\n");
 	if (p->connfd != 0) {
 		(void)  close(p->connfd);
 		p->connfd = 0;
 	}
 
-	printf("p\n");
 	xfree(p);
 }
 
@@ -916,40 +913,50 @@ network_init()
 static void
 network_scheduler(int fd, short type, void *arg)
 {
-	struct peer *p;
+	struct peer *p, *nxt;
 	struct session *sc = arg;
 	struct timeval tv;
 	/* piece rarity array */
 	struct piececounter *pieces;
 	struct torrent_piece *tpp;
+	u_int32_t idx;
 
+	p = NULL;
 	timerclear(&tv);
 	tv.tv_sec = 1;
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
 	
-	/* XXX: probably this should be some sane threshold like 10 */
+	/* XXX: probably this should be some sane threshold like 11 */
 	if (!TAILQ_EMPTY(&sc->peers)) {
 		pieces = network_session_sorted_pieces(sc);
-		TAILQ_FOREACH(p, &sc->peers, peer_list) {
+		idx = pieces[0].idx;
+		//xfree(pieces);
+		for (p = TAILQ_FIRST(&sc->peers); p; p = nxt) {
+			nxt = TAILQ_NEXT(p, peer_list);
+			/* if peer is marked dead, free it */
+			if (p->state & PEER_STATE_DEAD) {
+				TAILQ_REMOVE(&sc->peers, p, peer_list);
+				network_peer_free(p);
+				continue;
+			}
 			/* if we are not transferring to/from this peer */
 			if (!(p->state & PEER_STATE_ISTRANSFERRING)) {
 				tpp = torrent_piece_find(p->sc->tp, p->piece);
 				/* if we are not transferring and interested, tell the peer */
 				if (!(p->state & PEER_STATE_AMINTERESTED)) {
 					network_peer_write_interested(p);
-					p->piece = pieces[0].idx;
+					p->piece = idx;
 				}
 				/* if this piece is complete, start a new one */
 				if (p->bytes == tpp->len
 				    && p->sc->tp->num_pieces != p->sc->tp->good_pieces) {
-					p->piece = pieces[0].idx;
+					p->piece = idx;
 					p->bytes = 0;
 					network_peer_request_piece(p, p->piece, p->bytes);
 				}
 			}
 		}
-		xfree(pieces);
 	} else {
 		/* XXX: try to connect some more peers */
 	}
