@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.99 2007-05-16 21:55:44 niallo Exp $ */
+/* $Id: network.c,v 1.100 2007-05-16 22:46:39 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -163,36 +163,30 @@ network_announce(struct session *sc, const char *event)
 	/* separate out hostname, port and path */
 	c = strstr(sc->tp->announce, "http://");
 	c += HTTPLEN;
-	n = strcspn(c, ":/") + 1;
-	if (n > sizeof(host) - 1) {
-		warnx("network_announce: n > host");
-		goto err;
-	}
+	n = strcspn(c, ":/");
+	if (n > sizeof(host) - 1)
+		errx(1, "n is greater than sizeof(host) - 1");
 
-	memcpy(host, c, n - 1);
-	host[n - 1] = '\0';
+	memcpy(host, c, n);
+	host[n] = '\0';
 
-	trace("host: %s", host);
-	c += (n - 1);
-	trace("c: %c", *c);
-	if (*c != '/') {
-		n = strcspn(c, "/") + 1;
+	c += n;
+	if (*c == ':') {
+		c++;
+		n = strcspn(c, "/");
 		if (n > sizeof(port) - 1) {
-			warnx("network_announce: n %zd longer than port: %zd", n, sizeof(port) - 1);
-			goto err;
+			errx(1, "n is greater than sizeof(port) - 1");
 		}
-
 		memcpy(port, c, n - 1);
 		port[n - 1] = '\0';
 	} else {
 		if (strlcpy(port, "80", sizeof(port)) >= sizeof(port))
-			goto trunc;
+			errx(1, "string truncation");
+		n = 0;
 	}
-	c += n - 1;
-	trace("port: %s", port);
-
+	c += n;
 	if (strlcpy(path, c, sizeof(path)) >= sizeof(path))
-		goto trunc;
+		errx(1, "string truncation");
 	/* strip trailing slash */
 	if (path[strlen(path) - 1] == '/')
 		path[strlen(path) - 1] = '\0';
@@ -256,7 +250,8 @@ network_announce(struct session *sc, const char *event)
 	if ((sc->connfd = network_connect_tracker(host, port)) == -1)
 		exit(1);
 	
-	trace("network_announce() to %s on port %d\n", host, port);
+	trace("network_announce() to host: %s on port: %s", host, port);
+	trace("network_announce() request: %s", request);
 	sc->request = request;
 	bufev = bufferevent_new(sc->connfd, network_handle_announce_response,
 	    network_handle_write, network_handle_announce_error, sc);
@@ -270,7 +265,6 @@ network_announce(struct session *sc, const char *event)
 
 trunc:
 	warnx("network_announce: string truncation detected");
-err:
 	xfree(params);
 	xfree(request);
 	return (-1);
