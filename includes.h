@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.11 2007-05-16 21:53:53 niallo Exp $ */
+/* $Id: includes.h,v 1.12 2007-05-21 17:09:13 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,6 +20,8 @@
 
 #include <sys/queue.h>
 #include <sys/tree.h>
+
+#include <signal.h>
 
 #define BSTRING		(1 << 0)
 #define BINT		(1 << 1)
@@ -211,5 +213,8 @@ void	start_progress_meter(char *, off_t, off_t *);
 void	stop_progress_meter(void);
 
 void	trace(const char *, ...);
+
+void	sighandler(int);
+
 
 extern char *unworkable_trace;

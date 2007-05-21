@@ -1,4 +1,4 @@
-/* $Id: trace.c,v 1.1 2007-05-16 21:53:53 niallo Exp $ */
+/* $Id: trace.c,v 1.2 2007-05-21 17:09:13 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -16,6 +16,7 @@
  */
 
 #include <stdarg.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <err.h>
 
@@ -50,4 +51,12 @@ vtrace(const char *fmt, va_list vap)
 	(void)fputs("-> ", out);
 	(void)vfprintf(out, fmt, vap);
 	fputc('\n', out);
+	fflush(out);
+}
+
+void
+sighandler(int sig)
+{
+	fclose(out);
+	exit(1);
 }

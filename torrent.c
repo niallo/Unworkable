@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.69 2007-05-16 04:54:38 niallo Exp $ */
+/* $Id: torrent.c,v 1.70 2007-05-21 17:09:13 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -21,7 +21,9 @@
 #include <sys/stat.h>
 
 #include <err.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <limits.h>
 #include <sha1.h>
 #include <stdio.h>
@@ -118,6 +120,7 @@ torrent_parse_file(const char *file)
 			errx(1, "length is not a number");
 
 		torrent->body.singlefile.tfp.file_length = node->body.number;
+		torrent->left = torrent->body.singlefile.tfp.file_length;
 
 		if ((node = benc_node_find(troot, "name")) == NULL)
 			errx(1, "no name field");
@@ -193,6 +196,7 @@ torrent_parse_file(const char *file)
 			multi_file->file_length = tnode->body.number;
 			torrent->body.multifile.total_length +=
 			    tnode->body.number;
+			torrent->left = torrent->body.multifile.total_length;
 			if ((tnode = benc_node_find(childnode, "md5sum")) != NULL
 			    && tnode->flags & BSTRING)
 				multi_file->md5sum = tnode->body.string.value;
@@ -427,18 +431,26 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	FILE *fp;
 	struct torrent_mmap *tmmp;
 	struct stat sb;
-	char buf[MAXPATHLEN], zero = 0x00;
+	char buf[MAXPATHLEN], zero = 0x00, *basedir;
 	int fd = 0, l;
 	u_int32_t i;
 	open:
 	if (tfp->fd == 0) {
 		if (tp->type == SINGLEFILE)
 			l = snprintf(buf, sizeof(buf), "%s", tfp->path);
-		else
+		else {
 			l = snprintf(buf, sizeof(buf), "%s/%s",
 			    tp->body.multifile.name, tfp->path);
-		if (l == -1 || l >= (int)sizeof(buf))
-			errx(1, "torrent_data_open: path too long");
+			if (l == -1 || l >= (int)sizeof(buf))
+				errx(1, "torrent_mmap_create: path too long");
+			if ((basedir = dirname(buf)) == NULL)
+				err(1, "torrent_mmap_create: basename");
+			if (mkdir(basedir, 0744) == -1)
+				if (errno != EEXIST)
+					err(1, "torrent_mmap_create: mkdir");
+
+
+		}
 		if ((fd = open(buf, O_RDWR|O_CREAT, 0600)) == -1)
 			err(1, "torrent_data_open: open `%s'", buf);
 		tfp->fd = fd;

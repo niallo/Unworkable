@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.29 2007-05-16 21:53:53 niallo Exp $ */
+/* $Id: main.c,v 1.30 2007-05-21 17:09:13 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -50,6 +50,11 @@ main(int argc, char **argv)
 	#if defined(USE_BOEHM_GC)
 	GC_INIT();
 	#endif
+
+	signal(SIGHUP, sighandler);
+	signal(SIGABRT, sighandler);
+	signal(SIGINT, sighandler);
+	signal(SIGQUIT, sighandler);
 
 	while ((ch = getopt(argc, argv, "t:")) != -1) {
 		switch (ch) {
