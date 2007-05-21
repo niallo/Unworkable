@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.100 2007-05-16 22:46:39 niallo Exp $ */
+/* $Id: network.c,v 1.101 2007-05-21 00:23:07 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -174,11 +174,11 @@ network_announce(struct session *sc, const char *event)
 	if (*c == ':') {
 		c++;
 		n = strcspn(c, "/");
-		if (n > sizeof(port) - 1) {
-			errx(1, "n is greater than sizeof(port) - 1");
+		if (n > sizeof(port)) {
+			errx(1, "n is greater than sizeof(port)");
 		}
-		memcpy(port, c, n - 1);
-		port[n - 1] = '\0';
+		memcpy(port, c, n);
+		port[n] = '\0';
 	} else {
 		if (strlcpy(port, "80", sizeof(port)) >= sizeof(port))
 			errx(1, "string truncation");
@@ -246,12 +246,12 @@ network_announce(struct session *sc, const char *event)
 	if (l == -1 || l >= GETSTRINGLEN)
 		goto trunc;
 
+	trace("network_announce() to host: %s on port: %s", host, port);
+	trace("network_announce() request: %s", request);
 	/* non blocking connect ? */
 	if ((sc->connfd = network_connect_tracker(host, port)) == -1)
 		exit(1);
 	
-	trace("network_announce() to host: %s on port: %s", host, port);
-	trace("network_announce() request: %s", request);
 	sc->request = request;
 	bufev = bufferevent_new(sc->connfd, network_handle_announce_response,
 	    network_handle_write, network_handle_announce_error, sc);
@@ -423,12 +423,15 @@ network_connect(int domain, int type, int protocol, const struct sockaddr *name,
 		warn("network_connect: socket");
 		return (-1);
 	}
-	if (connect(sockfd, name, namelen) == -1) {
-		warn("network_connect: connect");
-		return (-1);
-	}
 	if (fcntl(sockfd, F_SETFL, O_NONBLOCK) == -1)
 		err(1, "network_connect");
+
+	if (connect(sockfd, name, namelen) == -1) {
+		if (errno != EINPROGRESS) {
+			warn("network_connect: connect");
+			return (-1);
+		}
+	}
 
 	return (sockfd);
 
@@ -472,11 +475,12 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 	struct session *sc = data;
 
 	if (error & EVBUFFER_TIMEOUT) {
-		printf("buffer event timeout");
+		trace("network_handle_announce_error() TIMEOUT");
 		bufferevent_free(bufev);
 		bufev = NULL;
 	}
 	if (error & EVBUFFER_EOF) {
+		trace("network_handle_announce_error() EOF");
 		bufferevent_free(bufev);
 		bufev = NULL;
 		(void) close(sc->connfd);
@@ -634,15 +638,15 @@ network_handle_peer_error(struct bufferevent *bufev, short error, void *data)
 
 	p = data;
 	if (error & EVBUFFER_TIMEOUT) {
-		printf("buffer event timeout\n");
+		trace("TIMEOUT for peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	}
 	if (error & EVBUFFER_EOF) {
-		printf("peer buffer event EOF\n");
+		trace("EOF for peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 		p->state = 0;
 		p->state |= PEER_STATE_DEAD;
 	}
 	else
-		printf("peer buffer error\n");
+		trace("Error for peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 }
 
 static void
@@ -731,22 +735,24 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 		/* XXX: safety-check for correct message lengths */
 		switch (id) {
 			case PEER_MSG_ID_CHOKE:
+				trace("CHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				p->state |= PEER_STATE_CHOKED;
 				break;
 			case PEER_MSG_ID_UNCHOKE:
+				trace("UNCHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				p->state &= ~PEER_STATE_CHOKED;
 				network_peer_request_piece(p, p->piece, p->bytes);
 				break;
 			case PEER_MSG_ID_INTERESTED:
+				trace("INTERESTED message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				p->state |= PEER_STATE_INTERESTED;
-				printf("peer sez interested\n");
 				break;
 			case PEER_MSG_ID_NOTINTERESTED:
+				trace("NOTINTERESTED message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				p->state &= ~PEER_STATE_INTERESTED;
-				printf("peer sez notinterested\n");
 				break;
 			case PEER_MSG_ID_HAVE:
-				printf("peer sez have\n");
+				trace("HAVE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
 				idx = ntohl(idx);
 				if (idx > p->sc->tp->num_pieces - 1) {
@@ -756,6 +762,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				setbit(p->bitfield, idx);
 				break;
 			case PEER_MSG_ID_BITFIELD:
+				trace("BITFIELD message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				if (!(p->state & PEER_STATE_BITFIELD)) {
 					printf("not expecting bitfield!\n");
 					return;
@@ -774,16 +781,17 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				p->state |= PEER_STATE_ESTABLISHED;
 				break;
 			case PEER_MSG_ID_REQUEST:
+				trace("REQUEST message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
 				idx = ntohl(idx);
 				memcpy(&off, p->rxmsg+sizeof(idx), sizeof(off));
 				off = ntohl(off);
 				memcpy(&blocklen, p->rxmsg+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
 				blocklen = ntohl(blocklen);
-				printf("peer REQUEST idx: %d offset: %d blocklen: %d\n", idx, off, blocklen);
 				network_peer_write_piece(p, idx, off, blocklen);
 				break;
 			case PEER_MSG_ID_PIECE:
+				trace("PIECE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
 				idx = ntohl(idx);
 				memcpy(&off, p->rxmsg+sizeof(id)+sizeof(idx), sizeof(off));
@@ -806,11 +814,10 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				}
 				break;
 			case PEER_MSG_ID_CANCEL:
-				printf("peer sez cancel\n");
 				/* XXX: not sure how to cancel a write */
+				trace("CANCEL message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				break;
 			default:
-				printf("unknown message id: %u\n", id);
 				break;
 		}
 	}
@@ -823,6 +830,8 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t 
 	void *data;
 	int hint;
 
+	trace("network_peer_write_piece() at index %u offset %u length %u to peer %s:%d",
+	      idx, offset, len, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	if ((tpp = torrent_piece_find(p->sc->tp, idx)) == NULL) {
 		printf("REQUEST for piece %u - failed at torrent_piece_find(), returning\n", idx);
 		return;
@@ -856,6 +865,7 @@ network_peer_write_interested(struct peer *p)
 	u_int8_t id;
 	u_int32_t len;
 
+	trace("network_peer_write_interested() to peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	len = htonl(sizeof(id));
 	id = PEER_MSG_ID_INTERESTED;
 
@@ -874,6 +884,7 @@ network_peer_write_bitfield(struct peer *p)
 	u_int8_t *bitfield, id;
 	u_int32_t msglen, msglen2;
 
+	trace("network_peer_write_bitfield() to peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	id = PEER_MSG_ID_BITFIELD;
 	bitfield = torrent_bitfield_get(p->sc->tp);
 
@@ -948,6 +959,7 @@ network_scheduler(int fd, short type, void *arg)
 			nxt = TAILQ_NEXT(p, peer_list);
 			/* if peer is marked dead, free it */
 			if (p->state & PEER_STATE_DEAD) {
+				trace("network_scheduler() removing dead peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				TAILQ_REMOVE(&sc->peers, p, peer_list);
 				network_peer_free(p);
 				continue;
@@ -963,6 +975,7 @@ network_scheduler(int fd, short type, void *arg)
 				/* if this piece is complete, start a new one */
 				if (p->bytes == tpp->len
 				    && p->sc->tp->num_pieces != p->sc->tp->good_pieces) {
+					trace("network_scheduler() just completed piece %u, requesting %u", p->piece, idx);
 					p->piece = idx;
 					p->bytes = 0;
 					network_peer_request_piece(p, p->piece, p->bytes);
@@ -981,6 +994,7 @@ network_peer_request_piece(struct peer *p, u_int32_t idx, u_int32_t off)
 	u_int8_t  *msg, id;
 	struct torrent_piece *tpp;
 
+	trace("network_peer_request_piece, index: %u offset: %u", idx, off);
 	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx) + sizeof(off) + sizeof(blocklen);
 	msg = xmalloc(msglen);
 	msglen2 = htonl(msglen - sizeof(msglen));
@@ -1084,6 +1098,7 @@ network_start_torrent(struct torrent *tp)
 	ret = network_announce(sc, "started");
 
 	event_dispatch();
+	trace("network_start_torrent() returning");
 
 	return (ret);
 }
