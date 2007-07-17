@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.34 2007-05-08 19:42:07 niallo Exp $ */
+/* $Id: bencode.c,v 1.35 2007-07-17 22:07:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -130,7 +130,8 @@ benc_node_freeall(struct benc_node *node)
 		}
 	}
 
-	xfree(node);
+	if (node != NULL)
+		xfree(node);
 }
 
 /* create a root node, which parser needs to be passed during init */

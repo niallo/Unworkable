@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.51 2007-05-08 19:42:07 niallo Exp $ */
+/* $Id: parse.y,v 1.52 2007-07-17 22:07:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -292,7 +292,9 @@ yylex(void)
 		if (i == buflen) {
 			ptrdiff_t p_offset = p - buf;
 			buflen += BENC_BUFFER_INCREMENT;
+			trace("yylex() realloc");
 			buf = xrealloc(buf, buflen);
+			trace("yylex() realloc done");
 			/* ensure pointers are not invalidated after realloc */
 			p = buf + p_offset;
 			/* NUL-fill the new memory */

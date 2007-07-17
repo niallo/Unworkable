@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.30 2007-05-21 17:09:13 niallo Exp $ */
+/* $Id: main.c,v 1.31 2007-07-17 22:07:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -55,6 +55,8 @@ main(int argc, char **argv)
 	signal(SIGABRT, sighandler);
 	signal(SIGINT, sighandler);
 	signal(SIGQUIT, sighandler);
+	/* don't die on sigpipe */
+	signal(SIGPIPE, SIG_IGN);
 
 	while ((ch = getopt(argc, argv, "t:")) != -1) {
 		switch (ch) {
