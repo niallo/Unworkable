@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.12 2007-05-21 17:09:13 niallo Exp $ */
+/* $Id: includes.h,v 1.13 2007-07-18 23:54:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -209,6 +209,7 @@ char *xstrdup(const char *);
 size_t	atomicio(ssize_t (*)(int, void *, size_t), int, void *, size_t);
 
 #define vwrite (ssize_t (*)(int, void *, size_t))write
+void	refresh_progress_meter(void);
 void	start_progress_meter(char *, off_t, off_t *);
 void	stop_progress_meter(void);
 

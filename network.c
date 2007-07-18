@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.104 2007-07-18 00:17:58 niallo Exp $ */
+/* $Id: network.c,v 1.105 2007-07-18 23:54:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -106,7 +106,7 @@ struct session {
 };
 
 struct piececounter {
-	int count;
+	u_int32_t count;
 	u_int32_t idx;
 };
 
@@ -845,9 +845,11 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			case PEER_MSG_ID_UNCHOKE:
 				trace("UNCHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				p->state &= ~PEER_STATE_CHOKED;
-				network_peer_write_unchoke(p);
-				network_peer_write_interested(p);
-				network_peer_request_piece(p, p->piece, p->bytes);
+				if (p->piece != 0xffff) {
+					network_peer_write_unchoke(p);
+					network_peer_write_interested(p);
+					network_peer_request_piece(p, p->piece, p->bytes);
+				}
 				break;
 			case PEER_MSG_ID_INTERESTED:
 				trace("INTERESTED message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
@@ -882,8 +884,8 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				}
 				bitfieldlen = p->rxmsglen - sizeof(id);
 				if (bitfieldlen * 8 > p->sc->tp->num_pieces + 7
-				    || bitfieldlen * 8 < p->sc->tp->num_pieces - 7) {
-					trace("bitfield is wrong size! killing peer connection");
+				    || bitfieldlen * 8 + 7 < p->sc->tp->num_pieces) {
+					trace("bitfield is wrong size! killing peer connection (is: %u should be: %u)", bitfieldlen*8, p->sc->tp->num_pieces + 7);
 					p->state = 0;
 					p->state |= PEER_STATE_DEAD;
 					return;
@@ -931,11 +933,17 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 						torrent_piece_sync(p->sc->tp, tpp->index);
 						p->sc->tp->good_pieces++;
 						p->sc->tp->left -= tpp->len;
-						if (p->sc->tp->good_pieces == p->sc->tp->num_pieces)
+						if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
+							refresh_progress_meter();
 							exit(0);
+						}
+						trace("good pieces: %u total pieces: %u",
+						    p->sc->tp->good_pieces,
+						    p->sc->tp->num_pieces);
 					} else {
 						/* hash check failed, try re-downloading this piece */
 						trace("hash check failure for piece %d", p->piece);
+						exit(1);
 						//p->bytes = 0;
 						//network_peer_request_piece(p, p->piece, p->bytes);
 					}
@@ -1095,7 +1103,7 @@ network_peer_write_bitfield(struct peer *p)
 	if (bufferevent_write(p->bufev, p->txmsg, msglen) != 0)
 		errx(1, "network_peer_write_bitfield: bufferevent_write failure");
 	
-	trace("freeing bitfield");
+	trace("network_peer_write_bitfield() freeing bitfield");
 	xfree(bitfield);
 }
 static void
@@ -1138,16 +1146,16 @@ network_session_sorted_pieces(struct session *sc)
 	u_int32_t i, count, pos, len;
 
 	pos = 0;
-	len = sc->tp->num_pieces - sc->tp->good_pieces;
+	len = sc->tp->num_pieces;
 	pieces = xcalloc(len, sizeof(*pieces));
 
 	/* counts for each piece */
 	for (i = 0; i < len; i++) {
+		count = 0;
 		/* if we have this piece, weight it as extremely common */
 		tpp = torrent_piece_find(sc->tp, i);
 		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
-			continue;
-		count = 0;
+			count = 0xffff;
 		/* otherwise count it */
 		TAILQ_FOREACH(p, &sc->peers, peer_list) {
 			if (!(p->state & PEER_STATE_ESTABLISHED))
@@ -1156,7 +1164,7 @@ network_session_sorted_pieces(struct session *sc)
 				count++;
 		}
 		if (pos > len)
-			errx(1, "pos is %u should be %u\n", pos, (sc->tp->num_pieces - sc->tp->good_pieces - 1));
+			errx(1, "network_session_sorted_pieces: pos is %u should be %u\n", pos, (sc->tp->num_pieces - sc->tp->good_pieces - 1));
 
 		pieces[pos].count = count;
 		pieces[pos].idx = i;
@@ -1165,6 +1173,9 @@ network_session_sorted_pieces(struct session *sc)
 	/* sort the rarity array */
 	qsort(pieces, len, sizeof(*pieces),
 	    network_session_sorted_pieces_cmp);
+	trace("network_session_sorted_pieces() len: %u first 3 idxes: %u %u %u counts: %u %u %u", len,
+	    pieces[0].idx, pieces[1].idx, pieces[2].idx,
+	    pieces[0].count, pieces[1].count, pieces[2].count);
 
 	return (pieces);
 }
@@ -1173,13 +1184,18 @@ static int
 network_piece_is_underway(struct session *sc, u_int32_t idx)
 {
 	struct peer *p;
+	struct torrent_piece *tpp;
+
+	tpp = torrent_piece_find(sc->tp, idx);
+	if (tpp->flags & TORRENT_PIECE_CKSUMOK)
+		return (0);
 
 	TAILQ_FOREACH(p, &sc->peers, peer_list) {
 		if (p->piece == idx)
 			return (0);
 	}
 
-	trace("%u not underway, choosing", idx);
+	trace("network_piece_is_underway() %u not underway, choosing", idx);
 	return (1);
 }
 
@@ -1190,7 +1206,7 @@ network_piece_next_rarest(struct session *sc)
 	struct piececounter *pieces;
 	u_int32_t i, len, idx;
 
-	len = sc->tp->num_pieces - sc->tp->good_pieces;
+	len = sc->tp->num_pieces;
 	pieces = network_session_sorted_pieces(sc);
 	for (i = 0; i < len; i++) {
 		if (network_piece_is_underway(sc, pieces[i].idx) == 1) {
@@ -1199,8 +1215,7 @@ network_piece_next_rarest(struct session *sc)
 			return (idx);
 		}
 	}
-	xfree(pieces);
-	return (-1);
+	return (0xffff);
 }
 
 
@@ -1213,6 +1228,7 @@ network_scheduler(int fd, short type, void *arg)
 	struct timeval tv;
 	/* piece rarity array */
 	struct torrent_piece *tpp = NULL;
+	u_int32_t i;
 
 	p = NULL;
 	timerclear(&tv);
@@ -1237,9 +1253,12 @@ network_scheduler(int fd, short type, void *arg)
 				trace("network_scheduler() not transferring to this peer");
 				/* if we are not transferring and interested, tell the peer */
 				if (!(p->state & PEER_STATE_AMINTERESTED)) {
-					network_peer_write_interested(p);
-					p->piece = network_piece_next_rarest(sc);
-					network_peer_request_piece(p, p->piece, p->bytes);
+					i = network_piece_next_rarest(sc);
+					if (i != 0xffff) {
+						network_peer_write_interested(p);
+						p->piece = i;
+						network_peer_request_piece(p, p->piece, p->bytes);
+					}
 					continue;
 				}
 				if (p->piece != 0xffff)
@@ -1249,11 +1268,16 @@ network_scheduler(int fd, short type, void *arg)
 				if (tpp != NULL
 				    && p->bytes == tpp->len
 				    && p->sc->tp->num_pieces != p->sc->tp->good_pieces) {
-					trace("network_scheduler() just completed piece %u",
-					    p->piece);
-					p->piece = network_piece_next_rarest(sc);
-					p->bytes = 0;
-					network_peer_request_piece(p, p->piece, p->bytes);
+					trace("network_scheduler() just completed piece %u num pieces: %u good pieces: %u",
+					    p->piece,
+					    p->sc->tp->num_pieces,
+					    p->sc->tp->good_pieces);
+					i = network_piece_next_rarest(sc);
+					if (i != 0xffff) {
+						p->piece  = i;
+						p->bytes = 0;
+						network_peer_request_piece(p, p->piece, p->bytes);
+					}
 				}
 				tpp = NULL;
 			} else {
