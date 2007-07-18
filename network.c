@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.103 2007-07-17 22:07:53 niallo Exp $ */
+/* $Id: network.c,v 1.104 2007-07-18 00:17:58 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1142,7 +1142,7 @@ network_session_sorted_pieces(struct session *sc)
 	pieces = xcalloc(len, sizeof(*pieces));
 
 	/* counts for each piece */
-	for (i = 0; i < len - 1; i++) {
+	for (i = 0; i < len; i++) {
 		/* if we have this piece, weight it as extremely common */
 		tpp = torrent_piece_find(sc->tp, i);
 		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
@@ -1155,7 +1155,7 @@ network_session_sorted_pieces(struct session *sc)
 			if (BIT_ISSET(p->bitfield, i))
 				count++;
 		}
-		if (pos > (len - 1))
+		if (pos > len)
 			errx(1, "pos is %u should be %u\n", pos, (sc->tp->num_pieces - sc->tp->good_pieces - 1));
 
 		pieces[pos].count = count;
@@ -1188,14 +1188,19 @@ static u_int32_t
 network_piece_next_rarest(struct session *sc)
 {
 	struct piececounter *pieces;
-	u_int32_t i;
+	u_int32_t i, len, idx;
 
+	len = sc->tp->num_pieces - sc->tp->good_pieces;
 	pieces = network_session_sorted_pieces(sc);
-	for (i = 0; network_piece_is_underway(sc, i) == 0; i++) {
-		/* do nothing */
+	for (i = 0; i < len; i++) {
+		if (network_piece_is_underway(sc, pieces[i].idx) == 1) {
+			idx = pieces[i].idx;
+			xfree(pieces);
+			return (idx);
+		}
 	}
 	xfree(pieces);
-	return (i);
+	return (-1);
 }
 
 
@@ -1207,7 +1212,7 @@ network_scheduler(int fd, short type, void *arg)
 	struct session *sc = arg;
 	struct timeval tv;
 	/* piece rarity array */
-	struct torrent_piece *tpp;
+	struct torrent_piece *tpp = NULL;
 
 	p = NULL;
 	timerclear(&tv);
@@ -1229,7 +1234,7 @@ network_scheduler(int fd, short type, void *arg)
 			}
 			/* if we are not transferring to/from this peer */
 			if (!(p->state & PEER_STATE_ISTRANSFERRING)) {
-				tpp = torrent_piece_find(p->sc->tp, p->piece);
+				trace("network_scheduler() not transferring to this peer");
 				/* if we are not transferring and interested, tell the peer */
 				if (!(p->state & PEER_STATE_AMINTERESTED)) {
 					network_peer_write_interested(p);
@@ -1237,8 +1242,12 @@ network_scheduler(int fd, short type, void *arg)
 					network_peer_request_piece(p, p->piece, p->bytes);
 					continue;
 				}
+				if (p->piece != 0xffff)
+					tpp = torrent_piece_find(p->sc->tp,
+					    p->piece);
 				/* if this piece is complete, start a new one */
-				if (p->bytes == tpp->len
+				if (tpp != NULL
+				    && p->bytes == tpp->len
 				    && p->sc->tp->num_pieces != p->sc->tp->good_pieces) {
 					trace("network_scheduler() just completed piece %u",
 					    p->piece);
@@ -1246,6 +1255,7 @@ network_scheduler(int fd, short type, void *arg)
 					p->bytes = 0;
 					network_peer_request_piece(p, p->piece, p->bytes);
 				}
+				tpp = NULL;
 			} else {
 				/* request piece again and again, seems to speed things up */
 				//network_peer_request_piece(p, p->piece, p->bytes);
