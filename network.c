@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.107 2007-07-19 22:16:50 niallo Exp $ */
+/* $Id: network.c,v 1.108 2007-07-19 22:21:35 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1235,7 +1235,6 @@ network_scheduler(int fd, short type, void *arg)
 
 	/* XXX: probably this should be some sane threshold like 11 */
 	if (!TAILQ_EMPTY(&sc->peers)) {
-		trace("network_scheduler() peer loop");
 		for (p = TAILQ_FIRST(&sc->peers); p; p = nxt) {
 			nxt = TAILQ_NEXT(p, peer_list);
 			/* if peer is marked dead, free it */
