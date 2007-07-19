@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.106 2007-07-19 22:12:25 niallo Exp $ */
+/* $Id: network.c,v 1.107 2007-07-19 22:16:50 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1247,7 +1247,6 @@ network_scheduler(int fd, short type, void *arg)
 			}
 			/* if we are not transferring to/from this peer */
 			if (!(p->state & PEER_STATE_ISTRANSFERRING)) {
-				trace("network_scheduler() not transferring to this peer");
 				/* if we are not transferring and interested, tell the peer */
 				if (!(p->state & PEER_STATE_AMINTERESTED)) {
 					i = network_piece_next_rarest(sc);
