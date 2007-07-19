@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.105 2007-07-18 23:54:53 niallo Exp $ */
+/* $Id: network.c,v 1.106 2007-07-19 22:12:25 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -246,7 +246,7 @@ network_announce(struct session *sc, const char *event)
 	}
 
 	l = snprintf(request, GETSTRINGLEN,
-	    "GET %s%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path,
+	    "GET %s%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\nUser-agent: Unworkable/1.0\r\n\r\n", path,
 	    params, host);
 	if (l == -1 || l >= GETSTRINGLEN)
 		goto trunc;
@@ -1173,9 +1173,6 @@ network_session_sorted_pieces(struct session *sc)
 	/* sort the rarity array */
 	qsort(pieces, len, sizeof(*pieces),
 	    network_session_sorted_pieces_cmp);
-	trace("network_session_sorted_pieces() len: %u first 3 idxes: %u %u %u counts: %u %u %u", len,
-	    pieces[0].idx, pieces[1].idx, pieces[2].idx,
-	    pieces[0].count, pieces[1].count, pieces[2].count);
 
 	return (pieces);
 }
