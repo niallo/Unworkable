@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.111 2007-07-20 02:59:43 cathcart Exp $ */
+/* $Id: network.c,v 1.112 2007-07-20 19:36:23 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -362,7 +362,7 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	trace("network_handle_announce_response() setting up server socket");
 	/* time to set up the server socket */
 	sc->servfd = network_listen(sc, NULL, sc->port);
-	bev = bufferevent_new(sc->servfd, NULL,
+	bev = bufferevent_new(sc->servfd, network_handle_peer_connect,
 	    network_handle_peer_connect, network_handle_peer_error, sc);
 	if (bufev == NULL)
 		errx(1, "network_handle_announce_response: bufferevent_new failure");
@@ -918,11 +918,11 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				    off, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				tpp = torrent_piece_find(p->sc->tp, idx);
 				/* Only read if we don't already have it */
-				if (p->bytes <= off)
+				if (p->bytes <= off) {
 					network_peer_read_piece(p, idx, off,
 					    p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)),
 					    p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
-				else {
+				} else {
 					network_peer_cancel_piece(p, idx, off);
 					break;
 				}
@@ -932,6 +932,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				} else {
 					res = torrent_piece_checkhash(p->sc->tp, tpp);
 					if (res == 0) {
+						trace("hash check success for piece %d", p->piece);
 						torrent_piece_sync(p->sc->tp, tpp->index);
 						p->sc->tp->good_pieces++;
 						p->sc->tp->left -= tpp->len;
@@ -984,11 +985,6 @@ static void
 network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t len, void *data)
 {
 	struct torrent_piece *tpp;
-
-	if (len == 0) {
-		trace("REQUEST for piece %u - failed due to zero length, returning", idx);
-		return;
-	}
 
 	if ((tpp = torrent_piece_find(p->sc->tp, idx)) == NULL) {
 		trace("REQUEST for piece %u - failed at torrent_piece_find(), returning", idx);

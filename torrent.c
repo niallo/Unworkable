@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.71 2007-07-20 01:13:54 niallo Exp $ */
+/* $Id: torrent.c,v 1.72 2007-07-20 19:36:23 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -319,31 +319,44 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d
 {
 	struct torrent_mmap *tmmp;
 	off_t cntlen = 0, cntbase = 0;
-	u_int32_t tlen = len;
-	char *aptr;
+	u_char *aptr;
+	u_int32_t tlen, bytesleft = len, diff = 0;
 
 	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps) {
+		if (bytesleft < len) {
+			diff = len - bytesleft;
+			/* write as much as we can here and jump to next
+			 * mapping if required*/
+			if (bytesleft > tmmp->len) {
+				memcpy(tmmp->addr, (u_char *)d + diff,
+				    tmmp->len);
+				bytesleft -= tmmp->len;
+				continue;
+			}
+			/* done once we make it here */
+			memcpy(tmmp->addr, (u_char *)d + diff, bytesleft);
+			return;
+
+		}
 		cntlen += tmmp->len;
 		if (cntlen < off) {
 			cntbase += tmmp->len;
 			continue;
 		} else {
 			aptr = tmmp->addr;
-			for(; cntbase < off; cntbase++)
+			for (; cntbase < off; cntbase++)
 				aptr++;
-
-			/* this mapping might not contain as many bytes as
-			   we requested.  in that case, copy as many as
-			   possible and continue to next mapping */
-			if (tmmp->len  < tlen) {
-				memcpy(aptr, d, tmmp->len);
-				tlen -= tmmp->len;
-			} else {
-				/* if possible, do not do a buffer copy,
-				 * but return the mmaped base address directly
-				 */
+			tlen = tmmp->len - (aptr - (u_char *)tmmp->addr);
+			/* its possible that we are writing more bytes than
+			 * remain in this single mapping.  in this case,
+			 * we need to write the remainder to the next
+			 * mapping(s)*/
+			if (len > tlen) {
 				memcpy(aptr, d, tlen);
+				bytesleft -= tlen;
+				continue;
 			}
+			memcpy(aptr, d, len);
 		}
 	}
 }
@@ -353,7 +366,7 @@ void *
 torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hint)
 {
 	void *block;
-	char *aptr, *bptr;
+	u_char *aptr, *bptr;
 	struct torrent_mmap *tmmp;
 	off_t cntlen = 0, cntbase = 0;
 	u_int32_t tlen = len;
