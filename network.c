@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.113 2007-07-20 21:11:34 niallo Exp $ */
+/* $Id: network.c,v 1.114 2007-07-20 21:23:44 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -918,7 +918,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				    off, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				tpp = torrent_piece_find(p->sc->tp, idx);
 				/* Only read if we don't already have it */
-				if (p->bytes <= off) {
+				if (p->bytes <= off && !(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
 					network_peer_read_piece(p, idx, off,
 					    p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)),
 					    p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
