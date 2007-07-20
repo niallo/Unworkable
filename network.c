@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.108 2007-07-19 22:21:35 niallo Exp $ */
+/* $Id: network.c,v 1.109 2007-07-20 01:59:43 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -937,9 +937,6 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 							refresh_progress_meter();
 							exit(0);
 						}
-						trace("good pieces: %u total pieces: %u",
-						    p->sc->tp->good_pieces,
-						    p->sc->tp->num_pieces);
 					} else {
 						/* hash check failed, try re-downloading this piece */
 						trace("hash check failure for piece %d", p->piece);
@@ -985,6 +982,11 @@ static void
 network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t len, void *data)
 {
 	struct torrent_piece *tpp;
+
+	if (len == 0) {
+		trace("REQUEST for piece %u - failed due to zero length, returning", idx);
+		return;
+	}
 
 	if ((tpp = torrent_piece_find(p->sc->tp, idx)) == NULL) {
 		trace("REQUEST for piece %u - failed at torrent_piece_find(), returning", idx);
@@ -1263,7 +1265,7 @@ network_scheduler(int fd, short type, void *arg)
 				if (tpp != NULL
 				    && p->bytes == tpp->len
 				    && p->sc->tp->num_pieces != p->sc->tp->good_pieces) {
-					trace("network_scheduler() just completed piece %u num pieces: %u good pieces: %u",
+					trace("network_scheduler() just completed piece %u total pieces: %u good pieces: %u",
 					    p->piece,
 					    p->sc->tp->num_pieces,
 					    p->sc->tp->good_pieces);
