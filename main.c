@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.33 2007-07-20 01:53:45 cathcart Exp $ */
+/* $Id: main.c,v 1.34 2007-07-20 02:59:43 cathcart Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -35,7 +35,7 @@ extern int  optind;
 void
 usage(void)
 {
-	fprintf(stderr, "unworkable: [-t tracefile] torrent\n");
+	fprintf(stderr, "unworkable: [-t tracefile] [-p port] torrent\n");
 	exit(1);
 }
 
@@ -58,10 +58,13 @@ main(int argc, char **argv)
 	/* don't die on sigpipe */
 	signal(SIGPIPE, SIG_IGN);
 
-	while ((ch = getopt(argc, argv, "t:")) != -1) {
+	while ((ch = getopt(argc, argv, "t:p:")) != -1) {
 		switch (ch) {
 		case 't':
 			unworkable_trace = xstrdup(optarg);
+			break;
+		case 'p':
+			user_port = xstrdup(optarg);
 			break;
 		default:
 			usage();

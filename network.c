@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.110 2007-07-20 02:51:38 niallo Exp $ */
+/* $Id: network.c,v 1.111 2007-07-20 02:59:43 cathcart Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -109,6 +109,8 @@ struct piececounter {
 	u_int32_t count;
 	u_int32_t idx;
 };
+
+char *user_port = NULL;
 
 static int	network_announce(struct session *, const char *);
 static void	network_announce_update(int, short, void *);
@@ -1299,7 +1301,12 @@ network_start_torrent(struct torrent *tp)
 
 	TAILQ_INIT(&sc->peers);
 	sc->tp = tp;
-	sc->port = xstrdup("6668");
+	if (user_port == NULL) {
+		sc->port = xstrdup("6668");
+	} else {
+		sc->port = xstrdup(user_port);
+		trace("using port %s instead of default", user_port);
+	}
 	sc->peerid = xstrdup("U1234567891234567890");
 
 	if (tp->type == SINGLEFILE)

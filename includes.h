@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.14 2007-07-20 01:13:54 niallo Exp $ */
+/* $Id: includes.h,v 1.15 2007-07-20 02:59:43 cathcart Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -219,3 +219,4 @@ void	sighandler(int);
 
 
 extern char *unworkable_trace;
+extern char *user_port;
