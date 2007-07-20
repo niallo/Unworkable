@@ -1,4 +1,4 @@
-/* $Id: buf.c,v 1.5 2007-05-08 19:42:07 niallo Exp $ */
+/* $Id: buf.c,v 1.6 2007-07-20 01:13:54 niallo Exp $ */
 /*
  * Copyright (c) 2003 Jean-Francois Brousseau <jfb@openbsd.org>
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
@@ -432,4 +432,10 @@ buf_grow(BUF *b, size_t len)
 
 	/* readjust pointers in case the buffer moved in memory */
 	b->cb_cur = b->cb_buf + diff;
+}
+
+size_t
+buf_pos(BUF *b)
+{
+	return (b->cb_pos);
 }

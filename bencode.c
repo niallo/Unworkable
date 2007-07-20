@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.35 2007-07-17 22:07:53 niallo Exp $ */
+/* $Id: bencode.c,v 1.36 2007-07-20 01:13:54 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -105,7 +105,7 @@ benc_node_print(struct benc_node *node, int level)
 			benc_node_print(childnode, level + 1);
 	}
 	if (node->flags & BDICT) {
-		printf("bdict\n");
+		printf("bdict, end: %zd\n", node->end);
 		TAILQ_FOREACH(childnode, &node->children, benc_nodes)
 			benc_node_print(childnode, level + 1);
 	}

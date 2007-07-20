@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.70 2007-05-21 17:09:13 niallo Exp $ */
+/* $Id: torrent.c,v 1.71 2007-07-20 01:13:54 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -39,7 +39,7 @@ RB_GENERATE(pieces, torrent_piece, entry, torrent_intcmp)
 
 /* dedicated function which computes the torrent info hash */
 u_int8_t *
-torrent_parse_infohash(const char *file)
+torrent_parse_infohash(const char *file, size_t infoend)
 {
 	SHA1_CTX sha;
 	u_int8_t result[SHA1_DIGEST_LENGTH], *ret;
@@ -60,7 +60,7 @@ torrent_parse_infohash(const char *file)
 	p += INFOLEN;
 
 	SHA1Init(&sha);
-	SHA1Update(&sha, p, (len - (p - buf)) - 1);
+	SHA1Update(&sha, p, (infoend - (p - buf)));
 	SHA1Final(result, &sha);
 
 	len = SHA1_DIGEST_LENGTH;
@@ -97,7 +97,9 @@ torrent_parse_file(const char *file)
 		errx(1, "torrent_parse_file: yyparse of %s", file);
 
 	buf_free(in);
-	torrent->info_hash = torrent_parse_infohash(file);
+	if ((node = benc_node_find(troot, "info")) == NULL)
+		errx(1, "no info data found in torrent");
+	torrent->info_hash = torrent_parse_infohash(file, node->end);
 
 	if ((node = benc_node_find(troot, "announce")) == NULL)
 		errx(1, "no announce data found in torrent");

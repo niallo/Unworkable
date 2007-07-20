@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.52 2007-07-17 22:07:53 niallo Exp $ */
+/* $Id: parse.y,v 1.53 2007-07-20 01:13:54 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -63,10 +63,11 @@ BUF				*in     = NULL;
 	long long		number;
 	char			*string;
 	struct benc_node	*benc_node;
+	size_t			len;
 }
 
 %token				COLON
-%token				END
+%token <len>			END
 %token				INT_START
 %token				DICT_START
 %token <benc_node>		LIST_START
@@ -269,6 +270,7 @@ bdict		: DICT_START					{
 			struct benc_node *node;
 
 			node = benc_stack_pop();
+			node->end = $4;
 			benc_node_add_head(node, $3);
 
 			$$ = node;
@@ -340,6 +342,7 @@ yylex(void)
 				return (STRING);
 			} else {
 				bdone = 0;
+				yylval.len = buf_pos(in);
 				xfree(buf);
 				return (END);
 			}

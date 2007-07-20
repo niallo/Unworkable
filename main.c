@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.31 2007-07-17 22:07:53 niallo Exp $ */
+/* $Id: main.c,v 1.32 2007-07-20 01:13:54 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -76,6 +76,7 @@ main(int argc, char **argv)
 
 	badflag = 0;
 	torrent = torrent_parse_file(argv[0]);
+	/* a little extra info? torrent_print(torrent); */
 	printf("hash mismatch for piece(s): ");
 	for (i = 0; i < torrent->num_pieces; i++) {
 		torrent_piece_map(torrent, i);

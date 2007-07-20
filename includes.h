@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.13 2007-07-18 23:54:53 niallo Exp $ */
+/* $Id: includes.h,v 1.14 2007-07-20 01:13:54 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -50,6 +50,8 @@ struct benc_node {
 			struct benc_node *value;
 		}				dict_entry;
 	} body;
+	/* in dictionaries, absolute offset of dict end from start of input buffer */
+	size_t end;
 };
 
 enum type { MULTIFILE, SINGLEFILE };
@@ -152,9 +154,7 @@ int		 buf_write_fd(BUF *, int);
 int		 buf_write(BUF *, const char *, mode_t);
 void		 buf_write_stmp(BUF *, char *, mode_t);
 void		 buf_ungetc(BUF *);
-
-#define buf_get(b)	buf_peek(b, 0)
-
+size_t		 buf_pos(BUF *);
 
 void		 network_init(void);
 int		 network_start_torrent(struct torrent *);
@@ -171,7 +171,7 @@ void			 torrent_block_write(struct torrent_piece *, off_t,
 struct torrent_mmap	*torrent_mmap_create(struct torrent *,
 			    struct torrent_file *, off_t, u_int32_t);
 struct torrent		*torrent_parse_file(const char *);
-u_int8_t		*torrent_parse_infohash(const char *);
+u_int8_t		*torrent_parse_infohash(const char *, size_t);
 int			 torrent_piece_checkhash(struct torrent *,
 			    struct torrent_piece *);
 struct torrent_piece	*torrent_piece_find(struct torrent *, u_int32_t);
