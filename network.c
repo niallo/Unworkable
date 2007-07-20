@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.109 2007-07-20 01:59:43 niallo Exp $ */
+/* $Id: network.c,v 1.110 2007-07-20 02:51:38 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -127,7 +127,7 @@ static void	network_peer_write_bitfield(struct peer *);
 static void	network_peer_write_interested(struct peer *);
 static void	network_peer_free(struct peer *);
 static struct peer * network_peer_create(void);
-static void	network_handle_peer_connect(struct bufferevent *, short, void *);
+static void	network_handle_peer_connect(struct bufferevent *, void *);
 static void	network_handle_peer_response(struct bufferevent *, void *);
 static void	network_handle_peer_write(struct bufferevent *, void *);
 static void	network_handle_peer_error(struct bufferevent *, short, void *);
@@ -361,7 +361,7 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	/* time to set up the server socket */
 	sc->servfd = network_listen(sc, NULL, sc->port);
 	bev = bufferevent_new(sc->servfd, NULL,
-	    NULL, network_handle_peer_connect, sc);
+	    network_handle_peer_connect, network_handle_peer_error, sc);
 	if (bufev == NULL)
 		errx(1, "network_handle_announce_response: bufferevent_new failure");
 	bufferevent_enable(bev, EV_PERSIST);
@@ -383,7 +383,7 @@ err:
 }
 
 static void
-network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
+network_handle_peer_connect(struct bufferevent *bufev, void *data)
 {
 	struct session *sc;
 	struct peer *p;
@@ -815,7 +815,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			/* this is a new message */
 			len = bufferevent_read(bufev, &msglen, 4);
 			if (len != 4)
-				errx(1, "len should be 4 here!");
+				errx(1, "len should be 4 here, is %zd", len);
 			p->rxmsglen = ntohl(msglen);
 			/* keep-alive: do nothing */
 			if (p->rxmsglen == 0)
