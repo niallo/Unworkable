@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.112 2007-07-20 19:36:23 niallo Exp $ */
+/* $Id: network.c,v 1.113 2007-07-20 21:11:34 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1225,13 +1225,36 @@ network_scheduler(int fd, short type, void *arg)
 	struct timeval tv;
 	/* piece rarity array */
 	struct torrent_piece *tpp = NULL;
-	u_int32_t i;
+	u_int32_t i, pieces_left;
 
 	p = NULL;
 	timerclear(&tv);
 	tv.tv_sec = 1;
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
+
+	/* determine whether we are in the 'end-game'*/
+	pieces_left = sc->tp->num_pieces - sc->tp->good_pieces;
+	if (pieces_left <= 5) {
+		for (i = 0; i < sc->tp->num_pieces; i++) {
+			tpp = torrent_piece_find(sc->tp, i);
+			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
+				/* aggressively ask for the missing pieces */
+				trace("network_scheduler() missing piece %u", i);
+				TAILQ_FOREACH(p, &sc->peers, peer_list) {
+					if (p->state & PEER_STATE_DEAD)
+						continue;
+					if (p->state & PEER_STATE_ISTRANSFERRING)
+						continue;
+					p->piece  = i;
+					p->bytes = 0;
+					network_peer_request_piece(p, p->piece,
+					    p->bytes);
+				}
+			}
+		}
+	}
+
 
 	/* XXX: probably this should be some sane threshold like 11 */
 	if (!TAILQ_EMPTY(&sc->peers)) {
@@ -1272,6 +1295,8 @@ network_scheduler(int fd, short type, void *arg)
 						p->piece  = i;
 						p->bytes = 0;
 						network_peer_request_piece(p, p->piece, p->bytes);
+					} else {
+						trace("network_scheduler() next rarest piece is marked as underway, something is wrong!");
 					}
 				}
 				tpp = NULL;
