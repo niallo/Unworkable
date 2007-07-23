@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.115 2007-07-23 02:25:50 niallo Exp $ */
+/* $Id: network.c,v 1.116 2007-07-23 03:44:51 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -840,8 +840,12 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				/* got the length field */
 				memcpy(&msglen, p->rxmsg, sizeof(msglen));
 				p->rxmsglen = ntohl(msglen);
-				if (p->rxmsglen > MAX_MESSAGE_LEN)
-					errx(1, "network_handle_peer_response() got message longer than %u bytes!  Assuming its a malicious peer and exiting", MAX_MESSAGE_LEN);
+				if (p->rxmsglen > MAX_MESSAGE_LEN) {
+					trace("network_handle_peer_response() got a message %u bytes long, longer than %u bytes, assuming its malicious and killing peer %s:%d", p->rxmsglen, MAX_MESSAGE_LEN, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+					p->state = 0;
+					p->state |= PEER_STATE_DEAD;
+					return;
+				}
 				xfree(p->rxmsg);
 				p->state |= PEER_STATE_GOTLEN;
 				/* keep-alive: do nothing */
@@ -941,7 +945,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					    p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)),
 					    p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
 				} else {
-					network_peer_cancel_piece(p, idx, off);
+					//network_peer_cancel_piece(p, idx, off);
 					break;
 				}
 				/* if there are more blocks in this piece, ask for another */
@@ -961,8 +965,9 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					} else {
 						/* hash check failed, try re-downloading this piece */
 						trace("hash check failure for piece %d", p->piece);
-						exit(1);
-						//p->bytes = 0;
+						p->bytes = 0;
+						p->state = 0;
+						p->state |= PEER_STATE_DEAD;
 						//network_peer_request_piece(p, p->piece, p->bytes);
 					}
 				}
