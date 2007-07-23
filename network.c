@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.116 2007-07-23 03:44:51 niallo Exp $ */
+/* $Id: network.c,v 1.117 2007-07-23 03:50:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -62,6 +62,7 @@
 #define MAX_BACKLOG			65536 /* 64KB */
 #define LENGTH_FIELD 			4 /* peer messages use a 4byte len field */
 #define MAX_MESSAGE_LEN 		0xffffff /* 16M */
+#define DEFAULT_ANNOUNCE_INTERVAL	1800/* */
 
 #define BIT_SET(a,i)			((a)[(i)/8] |= 1<<(7-((i)%8)))
 #define BIT_CLR(a,i)			((a)[(i)/8] &= ~(1<<(7-((i)%8))))
@@ -341,13 +342,14 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	if ((troot = benc_parse_buf(buf, troot)) == NULL)
 		errx(1,"network_handle_announce_response: HTTP response parsing failed");
 
-	if ((node = benc_node_find(troot, "interval")) == NULL)
-		errx(1, "no interval field");
+	if ((node = benc_node_find(troot, "interval")) == NULL) {
+		tp->interval = DEFAULT_ANNOUNCE_INTERVAL;
+	} else {
+		if (!(node->flags & BINT))
+			errx(1, "interval is not a number");
+		tp->interval = node->body.number;
+	}
 
-	if (!(node->flags & BINT))
-		errx(1, "interval is not a number");
-
-	tp->interval = node->body.number;
 
 	if ((node = benc_node_find(troot, "peers")) == NULL)
 		errx(1, "no peers field");
