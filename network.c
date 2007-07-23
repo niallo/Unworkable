@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.114 2007-07-20 21:23:44 niallo Exp $ */
+/* $Id: network.c,v 1.115 2007-07-23 02:25:50 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -46,6 +46,7 @@
 #define PEER_STATE_INTERESTED		(1<<6)
 #define PEER_STATE_ISTRANSFERRING	(1<<7)
 #define PEER_STATE_DEAD			(1<<8)
+#define PEER_STATE_GOTLEN		(1<<9)
 
 #define PEER_MSG_ID_CHOKE		0
 #define PEER_MSG_ID_UNCHOKE		1
@@ -59,6 +60,8 @@
 
 #define BLOCK_SIZE			16384 /* 16KB */
 #define MAX_BACKLOG			65536 /* 64KB */
+#define LENGTH_FIELD 			4 /* peer messages use a 4byte len field */
+#define MAX_MESSAGE_LEN 		0xffffff /* 16M */
 
 #define BIT_SET(a,i)			((a)[(i)/8] |= 1<<(7-((i)%8)))
 #define BIT_CLR(a,i)			((a)[(i)/8] &= ~(1<<(7-((i)%8))))
@@ -764,13 +767,18 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	struct torrent_piece *tpp;
 	/* should always be 19, but just in case... */
 	size_t len;
-	u_int32_t msglen, bitfieldlen, idx, blocklen, off;
+	u_int32_t msglen = 0, bitfieldlen, idx, blocklen, off;
 	u_int8_t *base, id = 0;
 	int res;
 
 	if (p == NULL)
 		errx(1, "network_handle_peer_response() NULL peer!");
 
+	/* the complicated thing here is the non-blocking IO, which
+	 * means we have to be prepared to come back later and add more
+	 * data */
+
+	/* XXX split into multiple smaller functions */
 	if (p->state & PEER_STATE_HANDSHAKE) {
 		if (p->rxpending == 0) {
 			/* this should be a handshake response, minimum of 1 byte read, which is length
@@ -778,10 +786,10 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			p->rxmsg = xmalloc(1);
 			len = bufferevent_read(bufev, p->rxmsg, 1);
 			if (len != 1)
-				errx(1, "len should be 1 here!");
+				errx(1, "network_handle_peer_response() couldn't read initial handshake byte - this is very bad!");
 			memcpy(&p->pstrlen, p->rxmsg, 1);
 			if (p->pstrlen != 19)
-				errx(1, "pstrlen is %d not 19!", p->pstrlen);
+				errx(1, "network_handle_peer_response() pstrlen is %d not 19!  Fundamental assumption broken, exiting", p->pstrlen);
 			xfree(p->rxmsg);
 			/* now we can allocate full data buffer, and know when we're done reading... */
 			p->rxmsglen = p->pstrlen + 8 + 20 + 20;
@@ -793,10 +801,9 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 		read:
 			base = p->rxmsg + (p->rxmsglen - p->rxpending);
 			len = bufferevent_read(bufev, p->rxmsg, p->rxmsglen);
-			if (len < p->rxmsglen) {
-				p->rxpending = p->rxmsglen - len;
+			p->rxpending = p->rxmsglen - len;
+			if (len < p->rxmsglen)
 				return;
-			}
 			/* if we get this far, means we have got the full handshake */
 			memcpy(&p->info_hash, base + 1 + p->pstrlen + 8, 20);
 			memcpy(&p->id, base + 1 + p->pstrlen + 8 + 20, 20);
@@ -815,27 +822,38 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	} else {
 		if (p->rxpending == 0) {
 			/* this is a new message */
-			len = bufferevent_read(bufev, &msglen, 4);
-			if (len != 4)
-				errx(1, "len should be 4 here, is %zd", len);
-			p->rxmsglen = ntohl(msglen);
-			/* keep-alive: do nothing */
-			if (p->rxmsglen == 0)
-				return;
-			p->rxmsg = xmalloc(p->rxmsglen);
-			memset(p->rxmsg, 0, p->rxmsglen);
+			p->state &= ~PEER_STATE_GOTLEN;
+			p->rxmsg = xmalloc(LENGTH_FIELD);
+			p->rxmsglen = LENGTH_FIELD;
 			p->rxpending = p->rxmsglen;
+
 			goto read2;
 		} else {
 		read2:
-			/* continuing a large message */
 			base = p->rxmsg + (p->rxmsglen - p->rxpending);
 			len = bufferevent_read(bufev, base, p->rxpending);
 			p->rxpending -= len;
-			if (p->rxpending > 0) {
+			/* more rx data pending, come back later */
+			if (len < p->rxpending)
 				return;
+			if (!(p->state & PEER_STATE_GOTLEN)) {
+				/* got the length field */
+				memcpy(&msglen, p->rxmsg, sizeof(msglen));
+				p->rxmsglen = ntohl(msglen);
+				if (p->rxmsglen > MAX_MESSAGE_LEN)
+					errx(1, "network_handle_peer_response() got message longer than %u bytes!  Assuming its a malicious peer and exiting", MAX_MESSAGE_LEN);
+				xfree(p->rxmsg);
+				p->state |= PEER_STATE_GOTLEN;
+				/* keep-alive: do nothing */
+				if (p->rxmsglen == 0)
+					return;
+				p->rxmsg = xmalloc(p->rxmsglen);
+				memset(p->rxmsg, 0, p->rxmsglen);
+				p->rxpending = p->rxmsglen;
+				goto read2;
 			}
 		}
+
 		/* if we get this far, means we have the entire message */
 		memcpy(&id, p->rxmsg, 1);
 		/* XXX: safety-check for correct message lengths */
@@ -1233,6 +1251,8 @@ network_scheduler(int fd, short type, void *arg)
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
 
+	/* XXX perhaps we want to do this on a block, rather than piece
+	 *  basis? */
 	/* determine whether we are in the 'end-game'*/
 	pieces_left = sc->tp->num_pieces - sc->tp->good_pieces;
 	if (pieces_left <= 5) {
