@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.118 2007-07-23 21:03:11 niallo Exp $ */
+/* $Id: network.c,v 1.119 2007-07-24 18:55:36 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -364,20 +364,22 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	evtimer_del(&sc->announce_event);
 	evtimer_set(&sc->announce_event, network_announce_update, sc);
 	evtimer_add(&sc->announce_event, &tv);
-	trace("network_handle_announce_response() setting up server socket");
-	/* time to set up the server socket */
-	sc->servfd = network_listen(sc, "0.0.0.0", sc->port);
-	bev = bufferevent_new(sc->servfd, NULL,
-	    NULL, network_handle_peer_connect, sc);
-	if (bufev == NULL)
-		errx(1, "network_handle_announce_response: bufferevent_new failure");
-	bufferevent_enable(bev, EV_PERSIST|EV_READ);
-	/* now that we've announced, kick off the scheduler */
-	trace("network_handle_announce_response() setting up scheduler");
-	timerclear(&tv);
-	tv.tv_sec = 1;
-	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
-	evtimer_add(&sc->scheduler_event, &tv);
+	if (sc->servfd == 0) {
+		trace("network_handle_announce_response() setting up server socket");
+		/* time to set up the server socket */
+		sc->servfd = network_listen(sc, "0.0.0.0", sc->port);
+		bev = bufferevent_new(sc->servfd, NULL,
+		    NULL, network_handle_peer_connect, sc);
+		if (bufev == NULL)
+			errx(1, "network_handle_announce_response: bufferevent_new failure");
+		bufferevent_enable(bev, EV_PERSIST|EV_READ);
+		/* now that we've announced, kick off the scheduler */
+		trace("network_handle_announce_response() setting up scheduler");
+		timerclear(&tv);
+		tv.tv_sec = 1;
+		evtimer_set(&sc->scheduler_event, network_scheduler, sc);
+		evtimer_add(&sc->scheduler_event, &tv);
+	}
 err:
 	bufferevent_free(bufev);
 	bufev = NULL;
@@ -390,45 +392,43 @@ err:
 }
 
 static void
-network_handle_peer_connect(struct bufferevent *bufev, short what, void *data)
+network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
 {
-	struct bufferevent *bev;
 	struct session *sc;
 	struct peer *p;
 	socklen_t addrlen;
 
 	trace("network_handle_peer_connect() called");
+	if (error & EVBUFFER_TIMEOUT)
+		errx(1, "timeout");
+	if (error & EVBUFFER_EOF)
+		errx(1, "eof");
 	sc = data;
 	p = network_peer_create();
 	p->sc = sc;
+	addrlen = sizeof(p->sa);
+	bufferevent_free(bufev);
+	bufev = bufferevent_new(sc->servfd, NULL,
+	    NULL, network_handle_peer_connect, sc);
+	if (bufev == NULL)
+		errx(1, "network_handle_announce_response: bufferevent_new failure");
+	bufferevent_enable(bufev, EV_PERSIST|EV_READ);
 
 	trace("network_handle_peer_connect() accepting connection");
 	if ((p->connfd = accept(sc->servfd, (struct sockaddr *) &p->sa, &addrlen)) == -1) {
 		trace("network_handle_peer_connect() accept error");
 		network_peer_free(p);
-		bufferevent_free(bufev);
-		bev = bufferevent_new(sc->servfd, NULL,
-		    NULL, network_handle_peer_connect, sc);
-		if (bufev == NULL)
-			errx(1, "network_handle_announce_response: bufferevent_new failure");
-		bufferevent_enable(bev, EV_PERSIST|EV_READ);
 		return;
 	}
-
 	trace("network_handle_peer_connect() accepted peer: %s:%d",
 	    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+
 	p->state |= PEER_STATE_HANDSHAKE;
 	p->bufev = bufferevent_new(p->connfd, network_handle_peer_response,
 	    network_handle_peer_write, network_handle_peer_error, p);
 	if (p->bufev == NULL)
 		errx(1, "network_announce: bufferevent_new failure");
 	bufferevent_enable(p->bufev, EV_READ|EV_WRITE|EV_PERSIST);
-	bufferevent_free(bufev);
-	bev = bufferevent_new(sc->servfd, NULL,
-	    NULL, network_handle_peer_connect, sc);
-	if (bufev == NULL)
-		errx(1, "network_handle_announce_response: bufferevent_new failure");
-	bufferevent_enable(bev, EV_PERSIST|EV_READ);
 	trace("network_handle_peer_connect() initiating handshake");
 	TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
 	network_peer_handshake(sc, p);
@@ -449,11 +449,6 @@ network_listen(struct session *sc, char *host, char *port)
 	trace("network_listen() setting socket non-blocking");
 	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
 		err(1, "network_listen: fcntl");
-	trace("network_listen() settings socket options");
-	error = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
-		    &option_value, sizeof(option_value));
-	if (error == -1)
-		err(1, "could not set socket options");
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = PF_INET;
 	hints.ai_socktype = SOCK_STREAM;
@@ -461,6 +456,11 @@ network_listen(struct session *sc, char *host, char *port)
 	error = getaddrinfo(host, port, &hints, &res);
 	if (error != 0)
 		errx(1, "\"%s\" - %s", host, gai_strerror(error));
+	trace("network_listen() settings socket options");
+	error = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+		    &option_value, sizeof(option_value));
+	if (error == -1)
+		err(1, "could not set socket options");
 	trace("network_listen() binding socket to address");
 	if (bind(fd, res->ai_addr, res->ai_addrlen) == -1)
 		err(1, "could not bind to port %s", port);
@@ -811,27 +811,37 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			if (len != 1)
 				errx(1, "network_handle_peer_response() couldn't read initial handshake byte - this is very bad!");
 			memcpy(&p->pstrlen, p->rxmsg, 1);
-			/*
-			if (p->pstrlen != 19)
-				errx(1, "network_handle_peer_response() pstrlen is %d not 19!  Fundamental assumption broken, exiting", p->pstrlen);
-			*/
 			xfree(p->rxmsg);
+			p->rxmsg = NULL;
+			if (p->pstrlen != 19) {
+				trace("network_handle_peer_response() pstrlen is %d not 19!  Killing peer %s:%d", p->pstrlen, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+				/*
+				p->state = 0;
+				p->state |= PEER_STATE_DEAD;
+				return;
+				*/
+			}
 			/* now we can allocate full data buffer, and know when we're done reading... */
 			p->rxmsglen = p->pstrlen + 8 + 20 + 20;
 			p->rxmsg = xmalloc(p->rxmsglen);
 			p->rxpending = p->rxmsglen;
 			trace("network_handle_peer_response() initial handshake received");
-			goto read;
+			return;
 		} else {
-		read:
 			base = p->rxmsg + (p->rxmsglen - p->rxpending);
-			len = bufferevent_read(bufev, p->rxmsg, p->rxmsglen);
-			p->rxpending = p->rxmsglen - len;
-			if (len < p->rxmsglen)
+			len = bufferevent_read(bufev, base, p->rxpending);
+			p->rxpending -= len;
+			if (p->rxpending > 0)
 				return;
 			/* if we get this far, means we have got the full handshake */
-			memcpy(&p->info_hash, base + 1 + p->pstrlen + 8, 20);
-			memcpy(&p->id, base + 1 + p->pstrlen + 8 + 20, 20);
+			memcpy(&p->info_hash, p->rxmsg + p->pstrlen + 8, 20);
+			memcpy(&p->id, p->rxmsg + p->pstrlen + 8 + 20, 20);
+			if (memcmp(p->info_hash, p->sc->tp->info_hash, 20) != 0) {
+				trace("network_handle_peer_response() info hash mismatch for peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+				p->state = 0;
+				p->state |= PEER_STATE_DEAD;
+				return;
+			}
 
 			xfree(p->rxmsg);
 			p->rxmsg = NULL;
@@ -1005,6 +1015,10 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				trace("Unknown message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				break;
 		}
+		if (p->rxmsg != NULL) {
+			xfree(p->rxmsg);
+			p->rxmsg = NULL;
+		}
 	}
 }
 
@@ -1076,6 +1090,7 @@ network_peer_request_piece(struct peer *p, u_int32_t idx, u_int32_t off)
 	if (bufferevent_write(p->bufev, msg, msglen) != 0)
 		errx(1, "network_peer_request_piece: bufferevent_write failure");
 	p->state |= PEER_STATE_ISTRANSFERRING;
+	trace("network_peer_request_piece done");
 }
 
 static void
@@ -1282,7 +1297,7 @@ network_scheduler(int fd, short type, void *arg)
 	evtimer_add(&sc->scheduler_event, &tv);
 
 	/* XXX perhaps we want to do this on a block, rather than piece
-	 *  basis? */
+	 *  basis?  Perhaps we should use a percentage? */
 	/* determine whether we are in the 'end-game'*/
 	pieces_left = sc->tp->num_pieces - sc->tp->good_pieces;
 	if (pieces_left <= 5) {
@@ -1336,17 +1351,15 @@ network_scheduler(int fd, short type, void *arg)
 				if (tpp != NULL
 				    && p->bytes == tpp->len
 				    && p->sc->tp->num_pieces != p->sc->tp->good_pieces) {
-					trace("network_scheduler() just completed piece %u total pieces: %u good pieces: %u",
-					    p->piece,
-					    p->sc->tp->num_pieces,
-					    p->sc->tp->good_pieces);
 					i = network_piece_next_rarest(sc);
 					if (i != 0xffff) {
+						trace("network_scheduler() just completed piece %u total pieces: %u good pieces: %u",
+						    p->piece,
+						    p->sc->tp->num_pieces,
+						    p->sc->tp->good_pieces);
 						p->piece  = i;
 						p->bytes = 0;
 						network_peer_request_piece(p, p->piece, p->bytes);
-					} else {
-						trace("network_scheduler() next rarest piece is marked as underway, something is wrong!");
 					}
 				}
 				tpp = NULL;
