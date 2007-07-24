@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.119 2007-07-24 18:55:36 niallo Exp $ */
+/* $Id: network.c,v 1.120 2007-07-24 19:27:29 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -146,6 +146,7 @@ static void	network_peer_write_unchoke(struct peer *);
 static int	network_piece_is_underway(struct session *, u_int32_t);
 static u_int32_t network_piece_next_rarest(struct session *);
 static void	network_peer_cancel_piece(struct peer *, u_int32_t, u_int32_t);
+static void	network_peer_process_message(u_int8_t, struct peer *);
 
 static int
 network_announce(struct session *sc, const char *event)
@@ -787,12 +788,10 @@ static void
 network_handle_peer_response(struct bufferevent *bufev, void *data)
 {
 	struct peer *p = data;
-	struct torrent_piece *tpp;
 	/* should always be 19, but just in case... */
 	size_t len;
-	u_int32_t msglen = 0, bitfieldlen, idx, blocklen, off;
+	u_int32_t msglen;
 	u_int8_t *base, id = 0;
-	int res;
 
 	if (p == NULL)
 		errx(1, "network_handle_peer_response() NULL peer!");
@@ -895,130 +894,140 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 
 		/* if we get this far, means we have the entire message */
 		memcpy(&id, p->rxmsg, 1);
-		/* XXX: safety-check for correct message lengths */
-		switch (id) {
-			case PEER_MSG_ID_CHOKE:
-				trace("CHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				p->state |= PEER_STATE_CHOKED;
-				break;
-			case PEER_MSG_ID_UNCHOKE:
-				trace("UNCHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				p->state &= ~PEER_STATE_CHOKED;
-				if (p->piece != 0xffff) {
-					network_peer_write_unchoke(p);
-					network_peer_write_interested(p);
-					network_peer_request_piece(p, p->piece, p->bytes);
-				}
-				break;
-			case PEER_MSG_ID_INTERESTED:
-				trace("INTERESTED message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				p->state |= PEER_STATE_INTERESTED;
-				break;
-			case PEER_MSG_ID_NOTINTERESTED:
-				trace("NOTINTERESTED message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				p->state &= ~PEER_STATE_INTERESTED;
-				break;
-			case PEER_MSG_ID_HAVE:
-				memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
-				idx = ntohl(idx);
-				trace("HAVE message from peer %s:%d (idx=%u)", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx);
-				if (idx > p->sc->tp->num_pieces - 1) {
-					trace("have index overflow, ignoring");
-					return;
-				}
-				if (p->bitfield == NULL) {
-					bitfieldlen = p->sc->tp->num_pieces / 8;
-					p->bitfield = xmalloc(bitfieldlen);
-					memset(p->bitfield, 0, bitfieldlen);
-					p->state &= ~PEER_STATE_BITFIELD;
-					p->state |= PEER_STATE_ESTABLISHED;
-				}
-				setbit(p->bitfield, idx);
-				break;
-			case PEER_MSG_ID_BITFIELD:
-				trace("BITFIELD message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				if (!(p->state & PEER_STATE_BITFIELD)) {
-					trace("not expecting bitfield!");
-					return;
-				}
-				bitfieldlen = p->rxmsglen - sizeof(id);
-				if (bitfieldlen * 8 > p->sc->tp->num_pieces + 7
-				    || bitfieldlen * 8 + 7 < p->sc->tp->num_pieces) {
-					trace("bitfield is wrong size! killing peer connection (is: %u should be: %u)", bitfieldlen*8, p->sc->tp->num_pieces + 7);
-					p->state = 0;
-					p->state |= PEER_STATE_DEAD;
-					return;
-				}
-				p->bitfield = xmalloc(bitfieldlen);
-				memset(p->bitfield, 0, bitfieldlen);
-				memcpy(p->bitfield, p->rxmsg+sizeof(id), bitfieldlen);
-				p->state &= ~PEER_STATE_BITFIELD;
-				p->state |= PEER_STATE_ESTABLISHED;
-				break;
-			case PEER_MSG_ID_REQUEST:
-				trace("REQUEST message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
-				idx = ntohl(idx);
-				memcpy(&off, p->rxmsg+sizeof(idx), sizeof(off));
-				off = ntohl(off);
-				memcpy(&blocklen, p->rxmsg+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
-				blocklen = ntohl(blocklen);
-				network_peer_write_piece(p, idx, off, blocklen);
-				break;
-			case PEER_MSG_ID_PIECE:
-				p->state |= PEER_STATE_ISTRANSFERRING;
-				memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
-				idx = ntohl(idx);
-				memcpy(&off, p->rxmsg+sizeof(id)+sizeof(idx), sizeof(off));
-				off = ntohl(off);
-				trace("PIECE message (idx=%u off=%u len=%u) from peer %s:%d", idx,
-				    off, p->rxmsglen, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				tpp = torrent_piece_find(p->sc->tp, idx);
-				/* Only read if we don't already have it */
-				if (p->bytes <= off && !(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
-					network_peer_read_piece(p, idx, off,
-					    p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)),
-					    p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
-				} else {
-					network_peer_cancel_piece(p, idx, off);
-					break;
-				}
-				/* if there are more blocks in this piece, ask for another */
-				if (p->bytes < tpp->len) {
-					network_peer_request_piece(p, p->piece, p->bytes);
-				} else {
-					res = torrent_piece_checkhash(p->sc->tp, tpp);
-					if (res == 0) {
-						trace("hash check success for piece %d", p->piece);
-						torrent_piece_sync(p->sc->tp, tpp->index);
-						p->sc->tp->good_pieces++;
-						p->sc->tp->left -= tpp->len;
-						if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
-							refresh_progress_meter();
-							exit(0);
-						}
-					} else {
-						/* hash check failed, try re-downloading this piece */
-						trace("hash check failure for piece %d", p->piece);
-						p->bytes = 0;
-						p->state = 0;
-						p->state |= PEER_STATE_DEAD;
-						//network_peer_request_piece(p, p->piece, p->bytes);
-					}
-				}
-				break;
-			case PEER_MSG_ID_CANCEL:
-				/* XXX: not sure how to cancel a write */
-				trace("CANCEL message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				break;
-			default:
-				trace("Unknown message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				break;
-		}
+		network_peer_process_message(id, p);
 		if (p->rxmsg != NULL) {
 			xfree(p->rxmsg);
 			p->rxmsg = NULL;
 		}
+	}
+}
+
+static void
+network_peer_process_message(u_int8_t id, struct peer *p)
+{
+	struct torrent_piece *tpp;
+	u_int32_t bitfieldlen, idx, blocklen, off;
+	int res;
+
+	/* XXX: safety-check for correct message lengths */
+	switch (id) {
+		case PEER_MSG_ID_CHOKE:
+			trace("CHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			p->state |= PEER_STATE_CHOKED;
+			break;
+		case PEER_MSG_ID_UNCHOKE:
+			trace("UNCHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			p->state &= ~PEER_STATE_CHOKED;
+			if (p->piece != 0xffff) {
+				network_peer_write_unchoke(p);
+				network_peer_write_interested(p);
+				network_peer_request_piece(p, p->piece, p->bytes);
+			}
+			break;
+		case PEER_MSG_ID_INTERESTED:
+			trace("INTERESTED message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			p->state |= PEER_STATE_INTERESTED;
+			break;
+		case PEER_MSG_ID_NOTINTERESTED:
+			trace("NOTINTERESTED message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			p->state &= ~PEER_STATE_INTERESTED;
+			break;
+		case PEER_MSG_ID_HAVE:
+			memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
+			idx = ntohl(idx);
+			trace("HAVE message from peer %s:%d (idx=%u)", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx);
+			if (idx > p->sc->tp->num_pieces - 1) {
+				trace("have index overflow, ignoring");
+				return;
+			}
+			if (p->bitfield == NULL) {
+				bitfieldlen = p->sc->tp->num_pieces / 8;
+				p->bitfield = xmalloc(bitfieldlen);
+				memset(p->bitfield, 0, bitfieldlen);
+				p->state &= ~PEER_STATE_BITFIELD;
+				p->state |= PEER_STATE_ESTABLISHED;
+			}
+			setbit(p->bitfield, idx);
+			break;
+		case PEER_MSG_ID_BITFIELD:
+			trace("BITFIELD message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			if (!(p->state & PEER_STATE_BITFIELD)) {
+				trace("not expecting bitfield!");
+				return;
+			}
+			bitfieldlen = p->rxmsglen - sizeof(id);
+			if (bitfieldlen * 8 > p->sc->tp->num_pieces + 7
+			    || bitfieldlen * 8 + 7 < p->sc->tp->num_pieces) {
+				trace("bitfield is wrong size! killing peer connection (is: %u should be: %u)", bitfieldlen*8, p->sc->tp->num_pieces + 7);
+				p->state = 0;
+				p->state |= PEER_STATE_DEAD;
+				return;
+			}
+			p->bitfield = xmalloc(bitfieldlen);
+			memset(p->bitfield, 0, bitfieldlen);
+			memcpy(p->bitfield, p->rxmsg+sizeof(id), bitfieldlen);
+			p->state &= ~PEER_STATE_BITFIELD;
+			p->state |= PEER_STATE_ESTABLISHED;
+			break;
+		case PEER_MSG_ID_REQUEST:
+			trace("REQUEST message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
+			idx = ntohl(idx);
+			memcpy(&off, p->rxmsg+sizeof(idx), sizeof(off));
+			off = ntohl(off);
+			memcpy(&blocklen, p->rxmsg+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
+			blocklen = ntohl(blocklen);
+			network_peer_write_piece(p, idx, off, blocklen);
+			break;
+		case PEER_MSG_ID_PIECE:
+			p->state |= PEER_STATE_ISTRANSFERRING;
+			memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
+			idx = ntohl(idx);
+			memcpy(&off, p->rxmsg+sizeof(id)+sizeof(idx), sizeof(off));
+			off = ntohl(off);
+			trace("PIECE message (idx=%u off=%u len=%u) from peer %s:%d", idx,
+			    off, p->rxmsglen, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			tpp = torrent_piece_find(p->sc->tp, idx);
+			/* Only read if we don't already have it */
+			if (p->bytes <= off && !(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
+				network_peer_read_piece(p, idx, off,
+				    p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)),
+				    p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
+			} else {
+				network_peer_cancel_piece(p, idx, off);
+				break;
+			}
+			/* if there are more blocks in this piece, ask for another */
+			if (p->bytes < tpp->len) {
+				network_peer_request_piece(p, p->piece, p->bytes);
+			} else {
+				res = torrent_piece_checkhash(p->sc->tp, tpp);
+				if (res == 0) {
+					trace("hash check success for piece %d", p->piece);
+					torrent_piece_sync(p->sc->tp, tpp->index);
+					p->sc->tp->good_pieces++;
+					p->sc->tp->left -= tpp->len;
+					if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
+						refresh_progress_meter();
+						exit(0);
+					}
+				} else {
+					/* hash check failed, try re-downloading this piece */
+					trace("hash check failure for piece %d", p->piece);
+					p->bytes = 0;
+					p->state = 0;
+					p->state |= PEER_STATE_DEAD;
+					//network_peer_request_piece(p, p->piece, p->bytes);
+				}
+			}
+			break;
+		case PEER_MSG_ID_CANCEL:
+			/* XXX: not sure how to cancel a write */
+			trace("CANCEL message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			break;
+		default:
+			trace("Unknown message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			break;
 	}
 }
 
