@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.34 2007-07-20 02:59:43 cathcart Exp $ */
+/* $Id: main.c,v 1.35 2007-07-24 19:16:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -42,7 +42,7 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	int ch, j, badflag;
+	int ch, j;
 	u_int32_t i;
 	struct torrent *torrent;
 	struct torrent_piece *tpp;
@@ -77,26 +77,21 @@ main(int argc, char **argv)
 	if (argc == 0)
 		usage();
 
-	badflag = 0;
 	torrent = torrent_parse_file(argv[0]);
 	/* a little extra info? torrent_print(torrent); */
-	printf("hash mismatch for piece(s): ");
 	for (i = 0; i < torrent->num_pieces; i++) {
 		torrent_piece_map(torrent, i);
-		tpp = torrent_piece_find(torrent, i);
-		j = torrent_piece_checkhash(torrent, tpp);
-		if (j != 0) {
-			printf("%u ", i);
-			fflush(stdout);
-			badflag = 1;
-		} else {
-			torrent->good_pieces++;
+		if (torrent->isnew == 0) {
+			tpp = torrent_piece_find(torrent, i);
+			j = torrent_piece_checkhash(torrent, tpp);
+			if (j != 0) {
+				printf("%u ", i);
+				fflush(stdout);
+			} else {
+				torrent->good_pieces++;
+			}
 		}
 	}
-	if (badflag == 0)
-		printf("None");
-	printf("\n");
-
 
 	network_init();
 	network_start_torrent(torrent);

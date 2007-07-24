@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.72 2007-07-20 19:36:23 niallo Exp $ */
+/* $Id: torrent.c,v 1.73 2007-07-24 19:16:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -473,6 +473,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	if (fstat(tfp->fd, &sb) == -1)
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
 	if (sb.st_size < ((off_t)len + off)) {
+		tp->isnew = 1;
 		if ((fp = fdopen(tfp->fd, "a+")) == NULL)
 			err(1, "torrent_mmap_create: fwrite() faliure");
 		if (fseeko(fp, off, SEEK_CUR) != 0)

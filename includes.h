@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.15 2007-07-20 02:59:43 cathcart Exp $ */
+/* $Id: includes.h,v 1.16 2007-07-24 19:16:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -120,6 +120,7 @@ struct torrent {
 	size_t					interval;
 	char					*trackerid;
 	char					*name;
+	short					isnew;
 };
 
 void			 benc_node_add(struct benc_node *, struct benc_node *);
