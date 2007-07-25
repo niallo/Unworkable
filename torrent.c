@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.73 2007-07-24 19:16:31 niallo Exp $ */
+/* $Id: torrent.c,v 1.74 2007-07-25 19:11:10 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -460,9 +460,9 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 				errx(1, "torrent_mmap_create: path too long");
 			if ((basedir = dirname(buf)) == NULL)
 				err(1, "torrent_mmap_create: basename");
-			if (mkdir(basedir, 0744) == -1)
+			if (mkpath(basedir, 0755) == -1)
 				if (errno != EEXIST)
-					err(1, "torrent_mmap_create: mkdir");
+					err(1, "torrent_mmap_create \"%s\": mkdir", basedir);
 
 
 		}
@@ -732,4 +732,35 @@ torrent_empty(struct torrent *tp)
 			return (1);
 	}
 	return (0);
+}
+
+int
+mkpath(const char *s, mode_t mode){
+	char *q, *path = NULL, *up = NULL;
+	int rv;
+
+	rv = -1;
+	if (strcmp(s, ".") == 0){
+		errno = EEXIST;
+		goto out;
+	}
+
+	path = xstrdup(s);
+	if ((q = dirname(s)) == NULL)
+		goto out;
+	up = xstrdup(q);
+		goto out;
+
+	if (strcmp(path, up))
+		if ((mkpath(up, mode) == -1) && (errno != EEXIST))
+			goto out;
+	
+	if ((mkdir(path, mode) == -1) && (errno != EEXIST))
+		rv = -1;
+	else
+		rv = 0;
+
+out:	xfree(up);
+	xfree(path);
+	return (rv);
 }

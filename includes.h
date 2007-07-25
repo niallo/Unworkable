@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.16 2007-07-24 19:16:31 niallo Exp $ */
+/* $Id: includes.h,v 1.17 2007-07-25 19:11:10 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -157,6 +157,7 @@ void		 buf_write_stmp(BUF *, char *, mode_t);
 void		 buf_ungetc(BUF *);
 size_t		 buf_pos(BUF *);
 
+int		 mkpath(const char *, mode_t);
 void		 network_init(void);
 int		 network_start_torrent(struct torrent *);
 int				yyerror(const char *, ...);
