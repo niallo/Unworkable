@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.74 2007-07-25 19:11:10 niallo Exp $ */
+/* $Id: torrent.c,v 1.75 2007-07-26 17:17:13 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -740,20 +740,16 @@ mkpath(const char *s, mode_t mode){
 	int rv;
 
 	rv = -1;
-	if (strcmp(s, ".") == 0){
-		errno = EEXIST;
-		goto out;
-	}
+	if (strcmp(s, ".") == 0)
+		return 0;
 
 	path = xstrdup(s);
 	if ((q = dirname(s)) == NULL)
 		goto out;
 	up = xstrdup(q);
-		goto out;
 
-	if (strcmp(path, up))
-		if ((mkpath(up, mode) == -1) && (errno != EEXIST))
-			goto out;
+	if ((mkpath(up, mode) == -1) && (errno != EEXIST))
+		goto out;
 	
 	if ((mkdir(path, mode) == -1) && (errno != EEXIST))
 		rv = -1;
