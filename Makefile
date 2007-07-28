@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: Makefile,v 1.18 2007-05-16 21:53:53 niallo Exp $
+# $Id: Makefile,v 1.19 2007-07-28 00:00:46 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
@@ -38,7 +38,7 @@ OBJS= ${SRCS:N*.h:N*.sh:R:S/$/.o/g}
 all: ${PROG}
 
 ${PROG}: ${OBJS}
-	${CC} -o ${.TARGET} ${LDFLAGS} -levent ${OBJS}
+	${CC} -o ${.TARGET} ${LDFLAGS} -levent -lcrypto ${OBJS}
 
 clean:
 	rm -rf *.o ${PROG} y.tab.h

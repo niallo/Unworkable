@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.120 2007-07-24 19:27:29 niallo Exp $ */
+/* $Id: network.c,v 1.121 2007-07-28 00:00:46 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -22,6 +22,10 @@
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#include <openssl/bn.h>
+#include <openssl/dh.h>
+#include <openssl/engine.h>
 
 #include <ctype.h>
 #include <err.h>
@@ -47,6 +51,7 @@
 #define PEER_STATE_ISTRANSFERRING	(1<<7)
 #define PEER_STATE_DEAD			(1<<8)
 #define PEER_STATE_GOTLEN		(1<<9)
+#define PEER_STATE_CRYPTED		(1<<10)
 
 #define PEER_MSG_ID_CHOKE		0
 #define PEER_MSG_ID_UNCHOKE		1
@@ -63,6 +68,14 @@
 #define LENGTH_FIELD 			4 /* peer messages use a 4byte len field */
 #define MAX_MESSAGE_LEN 		0xffffff /* 16M */
 #define DEFAULT_ANNOUNCE_INTERVAL	1800/* */
+
+/* MSE defines
+ * see http://www.azureuswiki.com/index.php/Message_Stream_Encryption */
+#define CRYPTO_PRIME				0xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A63A36210000000000090563
+#define CRYPTO_GENERATOR			2
+#define CRYPTO_PLAINTEXT			0x01
+#define CRYPTO_RC4				0x02
+#define CRYPTO_INT_LEN				160
 
 #define BIT_SET(a,i)			((a)[(i)/8] |= 1<<(7-((i)%8)))
 #define BIT_CLR(a,i)			((a)[(i)/8] &= ~(1<<(7-((i)%8))))
@@ -87,6 +100,7 @@ struct peer {
 	u_int8_t info_hash[20];
 
 	struct session *sc;
+	struct timeval lastrevc;
 };
 
 /* data associated with a bittorrent session */
@@ -147,6 +161,8 @@ static int	network_piece_is_underway(struct session *, u_int32_t);
 static u_int32_t network_piece_next_rarest(struct session *);
 static void	network_peer_cancel_piece(struct peer *, u_int32_t, u_int32_t);
 static void	network_peer_process_message(u_int8_t, struct peer *);
+
+static DH	*network_crypto_dh(void);
 
 static int
 network_announce(struct session *sc, const char *event)
@@ -813,25 +829,21 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			xfree(p->rxmsg);
 			p->rxmsg = NULL;
 			if (p->pstrlen != 19) {
-				trace("network_handle_peer_response() pstrlen is %d not 19!  Killing peer %s:%d", p->pstrlen, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				/*
-				p->state = 0;
-				p->state |= PEER_STATE_DEAD;
-				return;
-				*/
+				trace("network_handle_peer_response() pstrlen is not 19! Trying key exchange with peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+				p->state |= PEER_STATE_CRYPTED;
 			}
 			/* now we can allocate full data buffer, and know when we're done reading... */
 			p->rxmsglen = p->pstrlen + 8 + 20 + 20;
 			p->rxmsg = xmalloc(p->rxmsglen);
 			p->rxpending = p->rxmsglen;
 			trace("network_handle_peer_response() initial handshake received");
-			return;
+			goto out;
 		} else {
 			base = p->rxmsg + (p->rxmsglen - p->rxpending);
 			len = bufferevent_read(bufev, base, p->rxpending);
 			p->rxpending -= len;
 			if (p->rxpending > 0)
-				return;
+				goto out;
 			/* if we get this far, means we have got the full handshake */
 			memcpy(&p->info_hash, p->rxmsg + p->pstrlen + 8, 20);
 			memcpy(&p->id, p->rxmsg + p->pstrlen + 8 + 20, 20);
@@ -839,7 +851,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				trace("network_handle_peer_response() info hash mismatch for peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				p->state = 0;
 				p->state |= PEER_STATE_DEAD;
-				return;
+				goto out;
 			}
 
 			xfree(p->rxmsg);
@@ -851,7 +863,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				network_peer_write_bitfield(p);
 			network_peer_write_unchoke(p);
 			p->rxpending = 0;
-			return;
+			goto out;
 		}
 	} else {
 		if (p->rxpending == 0) {
@@ -869,7 +881,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			p->rxpending -= len;
 			/* more rx data pending, come back later */
 			if (p->rxpending > 0)
-				return;
+				goto out;
 			if (!(p->state & PEER_STATE_GOTLEN)) {
 				/* got the length field */
 				memcpy(&msglen, p->rxmsg, sizeof(msglen));
@@ -878,17 +890,17 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					trace("network_handle_peer_response() got a message %u bytes long, longer than %u bytes, assuming its malicious and killing peer %s:%d", p->rxmsglen, MAX_MESSAGE_LEN, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 					p->state = 0;
 					p->state |= PEER_STATE_DEAD;
-					return;
+					goto out;
 				}
 				xfree(p->rxmsg);
 				p->state |= PEER_STATE_GOTLEN;
 				/* keep-alive: do nothing */
 				if (p->rxmsglen == 0)
-					return;
+					goto out;
 				p->rxmsg = xmalloc(p->rxmsglen);
 				memset(p->rxmsg, 0, p->rxmsglen);
 				p->rxpending = p->rxmsglen;
-				return;
+				goto out;
 			}
 		}
 
@@ -900,6 +912,10 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			p->rxmsg = NULL;
 		}
 	}
+out:
+	if (gettimeofday(&p->lastrevc, NULL) == -1)
+		err(1, "network_handle_peer_response: gettimeofday");
+
 }
 
 static void
@@ -1414,6 +1430,24 @@ network_start_torrent(struct torrent *tp)
 	trace("network_start_torrent() returning");
 
 	return (ret);
+}
+
+static DH *
+network_crypto_dh()
+{
+	DH *dhp;
+
+	if ((dhp = DH_new()) == NULL)
+		errx(1, "network_crypto_pubkey: DH_new() failure");
+	if ((dhp->p = BN_bin2bn(mse_P, CRYPTO_INT_LEN, NULL)) == NULL)
+		errx(1, "network_crypto_pubkey: BN_bin2bn(P) failure");
+	if ((dhp->g = BN_bin2bn(mse_G, CRYPTO_INT_LEN, NULL)) == NULL)
+		errx(1, "network_crypto_pubkey: BN_bin2bn(G) failure");
+	if (DH_generate_key(dhp) == 0)
+		errx(1, "network_crypto_pubkey: DH_generate_key() failure");
+
+	return (dhp);
+
 }
 
 /* network subsystem init, needs to be called before doing anything */
