@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.121 2007-07-28 00:00:46 niallo Exp $ */
+/* $Id: network.c,v 1.122 2007-07-29 20:08:55 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -41,7 +41,7 @@
 
 #include "includes.h"
 
-#define PEER_STATE_HANDSHAKE		(1<<0)
+#define PEER_STATE_HANDSHAKE1		(1<<0)
 #define PEER_STATE_BITFIELD		(1<<1)
 #define PEER_STATE_ESTABLISHED		(1<<2)
 #define PEER_STATE_AMCHOKING		(1<<3)
@@ -52,6 +52,7 @@
 #define PEER_STATE_DEAD			(1<<8)
 #define PEER_STATE_GOTLEN		(1<<9)
 #define PEER_STATE_CRYPTED		(1<<10)
+#define PEER_STATE_HANDSHAKE2		(1<<11)
 
 #define PEER_MSG_ID_CHOKE		0
 #define PEER_MSG_ID_UNCHOKE		1
@@ -76,6 +77,12 @@
 #define CRYPTO_PLAINTEXT			0x01
 #define CRYPTO_RC4				0x02
 #define CRYPTO_INT_LEN				160
+#define CRYPTO_MAX_BYTES1			608
+#define CRYPTO_MIN_BYTES1			96
+
+#define BT_PROTOCOL				"BitTorrent protocol"
+#define BT_PSTRLEN				19
+#define BT_INITIAL_LEN 				20
 
 #define BIT_SET(a,i)			((a)[(i)/8] |= 1<<(7-((i)%8)))
 #define BIT_CLR(a,i)			((a)[(i)/8] &= ~(1<<(7-((i)%8))))
@@ -161,6 +168,7 @@ static int	network_piece_is_underway(struct session *, u_int32_t);
 static u_int32_t network_piece_next_rarest(struct session *);
 static void	network_peer_cancel_piece(struct peer *, u_int32_t, u_int32_t);
 static void	network_peer_process_message(u_int8_t, struct peer *);
+static void	network_print_len(void *, size_t);
 
 static DH	*network_crypto_dh(void);
 
@@ -440,7 +448,7 @@ network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
 	trace("network_handle_peer_connect() accepted peer: %s:%d",
 	    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 
-	p->state |= PEER_STATE_HANDSHAKE;
+	p->state |= PEER_STATE_HANDSHAKE1;
 	p->bufev = bufferevent_new(p->connfd, network_handle_peer_response,
 	    network_handle_peer_write, network_handle_peer_error, p);
 	if (p->bufev == NULL)
@@ -521,7 +529,7 @@ network_connect(int domain, int type, int protocol, const struct sockaddr *name,
 static int
 network_connect_peer(struct peer *p)
 {
-	p->state |= PEER_STATE_HANDSHAKE;
+	p->state |= PEER_STATE_HANDSHAKE1;
 	return (network_connect(PF_INET, SOCK_STREAM, 0,
 	    (const struct sockaddr *) &p->sa, sizeof(p->sa)));
 }
@@ -804,7 +812,6 @@ static void
 network_handle_peer_response(struct bufferevent *bufev, void *data)
 {
 	struct peer *p = data;
-	/* should always be 19, but just in case... */
 	size_t len;
 	u_int32_t msglen;
 	u_int8_t *base, id = 0;
@@ -817,54 +824,11 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	 * data */
 
 	/* XXX split into multiple smaller functions */
-	if (p->state & PEER_STATE_HANDSHAKE) {
-		if (p->rxpending == 0) {
-			/* this should be a handshake response, minimum of 1 byte read, which is length
-			 * field, so we always know how much data to expect */
-			p->rxmsg = xmalloc(1);
-			len = bufferevent_read(bufev, p->rxmsg, 1);
-			if (len != 1)
-				errx(1, "network_handle_peer_response() couldn't read initial handshake byte - this is very bad!");
-			memcpy(&p->pstrlen, p->rxmsg, 1);
-			xfree(p->rxmsg);
-			p->rxmsg = NULL;
-			if (p->pstrlen != 19) {
-				trace("network_handle_peer_response() pstrlen is not 19! Trying key exchange with peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				p->state |= PEER_STATE_CRYPTED;
-			}
-			/* now we can allocate full data buffer, and know when we're done reading... */
-			p->rxmsglen = p->pstrlen + 8 + 20 + 20;
-			p->rxmsg = xmalloc(p->rxmsglen);
-			p->rxpending = p->rxmsglen;
-			trace("network_handle_peer_response() initial handshake received");
-			goto out;
-		} else {
-			base = p->rxmsg + (p->rxmsglen - p->rxpending);
-			len = bufferevent_read(bufev, base, p->rxpending);
-			p->rxpending -= len;
-			if (p->rxpending > 0)
-				goto out;
-			/* if we get this far, means we have got the full handshake */
-			memcpy(&p->info_hash, p->rxmsg + p->pstrlen + 8, 20);
-			memcpy(&p->id, p->rxmsg + p->pstrlen + 8 + 20, 20);
-			if (memcmp(p->info_hash, p->sc->tp->info_hash, 20) != 0) {
-				trace("network_handle_peer_response() info hash mismatch for peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				p->state = 0;
-				p->state |= PEER_STATE_DEAD;
-				goto out;
-			}
-
-			xfree(p->rxmsg);
-			p->rxmsg = NULL;
-			p->state |= PEER_STATE_BITFIELD;
-			p->state &= ~PEER_STATE_HANDSHAKE;
-			/* if we have some pieces, send our bitfield */
-			if (torrent_empty(p->sc->tp) == 1)
-				network_peer_write_bitfield(p);
-			network_peer_write_unchoke(p);
-			p->rxpending = 0;
-			goto out;
-		}
+	if (p->state & PEER_STATE_HANDSHAKE1 && p->rxpending == 0) {
+		p->rxmsg = xmalloc(BT_INITIAL_LEN);
+		p->rxmsglen = BT_INITIAL_LEN;
+		p->rxpending = p->rxmsglen;
+		goto read;
 	} else {
 		if (p->rxpending == 0) {
 			/* this is a new message */
@@ -873,15 +837,61 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 			p->rxmsglen = LENGTH_FIELD;
 			p->rxpending = p->rxmsglen;
 
-			goto read2;
+			goto read;
 		} else {
-		read2:
+		read:
 			base = p->rxmsg + (p->rxmsglen - p->rxpending);
 			len = bufferevent_read(bufev, base, p->rxpending);
 			p->rxpending -= len;
 			/* more rx data pending, come back later */
 			if (p->rxpending > 0)
 				goto out;
+			if (p->state & PEER_STATE_HANDSHAKE1) {
+				memcpy(&p->pstrlen, p->rxmsg,
+				    sizeof(p->pstrlen));
+				/* test for plain handshake */
+				if (p->pstrlen == BT_PSTRLEN
+				    && memcmp(p->rxmsg+1, BT_PROTOCOL, BT_PSTRLEN) == 0) {
+					xfree(p->rxmsg);
+					p->rxmsg = NULL;
+					p->rxpending = 8 + 20 + 20;
+					p->rxmsglen = p->rxpending;
+					p->rxmsg = xmalloc(p->rxmsglen);
+					p->state &= ~PEER_STATE_HANDSHAKE1;
+					p->state |= PEER_STATE_HANDSHAKE2;
+					goto out;
+
+				} else {
+				/* try D-H key exchange */
+					trace("network_handle_peer_response: crypto, killing peer for now");
+					p->state = 0;
+					p->state |= PEER_STATE_DEAD;
+					goto out;
+				}
+
+
+			}
+			if (p->state & PEER_STATE_HANDSHAKE2) {
+				memcpy(&p->info_hash, p->rxmsg + 8, 20);
+				memcpy(&p->id, p->rxmsg + 8 + 20, 20);
+				if (memcmp(p->info_hash, p->sc->tp->info_hash, 20) != 0) {
+					trace("network_handle_peer_response() info hash mismatch for peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+					p->state = 0;
+					p->state |= PEER_STATE_DEAD;
+					goto out;
+				}
+
+				xfree(p->rxmsg);
+				p->rxmsg = NULL;
+				p->state |= PEER_STATE_BITFIELD;
+				p->state &= ~PEER_STATE_HANDSHAKE2;
+				/* if we have some pieces, send our bitfield */
+				if (torrent_empty(p->sc->tp) == 1)
+					network_peer_write_bitfield(p);
+				network_peer_write_unchoke(p);
+				p->rxpending = 0;
+				goto out;
+			}
 			if (!(p->state & PEER_STATE_GOTLEN)) {
 				/* got the length field */
 				memcpy(&msglen, p->rxmsg, sizeof(msglen));
@@ -1448,6 +1458,23 @@ network_crypto_dh()
 
 	return (dhp);
 
+}
+
+static void
+network_print_len(void *ptr, size_t len)
+{
+	char *out, *p;
+	size_t i;
+
+	out = xmalloc(len + 3);
+	memset(out, '\0', len + 3);
+	p = (char *)ptr;
+	
+	for (i = 0; i < len; i++) {
+		snprintf(out, len+3, "%s%c", out, *p);
+		p++;
+	}
+	printf("network_print_len: %s\n", out);
 }
 
 /* network subsystem init, needs to be called before doing anything */
