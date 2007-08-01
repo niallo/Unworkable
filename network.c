@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.126 2007-08-01 22:57:54 niallo Exp $ */
+/* $Id: network.c,v 1.127 2007-08-01 23:36:09 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -394,7 +394,6 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 		errx(1,"network_handle_announce_error: could not allocate buffer");
 	buf_set(buf, c, sc->res->rxread - (c - sc->res->rxmsg), 0);
 
-	buf_write(buf, "/tmp/try2", 0644);
 	trace("network_handle_announce_error() bencode parsing buffer");
 	troot = benc_root_create();
 	if ((troot = benc_parse_buf(buf, troot)) == NULL)
