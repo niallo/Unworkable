@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.77 2007-08-01 20:51:18 niallo Exp $ */
+/* $Id: torrent.c,v 1.78 2007-08-01 21:47:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -443,12 +443,10 @@ struct torrent_mmap *
 torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
     u_int32_t len)
 {
-	FILE *fp;
 	struct torrent_mmap *tmmp;
 	struct stat sb;
 	char buf[MAXPATHLEN], zero = 0x00, *basedir;
 	int fd = 0, l;
-	u_int32_t i;
 	open:
 	if (tfp->fd == 0) {
 		if (tp->type == SINGLEFILE)
@@ -474,14 +472,13 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
 	if (sb.st_size < ((off_t)len + off)) {
 		tp->isnew = 1;
-		if ((fp = fdopen(tfp->fd, "a+")) == NULL)
-			err(1, "torrent_mmap_create: fwrite() faliure");
-		if (fseeko(fp, off, SEEK_CUR) != 0)
-			err(1, "torrent_mmap_create: fseeko() failure");
-		for (i = 0; i < len; i++)
-			if (fwrite(&zero, 1, 1, fp) < 1)
-				err(1, "torrent_mmap_create: fwrite() failure");
-		fclose(fp);
+		/* seek to the expected size of file ... */
+		if (lseek(fd, (off_t)len + off, SEEK_SET) ==-1 )
+			err(1, "torrent_mmap_create: lseek() failure");
+		/* and write a byte there */
+		if (write(fd, &zero, 1) < 1)
+			err(1, "torrent_mmap_create: write() failure");
+		close(tfp->fd);
 		tfp->fd = 0;
 		goto open;
 	}
