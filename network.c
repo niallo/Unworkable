@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.122 2007-07-29 20:08:55 niallo Exp $ */
+/* $Id: network.c,v 1.123 2007-08-01 18:28:33 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -89,6 +89,15 @@
 #define BIT_ISSET(a,i)			((a)[(i)/8] & (1<<(7-((i)%8))))
 #define BIT_ISCLR(a,i)			(((a)[(i)/8] & (1<<(7-((i)%8)))) == 0)
 
+/* data for a http response */
+struct http_response {
+	/* response buffer */
+	u_int8_t *rxmsg;
+	/* size of buffer so far */
+	u_int32_t rxread,rxmsglen;
+};
+
+
 /* bittorrent peer */
 struct peer {
 	TAILQ_ENTRY(peer) peer_list;
@@ -128,6 +137,7 @@ struct session {
 	struct event scheduler_event;
 	struct sockaddr_in sa;
 	struct torrent *tp;
+	struct http_response *res;
 };
 
 struct piececounter {
@@ -277,7 +287,7 @@ network_announce(struct session *sc, const char *event)
 	}
 
 	l = snprintf(request, GETSTRINGLEN,
-	    "GET %s%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\nUser-agent: Unworkable/1.0\r\n\r\n", path,
+	    "GET %s%s HTTP/1.0\r\nHost: %s\r\nUser-agent: Unworkable/1.0\r\n\r\n", path,
 	    params, host);
 	if (l == -1 || l >= GETSTRINGLEN)
 		goto trunc;
@@ -289,11 +299,16 @@ network_announce(struct session *sc, const char *event)
 		exit(1);
 	
 	sc->request = request;
+	sc->res = xmalloc(sizeof *sc->res);
+	memset(sc->res, 0, sizeof *sc->res);
+#define RESBUFLEN 1024
+	sc->res->rxmsg = xmalloc(RESBUFLEN);
+	sc->res->rxmsglen = RESBUFLEN;
 	bufev = bufferevent_new(sc->connfd, network_handle_announce_response,
 	    network_handle_write, network_handle_announce_error, sc);
 	if (bufev == NULL)
 		errx(1, "network_announce: bufferevent_new failure");
-	bufferevent_enable(bufev, EV_READ|EV_PERSIST);
+	bufferevent_enable(bufev, EV_READ);
 	trace("network_announce() writing to socket");
 	if (bufferevent_write(bufev, request, strlen(request) + 1) != 0)
 		errx(1, "network_announce: bufferevent_write failure");
@@ -314,29 +329,41 @@ trunc:
 static void
 network_handle_announce_response(struct bufferevent *bufev, void *arg)
 {
-#define RESBUFLEN 1024
-	BUF *buf;
-	u_char *c, *res;
 	size_t len;
-	struct benc_node *node, *troot;
 	struct session *sc;
+
+	sc = arg;
+	trace("network_handle_announce_response() reading buffer");
+	/* within 256 bytes of filling up our buffer - grow it */
+	if (sc->res->rxmsglen <= sc->res->rxread + 256) {
+		sc->res->rxmsglen += RESBUFLEN;
+		sc->res->rxmsg = xrealloc(sc->res->rxmsg, sc->res->rxmsglen);
+	}
+	len = bufferevent_read(bufev, sc->res->rxmsg + sc->res->rxread, 256);
+	sc->res->rxread += len;
+	trace("network_handle_announce_response() read %u", len);
+}
+
+static void
+network_handle_announce_error(struct bufferevent *bufev, short error, void *data)
+{
+	struct session *sc = data;
+	struct benc_node *node, *troot;
 	struct torrent *tp;
 	struct timeval tv;
 	struct bufferevent *bev;
+	BUF *buf = NULL;
+	u_char *c;
 
-	trace("network_handle_announce_response() called");
-	buf = NULL;
-	troot = node = NULL;
-	/* XXX need to handle case where full response is not yet buffered */
-	res = xmalloc(RESBUFLEN);
-	memset(res, '\0', RESBUFLEN);
-	trace("network_handle_announce_response() reading buffer");
-	len = bufferevent_read(bufev, res, RESBUFLEN);
-
-	sc = arg;
+	trace("network_handle_announce_error() called");
+	/* still could be data left for reading */
+	network_handle_announce_response(bufev, sc);
 	tp = sc->tp;
 
-	c = res;
+	if (error & EVBUFFER_TIMEOUT)
+		errx(1, "network_handle_announce_error() TIMOUT (unexpected)");
+
+	c = sc->res->rxmsg;
 	if (strncmp(c, "HTTP/1.0", 8) != 0 && strncmp(c, "HTTP/1.1", 8)) {
 		warnx("network_handle_announce_response: not a valid HTTP response");
 		goto err;
@@ -354,14 +381,11 @@ network_handle_announce_response(struct bufferevent *bufev, void *arg)
 	}
 	c += 4;
 
-	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL) {
-		warnx("network_handle_announce_response: could not allocate buffer");
-		trace("network_handle_announce_response() freeing res");
-		xfree(res);
-		return;
-	}
-	buf_set(buf, c, len - (c - res), 0);
+	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL)
+		errx(1,"network_handle_announce_response: could not allocate buffer");
+	buf_set(buf, c, sc->res->rxread - (c - sc->res->rxmsg), 0);
 
+	buf_write(buf, "/tmp/try2", 0644);
 	trace("network_handle_announce_response() bencode parsing buffer");
 	troot = benc_root_create();
 	if ((troot = benc_parse_buf(buf, troot)) == NULL)
@@ -410,10 +434,13 @@ err:
 	bufev = NULL;
 	if (buf != NULL)
 		buf_free(buf);
-	trace("network_handle_announce_response() freeing res2");
-	xfree(res);
+	trace("network_handle_announce_error() freeing res2");
+	xfree(sc->res->rxmsg);
+	xfree(sc->res);
+	sc->res = NULL;
 	(void) close(sc->connfd);
-	trace("network_handle_announce_response() done");
+	trace("network_handle_announce_error() done");
+
 }
 
 static void
@@ -432,12 +459,17 @@ network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
 	p = network_peer_create();
 	p->sc = sc;
 	addrlen = sizeof(p->sa);
+#if 0
+	trace("1");
 	bufferevent_free(bufev);
+	bufev = NULL;
+	trace("2");
 	bufev = bufferevent_new(sc->servfd, NULL,
 	    NULL, network_handle_peer_connect, sc);
 	if (bufev == NULL)
 		errx(1, "network_handle_announce_response: bufferevent_new failure");
 	bufferevent_enable(bufev, EV_PERSIST|EV_READ);
+#endif
 
 	trace("network_handle_peer_connect() accepting connection");
 	if ((p->connfd = accept(sc->servfd, (struct sockaddr *) &p->sa, &addrlen)) == -1) {
@@ -453,7 +485,7 @@ network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
 	    network_handle_peer_write, network_handle_peer_error, p);
 	if (p->bufev == NULL)
 		errx(1, "network_announce: bufferevent_new failure");
-	bufferevent_enable(p->bufev, EV_READ|EV_WRITE|EV_PERSIST);
+	bufferevent_enable(p->bufev, EV_READ|EV_WRITE);
 	trace("network_handle_peer_connect() initiating handshake");
 	TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
 	network_peer_handshake(sc, p);
@@ -561,30 +593,11 @@ network_connect_tracker(const char *host, const char *port)
 }
 
 static void
-network_handle_announce_error(struct bufferevent *bufev, short error, void *data)
-{
-	struct session *sc = data;
-
-	if (error & EVBUFFER_TIMEOUT) {
-		trace("network_handle_announce_error() TIMEOUT");
-		bufferevent_free(bufev);
-		bufev = NULL;
-	}
-	if (error & EVBUFFER_EOF) {
-		trace("network_handle_announce_error() EOF");
-		bufferevent_free(bufev);
-		bufev = NULL;
-		(void) close(sc->connfd);
-	}
-}
-
-static void
 network_handle_write(struct bufferevent *bufev, void *data)
 {
 	struct session *sc = data;
 
 	trace("network_handle_write() called");
-	trace("freeing request");
 	xfree(sc->request);
 }
 
@@ -706,7 +719,7 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 			    network_handle_peer_write, network_handle_peer_error, ep);
 			if (ep->bufev == NULL)
 				errx(1, "network_peerlist_update: bufferevent_new failure");
-			bufferevent_enable(ep->bufev, EV_READ|EV_WRITE|EV_PERSIST);
+			bufferevent_enable(ep->bufev, EV_READ|EV_WRITE);
 			trace("network_peerlist_update() initiating handshake");
 			network_peer_handshake(sc, ep);
 		}
@@ -729,8 +742,9 @@ network_peer_free(struct peer *p)
 	if (p == NULL)
 		return;
 	if (p->bufev != NULL) {
-		bufferevent_disable(p->bufev, EV_WRITE|EV_READ|EV_PERSIST);
+		bufferevent_disable(p->bufev, EV_WRITE|EV_READ);
 		bufferevent_free(p->bufev);
+		p->bufev = NULL;
 	}
 	if (p->rxmsg != NULL)
 		xfree(p->rxmsg);
