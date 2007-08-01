@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.78 2007-08-01 21:47:31 niallo Exp $ */
+/* $Id: torrent.c,v 1.79 2007-08-01 22:05:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -473,7 +473,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	if (sb.st_size < ((off_t)len + off)) {
 		tp->isnew = 1;
 		/* seek to the expected size of file ... */
-		if (lseek(fd, (off_t)len + off, SEEK_SET) ==-1 )
+		if (lseek(fd, (off_t)len + off - 1, SEEK_SET) ==-1 )
 			err(1, "torrent_mmap_create: lseek() failure");
 		/* and write a byte there */
 		if (write(fd, &zero, 1) < 1)
