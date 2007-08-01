@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.125 2007-08-01 20:30:36 niallo Exp $ */
+/* $Id: network.c,v 1.126 2007-08-01 22:57:54 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -157,6 +157,8 @@ static int	network_connect(int, int, int, const struct sockaddr *,
 static int	network_connect_tracker(const char *, const char *);
 static int	network_connect_peer(struct peer *);
 static void	network_peerlist_update(struct session *, struct benc_node *);
+static void	network_peerlist_update_dict(struct session *, struct benc_node *);
+static void	network_peerlist_update_string(struct session *, struct benc_node *);
 static void	network_peer_handshake(struct session *, struct peer *);
 static void	network_peer_write_piece(struct peer *, u_int32_t, off_t, u_int32_t);
 static void	network_peer_read_piece(struct peer *, u_int32_t, off_t, u_int32_t, void *);
@@ -626,16 +628,12 @@ network_announce_update(int fd, short type, void *arg)
    often at all (once per announce, interval is often thousands of seconds).
    So O(n2) should be acceptable worst case. */
 static void
-network_peerlist_update(struct session *sc, struct benc_node *peers)
+network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 {
 	char *peerlist;
 	size_t len, i;
 	struct peer *p, *ep, *nxt;
 	int found = 0;
-
-	/* XXX */
-	if (!(peers->flags & BSTRING))
-		errx(1, "long peer lists not supported yet");
 
 	len = peers->body.string.len;
 	peerlist = peers->body.string.value;
@@ -730,6 +728,24 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 			trace("network_peerlist_update() initiating handshake");
 			network_peer_handshake(sc, ep);
 		}
+	}
+}
+
+static void
+network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
+{
+
+	/* XXX */
+	errx(1, "long peer lists not yet supported");
+}
+
+static void
+network_peerlist_update(struct session *sc, struct benc_node *peers)
+{
+	if (peers->flags & BSTRING) {
+		network_peerlist_update_string(sc, peers);
+	} else {
+		network_peerlist_update_dict(sc, peers);
 	}
 }
 
