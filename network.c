@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.124 2007-08-01 18:30:01 niallo Exp $ */
+/* $Id: network.c,v 1.125 2007-08-01 20:30:36 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -353,11 +353,18 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 	struct timeval tv;
 	struct bufferevent *bev;
 	BUF *buf = NULL;
+	u_int32_t l;
 	u_char *c;
 
 	trace("network_handle_announce_error() called");
 	/* still could be data left for reading */
-	network_handle_announce_response(bufev, sc);
+
+	do {
+		l = sc->res->rxread;
+		network_handle_announce_response(bufev, sc);
+	}
+	while (sc->res->rxread - l > 0);
+
 	tp = sc->tp;
 
 	if (error & EVBUFFER_TIMEOUT)
@@ -365,30 +372,31 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 
 	c = sc->res->rxmsg;
 	if (strncmp(c, "HTTP/1.0", 8) != 0 && strncmp(c, "HTTP/1.1", 8)) {
-		warnx("network_handle_announce_response: not a valid HTTP response");
+		warnx("network_handle_announce_error: not a valid HTTP response");
 		goto err;
 	}
 	c += 9;
 	if (strncmp(c, "200", 3) != 0) {
 		*(c + 3) = '\0';
-		warnx("network_handle_announce_response: HTTP response indicates error (code: %s)", c);
+		warnx("network_handle_announce_error: HTTP response indicates error (code: %s)", c);
 		goto err;
 	}
 	c = strstr(c, "\r\n\r\n");
 	if (c == NULL) {
-		warnx("network_handle_announce_response: HTTP response had no content");
+		warnx("network_handle_announce_error: HTTP response had no content");
 		goto err;
 	}
 	c += 4;
 
 	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL)
-		errx(1,"network_handle_announce_response: could not allocate buffer");
+		errx(1,"network_handle_announce_error: could not allocate buffer");
 	buf_set(buf, c, sc->res->rxread - (c - sc->res->rxmsg), 0);
 
-	trace("network_handle_announce_response() bencode parsing buffer");
+	buf_write(buf, "/tmp/try2", 0644);
+	trace("network_handle_announce_error() bencode parsing buffer");
 	troot = benc_root_create();
 	if ((troot = benc_parse_buf(buf, troot)) == NULL)
-		errx(1,"network_handle_announce_response: HTTP response parsing failed");
+		errx(1,"network_handle_announce_error: HTTP response parsing failed");
 
 	if ((node = benc_node_find(troot, "interval")) == NULL) {
 		tp->interval = DEFAULT_ANNOUNCE_INTERVAL;
@@ -401,28 +409,28 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 
 	if ((node = benc_node_find(troot, "peers")) == NULL)
 		errx(1, "no peers field");
-	trace("network_handle_announce_response() updating peerlist");
+	trace("network_handle_announce_error() updating peerlist");
 	network_peerlist_update(sc, node);
 	benc_node_freeall(troot);
 	troot = NULL;
 
-	trace("network_handle_announce_response() setting announce timer");
+	trace("network_handle_announce_error() setting announce timer");
 	timerclear(&tv);
 	tv.tv_sec = tp->interval;
 	evtimer_del(&sc->announce_event);
 	evtimer_set(&sc->announce_event, network_announce_update, sc);
 	evtimer_add(&sc->announce_event, &tv);
 	if (sc->servfd == 0) {
-		trace("network_handle_announce_response() setting up server socket");
+		trace("network_handle_announce_error() setting up server socket");
 		/* time to set up the server socket */
 		sc->servfd = network_listen(sc, "0.0.0.0", sc->port);
 		bev = bufferevent_new(sc->servfd, NULL,
 		    NULL, network_handle_peer_connect, sc);
 		if (bufev == NULL)
-			errx(1, "network_handle_announce_response: bufferevent_new failure");
+			errx(1, "network_handle_announce_error: bufferevent_new failure");
 		bufferevent_enable(bev, EV_PERSIST|EV_READ);
 		/* now that we've announced, kick off the scheduler */
-		trace("network_handle_announce_response() setting up scheduler");
+		trace("network_handle_announce_error() setting up scheduler");
 		timerclear(&tv);
 		tv.tv_sec = 1;
 		evtimer_set(&sc->scheduler_event, network_scheduler, sc);
