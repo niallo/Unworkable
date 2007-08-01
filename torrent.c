@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.75 2007-07-26 17:17:13 niallo Exp $ */
+/* $Id: torrent.c,v 1.76 2007-08-01 19:10:25 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -478,9 +478,8 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 			err(1, "torrent_mmap_create: fwrite() faliure");
 		if (fseeko(fp, off, SEEK_CUR) != 0)
 			err(1, "torrent_mmap_create: fseeko() failure");
-		for (i = 0; i < len; i ++)
-			if (fwrite(&zero, 1, 1, fp) < 1)
-				err(1, "torrent_mmap_create: fwrite() failure");
+		if (fwrite(&zero, 1, len, fp) < 1)
+			err(1, "torrent_mmap_create: fwrite() failure");
 		fclose(fp);
 		tfp->fd = 0;
 		goto open;
