@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.80 2007-08-02 19:43:20 niallo Exp $ */
+/* $Id: torrent.c,v 1.81 2007-08-02 19:50:59 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -465,7 +465,10 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 
 		}
 		if ((fd = open(buf, O_RDWR|O_CREAT, 0600)) == -1)
-			err(1, "torrent_data_open: open `%s'", buf);
+			err(1, "torrent_mmap_create: open `%s'", buf);
+
+		if (flock(fd, LOCK_EX | LOCK_NB) == -1)
+			err(1, "torrent_mmap_create: flock()");
 		tfp->fd = fd;
 	}
 	if (fstat(tfp->fd, &sb) == -1)
@@ -478,6 +481,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 		/* and write a byte there */
 		if (write(fd, &zero, 1) < 1)
 			err(1, "torrent_mmap_create: write() failure");
+		flock(tfp->fd, LOCK_UN);
 		close(tfp->fd);
 		tfp->fd = 0;
 		goto open;
@@ -684,6 +688,7 @@ torrent_piece_unmap(struct torrent *tp, u_int32_t idx)
 	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps) {
 		tmmp->tfp->refs--;
 		if (tmmp->tfp->refs == 0) {
+			flock(tmmp->tfp->fd, LOCK_UN);
 			(void)  close(tmmp->tfp->fd);
 			tmmp->tfp->fd = 0;
 		}
