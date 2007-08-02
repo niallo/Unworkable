@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.18 2007-07-28 00:00:46 niallo Exp $ */
+/* $Id: includes.h,v 1.19 2007-08-02 23:18:45 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -218,6 +218,7 @@ void	stop_progress_meter(void);
 void	trace(const char *, ...);
 
 void	sighandler(int);
+void	print_len(void *, size_t);
 
 
 extern char *unworkable_trace;

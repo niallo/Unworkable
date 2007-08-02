@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.82 2007-08-02 20:50:16 niallo Exp $ */
+/* $Id: torrent.c,v 1.83 2007-08-02 23:18:45 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -474,6 +474,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	if (fstat(tfp->fd, &sb) == -1)
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
 	if (sb.st_size < ((off_t)len + off)) {
+		trace("%llu offset zeroed, len %u", off, len);
 		tp->isnew = 1;
 		/* seek to the expected size of file ... */
 		if (lseek(fd, (off_t)len + off - 1, SEEK_SET) ==-1 )
@@ -735,29 +736,3 @@ torrent_empty(struct torrent *tp)
 	return (0);
 }
 
-int
-mkpath(const char *s, mode_t mode){
-	char *q, *path = NULL, *up = NULL;
-	int rv;
-
-	rv = -1;
-	if (strcmp(s, ".") == 0)
-		return 0;
-
-	path = xstrdup(s);
-	if ((q = dirname(s)) == NULL)
-		goto out;
-	up = xstrdup(q);
-
-	if ((mkpath(up, mode) == -1) && (errno != EEXIST))
-		goto out;
-	
-	if ((mkdir(path, mode) == -1) && (errno != EEXIST))
-		rv = -1;
-	else
-		rv = 0;
-
-out:	xfree(up);
-	xfree(path);
-	return (rv);
-}

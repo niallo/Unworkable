@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.128 2007-08-02 19:43:20 niallo Exp $ */
+/* $Id: network.c,v 1.129 2007-08-02 23:18:45 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -181,7 +181,6 @@ static int	network_piece_is_underway(struct session *, u_int32_t);
 static u_int32_t network_piece_next_rarest(struct session *);
 static void	network_peer_cancel_piece(struct peer *, u_int32_t, u_int32_t);
 static void	network_peer_process_message(u_int8_t, struct peer *);
-static void	network_print_len(void *, size_t);
 
 static DH	*network_crypto_dh(void);
 
@@ -833,7 +832,7 @@ network_peer_free(struct peer *p)
 {
 	if (p == NULL)
 		return;
-	if (p->bufev != NULL) {
+	if (p->bufev != NULL && p->bufev->enabled & EV_WRITE) {
 		bufferevent_disable(p->bufev, EV_WRITE|EV_READ);
 		bufferevent_free(p->bufev);
 		p->bufev = NULL;
@@ -1137,7 +1136,6 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				res = torrent_piece_checkhash(p->sc->tp, tpp);
 				if (res == 0) {
 					trace("hash check success for piece %d", p->piece);
-					torrent_piece_sync(p->sc->tp, tpp->index);
 					p->sc->tp->good_pieces++;
 					p->sc->tp->left -= tpp->len;
 					if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
@@ -1573,23 +1571,6 @@ network_crypto_dh()
 
 	return (dhp);
 
-}
-
-static void
-network_print_len(void *ptr, size_t len)
-{
-	char *out, *p;
-	size_t i;
-
-	out = xmalloc(len + 3);
-	memset(out, '\0', len + 3);
-	p = (char *)ptr;
-	
-	for (i = 0; i < len; i++) {
-		snprintf(out, len+3, "%s%c", out, *p);
-		p++;
-	}
-	printf("network_print_len: %s\n", out);
 }
 
 /* network subsystem init, needs to be called before doing anything */
