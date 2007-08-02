@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.79 2007-08-01 22:05:01 niallo Exp $ */
+/* $Id: torrent.c,v 1.80 2007-08-02 19:43:20 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -482,7 +482,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 		tfp->fd = 0;
 		goto open;
 	}
-	/* printf("mmap: len: %zd off: %llu sbsiz: %llu fd: %d\n", len, off, sb.st_size, tfp->fd); */
+	/* printf("mmap: len: %u off: %llu sbsiz: %llu fd: %d\n", len, off, sb.st_size, tfp->fd); */
 	tmmp = xmalloc(sizeof(*tmmp));
 	memset(tmmp, 0, sizeof(*tmmp));
 	

@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.127 2007-08-01 23:36:09 niallo Exp $ */
+/* $Id: network.c,v 1.128 2007-08-02 19:43:20 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -156,6 +156,7 @@ static int	network_connect(int, int, int, const struct sockaddr *,
 		    socklen_t);
 static int	network_connect_tracker(const char *, const char *);
 static int	network_connect_peer(struct peer *);
+static void	network_peerlist_connect(struct session *);
 static void	network_peerlist_update(struct session *, struct benc_node *);
 static void	network_peerlist_update_dict(struct session *, struct benc_node *);
 static void	network_peerlist_update_string(struct session *, struct benc_node *);
@@ -700,6 +701,83 @@ network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 			network_peer_free(ep);
 		}
 	}
+	network_peerlist_connect(sc);
+}
+
+static void
+network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
+{
+
+	struct benc_node *dict, *n;
+	struct peer *ep, *p = NULL;
+	struct addrinfo hints, *res;
+	struct sockaddr_in sa;
+	int port, error, l;
+	char *ip, portstr[6];
+
+	if (!(peers->flags & BLIST))
+		errx(1, "peers object is not a list");
+	/* iterate over a blist of bdicts each with three keys */
+	TAILQ_FOREACH(dict, &peers->children, benc_nodes) {
+		int found;
+		p = network_peer_create();
+		p->sc = sc;
+
+		n = benc_node_find(dict, "ip");
+		if (!(n->flags & BSTRING))
+			errx(1, "node is not a string");
+		ip = n->body.string.value;
+		n = benc_node_find(dict, "port");
+		if (!(n->flags & BINT))
+			errx(1, "node is not an integer");
+		port = n->body.number;
+		l = snprintf(portstr, sizeof(portstr), "%d", port);
+		if (l == -1 || l >= (int)sizeof(portstr))
+			errx(1, "network_peerlist_update_dict() string truncations");
+		
+		if ((n = benc_node_find(dict, "peer id")) == NULL)
+			errx(1, "couldn't find peer id field");
+		if (!(n->flags & BSTRING))
+			errx(1, "node is not a string");
+		memcpy(&p->id, n->body.string.value, sizeof(p->id));
+
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = PF_INET;
+		hints.ai_socktype = SOCK_STREAM;
+		trace("network_peerlist_update_dict() calling getaddrinfo()");
+		error = getaddrinfo(ip, portstr, &hints, &res);
+		if (error != 0)
+			errx(1, "\"%s\" - %s", ip, gai_strerror(error));
+
+		p->sa.sin_family = AF_INET;
+		sa.sin_addr = ((struct sockaddr_in *)res->ai_addr)->sin_addr;
+		sa.sin_port = ((struct sockaddr_in *)res->ai_addr)->sin_port;
+		memcpy(&p->sa.sin_addr, &sa.sin_addr, 4);
+		memcpy(&p->sa.sin_port, &sa.sin_port, 2);
+		freeaddrinfo(res);
+		/* Is this peer already in the list? */
+		found = 0;
+		TAILQ_FOREACH(ep, &sc->peers, peer_list) {
+			if (memcmp(&ep->sa.sin_addr, &p->sa.sin_addr, sizeof(ep->sa.sin_addr)) == 0
+			    && memcmp(&ep->sa.sin_port, &p->sa.sin_port, sizeof(ep->sa.sin_port)) == 0) {
+				found = 1;
+				break;
+			}
+		}
+		if (found == 0) {
+			trace("network_peerlist_update_dict() adding peer to list");
+			TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
+		}
+	}
+
+	network_peerlist_connect(sc);
+}
+
+static void
+network_peerlist_connect(struct session *sc)
+{
+	struct peer *ep, *nxt;
+
 	for (ep = TAILQ_FIRST(&sc->peers); ep != TAILQ_END(&sc->peers) ; ep = nxt) {
 		nxt = TAILQ_NEXT(ep, peer_list);
 		trace("network_peerlist_update() we have a peer: %s:%d", inet_ntoa(ep->sa.sin_addr),
@@ -728,14 +806,6 @@ network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 			network_peer_handshake(sc, ep);
 		}
 	}
-}
-
-static void
-network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
-{
-
-	/* XXX */
-	errx(1, "long peer lists not yet supported");
 }
 
 static void
@@ -1057,6 +1127,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				    p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
 			} else {
 				network_peer_cancel_piece(p, idx, off);
+				torrent_piece_unmap(p->sc->tp, idx);
 				break;
 			}
 			/* if there are more blocks in this piece, ask for another */
@@ -1082,6 +1153,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 					//network_peer_request_piece(p, p->piece, p->bytes);
 				}
 			}
+			torrent_piece_unmap(p->sc->tp, idx);
 			break;
 		case PEER_MSG_ID_CANCEL:
 			/* XXX: not sure how to cancel a write */
@@ -1127,6 +1199,7 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 	p->bytes += len;
 	p->sc->tp->downloaded += len;
 	p->state &= ~PEER_STATE_ISTRANSFERRING;
+	torrent_piece_unmap(p->sc->tp, idx);
 }
 
 static void
@@ -1290,6 +1363,7 @@ network_session_sorted_pieces(struct session *sc)
 		tpp = torrent_piece_find(sc->tp, i);
 		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
 			count = 0xffff;
+		torrent_piece_unmap(sc->tp, i);
 		/* otherwise count it */
 		TAILQ_FOREACH(p, &sc->peers, peer_list) {
 			if (!(p->state & PEER_STATE_ESTABLISHED))
@@ -1318,8 +1392,11 @@ network_piece_is_underway(struct session *sc, u_int32_t idx)
 	struct torrent_piece *tpp;
 
 	tpp = torrent_piece_find(sc->tp, idx);
-	if (tpp->flags & TORRENT_PIECE_CKSUMOK)
+	if (tpp->flags & TORRENT_PIECE_CKSUMOK) {
+		torrent_piece_unmap(sc->tp, idx);
 		return (0);
+	}
+	torrent_piece_unmap(sc->tp, idx);
 
 	TAILQ_FOREACH(p, &sc->peers, peer_list) {
 		if (p->piece == idx)
@@ -1359,7 +1436,7 @@ network_scheduler(int fd, short type, void *arg)
 	struct timeval tv;
 	/* piece rarity array */
 	struct torrent_piece *tpp = NULL;
-	u_int32_t i, pieces_left;
+	u_int32_t i = 0, pieces_left;
 
 	p = NULL;
 	timerclear(&tv);
@@ -1375,6 +1452,7 @@ network_scheduler(int fd, short type, void *arg)
 		for (i = 0; i < sc->tp->num_pieces; i++) {
 			tpp = torrent_piece_find(sc->tp, i);
 			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
+				torrent_piece_unmap(sc->tp, i);
 				/* aggressively ask for the missing pieces */
 				trace("network_scheduler() missing piece %u", i);
 				TAILQ_FOREACH(p, &sc->peers, peer_list) {
@@ -1422,6 +1500,7 @@ network_scheduler(int fd, short type, void *arg)
 				if (tpp != NULL
 				    && p->bytes == tpp->len
 				    && p->sc->tp->num_pieces != p->sc->tp->good_pieces) {
+					torrent_piece_unmap(sc->tp, i);
 					i = network_piece_next_rarest(sc);
 					if (i != 0xffff) {
 						trace("network_scheduler() just completed piece %u total pieces: %u good pieces: %u",
