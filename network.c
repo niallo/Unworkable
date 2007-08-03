@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.129 2007-08-02 23:18:45 niallo Exp $ */
+/* $Id: network.c,v 1.130 2007-08-03 00:00:58 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1142,6 +1142,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 						refresh_progress_meter();
 						exit(0);
 					}
+					torrent_piece_unmap(p->sc->tp, idx);
 				} else {
 					/* hash check failed, try re-downloading this piece */
 					trace("hash check failure for piece %d", p->piece);
@@ -1151,7 +1152,6 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 					//network_peer_request_piece(p, p->piece, p->bytes);
 				}
 			}
-			torrent_piece_unmap(p->sc->tp, idx);
 			break;
 		case PEER_MSG_ID_CANCEL:
 			/* XXX: not sure how to cancel a write */
@@ -1197,7 +1197,6 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 	p->bytes += len;
 	p->sc->tp->downloaded += len;
 	p->state &= ~PEER_STATE_ISTRANSFERRING;
-	torrent_piece_unmap(p->sc->tp, idx);
 }
 
 static void
