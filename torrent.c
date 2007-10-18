@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.85 2007-10-18 03:40:55 niallo Exp $ */
+/* $Id: torrent.c,v 1.86 2007-10-18 04:44:46 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -522,7 +522,7 @@ torrent_piece_create(struct torrent *tp, u_int32_t idx)
 	if (tp->type == SINGLEFILE) {
 		/* last piece is irregular */
 		if (idx == tp->num_pieces - 1) {
-			len = tp->body.singlefile.tfp.file_length;
+			len = tp->body.singlefile.tfp.file_length - off;
 		} else {
 			len = tp->piece_length;
 		}
