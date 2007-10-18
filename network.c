@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.133 2007-10-18 04:45:05 niallo Exp $ */
+/* $Id: network.c,v 1.134 2007-10-18 04:45:34 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1532,7 +1532,6 @@ network_scheduler(int fd, short type, void *arg)
 						queue_len = 2;
 					else
 						queue_len = MAX_REQUESTS;
-					queue_len = 2;
 
 					trace("network_scheduler: queue_len: %u rate: %llu ", queue_len, peer_rate);
 					for (i = 0; i < queue_len; i++) {
