@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.84 2007-10-18 01:21:05 niallo Exp $ */
+/* $Id: torrent.c,v 1.85 2007-10-18 03:40:55 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -431,11 +431,8 @@ torrent_piece_find(struct torrent *tp, u_int32_t idx)
 {
 	struct torrent_piece find, *res;
 	find.index = idx;
-	if ((res = RB_FIND(pieces, &tp->pieces, &find)) == NULL) {
-		/* piece not already mapped, try to map it */
-		if ((res = torrent_piece_map(tp, idx)) == NULL)
-			warnx("could not map piece at index: %u", idx);
-	}
+	if ((res = RB_FIND(pieces, &tp->pieces, &find)) == NULL)
+		errx(1, "torrent_piece_find: piece not mapped: %u", idx);
 
 	return (res);
 }
@@ -505,18 +502,18 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	return (tmmp);
 }
 
+/* create a persistent piece descriptor */
 struct torrent_piece *
-torrent_piece_map(struct torrent *tp, u_int32_t idx)
+torrent_piece_create(struct torrent *tp, u_int32_t idx)
 {
 	struct torrent_piece *tpp;
-	struct torrent_file  *nxttfp, *tfp, *lasttfp;
-	struct torrent_mmap  *tmmp;
 	u_int32_t len;
 	off_t off;
 
 	tpp = xmalloc(sizeof(*tpp));
 
 	memset(tpp, 0, sizeof(*tpp));
+	tpp->tp = tp;
 	tpp->index = idx;
 	TAILQ_INIT(&tpp->mmaps);
 
@@ -524,18 +521,44 @@ torrent_piece_map(struct torrent *tp, u_int32_t idx)
 	/* nice and simple */
 	if (tp->type == SINGLEFILE) {
 		/* last piece is irregular */
-		tfp = &tp->body.singlefile.tfp;
 		if (idx == tp->num_pieces - 1) {
-			len = tfp->file_length - off;
+			len = tp->body.singlefile.tfp.file_length;
 		} else {
 			len = tp->piece_length;
 		}
 		tpp->len = len;
-		tmmp = torrent_mmap_create(tp, tfp, off, len);
-		TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
-		RB_INSERT(pieces, &tp->pieces, tpp);
 
-		return (tpp);
+	} else {
+		/* last piece is irregular */
+		if (idx == tp->num_pieces - 1) {
+			len = tp->body.multifile.total_length
+			    - ((tp->num_pieces - 1) * tp->piece_length);
+		} else {
+			len = tp->piece_length;
+		}
+		tpp->len = len;
+	}
+	RB_INSERT(pieces, &tp->pieces, tpp);
+	return (tpp);
+}
+
+/* create the mmaps for this piece, if necessary */
+int
+torrent_piece_map(struct torrent_piece *tpp)
+{
+	struct torrent_file  *tfp, *nxttfp;
+	struct torrent_mmap  *tmmp;
+	u_int32_t len;
+	off_t off;
+
+	off = tpp->tp->piece_length * (off_t)tpp->index;
+	/* nice and simple */
+	if (tpp->tp->type == SINGLEFILE) {
+		tmmp = torrent_mmap_create(tpp->tp, &tpp->tp->body.singlefile.tfp, off, tpp->len);
+		TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
+		tpp->flags |= TORRENT_PIECE_MAPPED;
+
+		return (0);
 	} else {
 		/*
 		 * From: http://wiki.theory.org/BitTorrentSpecification
@@ -553,16 +576,9 @@ torrent_piece_map(struct torrent *tp, u_int32_t idx)
 		 * This is kind of complicated.
 		 */
 
-		/* last piece is irregular */
-		if (idx == tp->num_pieces - 1) {
-			lasttfp = TAILQ_LAST(&tp->body.multifile.files,
-			    files);
-			len = tp->body.multifile.total_length
-			    - ((tp->num_pieces - 1) * tp->piece_length);
-		} else {
-			len = tp->piece_length;
-		}
-		TAILQ_FOREACH(tfp, &tp->body.multifile.files, files) {
+		len = tpp->len;
+		tpp->len = 0;
+		TAILQ_FOREACH(tfp, &tpp->tp->body.multifile.files, files) {
 			/* piece offset puts it outside the current
 			   file, may be mapped to next file */
 			if (off > tfp->file_length) {
@@ -573,7 +589,7 @@ torrent_piece_map(struct torrent *tp, u_int32_t idx)
 			   and this piece is not yet full */
 			if (tfp->file_length < (off_t)len
 			    && tpp->len < len) {
-				tmmp = torrent_mmap_create(tp, tfp, off,
+				tmmp = torrent_mmap_create(tpp->tp, tfp, off,
 				    tfp->file_length - off);
 				TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
 				tpp->len += tfp->file_length - off;
@@ -586,7 +602,7 @@ torrent_piece_map(struct torrent *tp, u_int32_t idx)
 					off = 0;
 					continue;
 				}
-				tmmp = torrent_mmap_create(tp, tfp, off,
+				tmmp = torrent_mmap_create(tpp->tp, tfp, off,
 				    tfp->file_length - off);
 				tpp->len += tmmp->len;
 				TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
@@ -594,7 +610,7 @@ torrent_piece_map(struct torrent *tp, u_int32_t idx)
 				len -= tmmp->len;
 				off++;
 				if (nxttfp->file_length < (off_t)len) {
-					tmmp = torrent_mmap_create(tp, nxttfp,
+					tmmp = torrent_mmap_create(tpp->tp, nxttfp,
 					    0, nxttfp->file_length);
 					tpp->len += tmmp->len;
 					TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp,
@@ -605,7 +621,7 @@ torrent_piece_map(struct torrent *tp, u_int32_t idx)
 					off = 0;
 					continue;
 				} else {
-					tmmp = torrent_mmap_create(tp, nxttfp,
+					tmmp = torrent_mmap_create(tpp->tp, nxttfp,
 					    0, len);
 				}
 				tpp->len += tmmp->len;
@@ -614,18 +630,17 @@ torrent_piece_map(struct torrent *tp, u_int32_t idx)
 				break;
 			} else if (off < tfp->file_length) {
 				/* piece lies within this file */
-				tmmp = torrent_mmap_create(tp, tfp, off, len);
+				tmmp = torrent_mmap_create(tpp->tp, tfp, off, len);
 				off++;
 				TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
 				tpp->len += len;
 				break;
 			}
 		}
-		RB_INSERT(pieces, &tp->pieces, tpp);
-
-		return (tpp);
+		tpp->flags |= TORRENT_PIECE_MAPPED;
+		return (0);
 	}
-	return (NULL);
+	return (1);
 }
 
 int
@@ -678,15 +693,9 @@ torrent_piece_sync(struct torrent *tp, u_int32_t idx)
 }
 
 void
-torrent_piece_unmap(struct torrent *tp, u_int32_t idx)
+torrent_piece_unmap(struct torrent_piece *tpp)
 {
-	struct torrent_piece *tpp;
 	struct torrent_mmap *tmmp;
-
-	tpp = torrent_piece_find(tp, idx);
-
-	if (tpp == NULL)
-		errx(1, "torrent_piece_unmap: NULL piece");
 
 	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps) {
 		tmmp->tfp->refs--;
@@ -704,9 +713,7 @@ torrent_piece_unmap(struct torrent *tp, u_int32_t idx)
 		TAILQ_REMOVE(&tpp->mmaps, tmmp, mmaps);
 		xfree(tmmp);
 	}
-
-	RB_REMOVE(pieces, &tp->pieces, tpp);
-	xfree(tpp);
+	tpp->flags &= ~TORRENT_PIECE_MAPPED;
 }
 
 u_int8_t *

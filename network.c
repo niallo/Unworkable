@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.131 2007-10-18 01:21:05 niallo Exp $ */
+/* $Id: network.c,v 1.132 2007-10-18 03:40:55 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1165,7 +1165,6 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				    p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
 			} else {
 				network_peer_cancel_piece(pd);
-				torrent_piece_unmap(p->sc->tp, idx);
 				break;
 			}
 			/* if there are more blocks in this piece, ask for another */
@@ -1178,7 +1177,11 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 					refresh_progress_meter();
 					exit(0);
 				}
-				torrent_piece_unmap(p->sc->tp, idx);
+				/* clean up all the piece dls for this now that its done */
+				for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
+					if ((pd = network_piece_dl_find(p->sc, idx, off, 1)) != NULL)
+						network_piece_dl_free(pd);
+				}
 				//network_piece_dl_free(pd);
 			} else {
 				/* hash check failed, try re-downloading this piece */
@@ -1211,10 +1214,13 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t 
 		trace("REQUEST for piece %u - failed at torrent_piece_find(), returning", idx);
 		return;
 	}
+	if (!(tpp->flags & TORRENT_PIECE_MAPPED))
+		torrent_piece_map(tpp);
 	if ((data = torrent_block_read(tpp, offset, len, &hint)) == NULL) {
 		trace("REQUEST for piece %u - failed at torrent_block_read(), returning", idx);
 		return;
 	}
+	torrent_piece_unmap(tpp);
 	if (bufferevent_write(p->bufev, data, len) != 0)
 		errx(1, "network_peer_write_piece: bufferevent_write failure");
 }
@@ -1231,7 +1237,10 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 	}
 	if ((pd = network_piece_dl_find(p->sc, idx, offset, 0)) == NULL)
 		errx(1, "network_peer_read_piece: no piece_dl for idx %u", idx);
+	if (!(tpp->flags & TORRENT_PIECE_MAPPED))
+		torrent_piece_map(tpp);
 	torrent_block_write(tpp, offset, len, data);
+	torrent_piece_unmap(tpp);
 	pd->bytes += len;
 	/* XXX not really accurate measure of progress since the data could be bad */
 	p->sc->tp->downloaded += len;
@@ -1408,17 +1417,14 @@ network_piece_find_rarest(struct session *sc, int flag, int *res)
 		tpp = torrent_piece_find(sc->tp, i);
 		/* if we have this piece, skip it */
 		if (tpp->flags & TORRENT_PIECE_CKSUMOK) {
-			torrent_piece_unmap(sc->tp, i);
 			continue;
 		}
 		if (flag == FIND_RAREST_IGNORE_INQUEUE) {
 			/* if this piece and all its blocks are already in our download queue, skip it */
 			if (network_piece_inqueue(sc, tpp, i)) {
-				torrent_piece_unmap(sc->tp, i);
 				trace("idx %u we know is in queue");
 				continue;
 			}
-			torrent_piece_unmap(sc->tp, i);
 			trace("idx %u we don't know is in queue");
 		}
 		/* otherwise count it */
@@ -1484,7 +1490,6 @@ network_piece_gimme(struct peer *peer)
 	pd = network_piece_dl_create(peer, idx, off, len);
 
 	trace("returning piece dl idx %u off %u len %u", idx, off, len);
-	trace("network_piece_gimme done");
 	return (pd);
 }
 
@@ -1507,7 +1512,6 @@ network_scheduler(int fd, short type, void *arg)
 	tv.tv_sec = 1;
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
-	trace("network_scheduler");
 
 	/* XXX perhaps we want to do this on a block, rather than piece
 	 *  basis?  Perhaps we should use a percentage? */
@@ -1562,7 +1566,6 @@ network_scheduler(int fd, short type, void *arg)
 		for (i = 0; i < sc->tp->num_pieces; i++) {
 			tpp = torrent_piece_find(sc->tp, i);
 			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
-				torrent_piece_unmap(sc->tp, i);
 				/* aggressively ask for the missing pieces */
 				trace("network_scheduler() missing piece %u", i);
 				TAILQ_FOREACH(p, &sc->peers, peer_list) {
@@ -1610,7 +1613,6 @@ network_scheduler(int fd, short type, void *arg)
 				if (tpp != NULL
 				    && p->bytes == tpp->len
 				    && p->sc->tp->num_pieces != p->sc->tp->good_pieces) {
-					torrent_piece_unmap(sc->tp, i);
 					i = network_piece_next_rarest(sc);
 					if (i != 0xffff) {
 						trace("network_scheduler() just completed piece %u total pieces: %u good pieces: %u",
