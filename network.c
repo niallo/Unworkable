@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.136 2007-10-18 06:24:04 niallo Exp $ */
+/* $Id: network.c,v 1.137 2007-10-18 06:30:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -239,6 +239,7 @@ network_announce(struct session *sc, const char *event)
 			goto trunc;
 	}
 #define HTTPLEN 7
+	/* XXX: need support for announce-list */
 	/* separate out hostname, port and path */
 	c = strstr(sc->tp->announce, "http://");
 	c += HTTPLEN;
@@ -404,6 +405,7 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 		errx(1, "network_handle_announce_error() TIMOUT (unexpected)");
 
 	c = sc->res->rxmsg;
+	/* XXX: need HTTP/1.1 support - tricky part is chunked encoding I think */
 	if (strncmp(c, "HTTP/1.0", 8) != 0 && strncmp(c, "HTTP/1.1", 8)) {
 		warnx("network_handle_announce_error: server did not send a valid HTTP/1.0 response");
 		goto err;
@@ -1516,9 +1518,9 @@ network_scheduler(int fd, short type, void *arg)
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
 
-	/* XXX perhaps we want to do this on a block, rather than piece
-	 *  basis?  Perhaps we should use a percentage? */
-	/* determine whether we are in the 'end-game'*/
+	/* XXX: need choke algorithm */
+	/* XXX: try to keep a decent number of peers connected */
+
 	pieces_left = sc->tp->num_pieces - sc->tp->good_pieces;
 	if (!TAILQ_EMPTY(&sc->peers)) {
 		for (p = TAILQ_FIRST(&sc->peers); p; p = nxt) {
