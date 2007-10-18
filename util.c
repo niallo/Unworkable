@@ -1,4 +1,4 @@
-/* $Id: util.c,v 1.1 2007-08-02 23:18:45 niallo Exp $ */
+/* $Id: util.c,v 1.2 2007-10-18 21:24:56 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -41,13 +41,15 @@ mkpath(const char *s, mode_t mode){
 
 	if ((mkpath(up, mode) == -1) && (errno != EEXIST))
 		goto out;
-	
+
 	if ((mkdir(path, mode) == -1) && (errno != EEXIST))
 		rv = -1;
 	else
 		rv = 0;
 
-out:	xfree(up);
+out:
+	if (up != NULL)
+		xfree(up);
 	xfree(path);
 	return (rv);
 }
@@ -61,7 +63,7 @@ print_len(void *ptr, size_t len)
 	out = xmalloc(len + 3);
 	memset(out, '\0', len + 3);
 	p = (char *)ptr;
-	
+
 	for (i = 0; i < len; i++) {
 		snprintf(out, len+3, "%s%c", out, *p);
 		p++;
