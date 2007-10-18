@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.83 2007-08-02 23:18:45 niallo Exp $ */
+/* $Id: torrent.c,v 1.84 2007-10-18 01:21:05 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -352,6 +352,7 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d
 			 * we need to write the remainder to the next
 			 * mapping(s)*/
 			if (len > tlen) {
+				trace("continuing buffer");
 				memcpy(aptr, d, tlen);
 				bytesleft -= tlen;
 				continue;
@@ -447,6 +448,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	struct stat sb;
 	char buf[MAXPATHLEN], zero = 0x00, *basedir;
 	int fd = 0, l;
+	trace("torrent_mmap_create:  off: %llu len: %u", off, len);
 	open:
 	if (tfp->fd == 0) {
 		if (tp->type == SINGLEFILE)
@@ -473,14 +475,15 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	}
 	if (fstat(tfp->fd, &sb) == -1)
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
+	/* trace("size: %llu vs. len+off: %llu", sb.st_size, (off_t)len + off); */
 	if (sb.st_size < ((off_t)len + off)) {
-		trace("%llu offset zeroed, len %u", off, len);
+		trace("%llu offset zeroed, len %u, size: %u", off, len, sb.st_size);
 		tp->isnew = 1;
 		/* seek to the expected size of file ... */
-		if (lseek(fd, (off_t)len + off - 1, SEEK_SET) ==-1 )
+		if (lseek(tfp->fd, (off_t)len + off - 1, SEEK_SET) == -1)
 			err(1, "torrent_mmap_create: lseek() failure");
 		/* and write a byte there */
-		if (write(fd, &zero, 1) < 1)
+		if (write(tfp->fd, &zero, 1) < 1)
 			err(1, "torrent_mmap_create: write() failure");
 		close(tfp->fd);
 		tfp->fd = 0;
@@ -489,7 +492,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	/* printf("mmap: len: %u off: %llu sbsiz: %llu fd: %d\n", len, off, sb.st_size, tfp->fd); */
 	tmmp = xmalloc(sizeof(*tmmp));
 	memset(tmmp, 0, sizeof(*tmmp));
-	
+
 	tmmp->tfp = tfp;
 	tmmp->addr = mmap(0, len, PROT_READ|PROT_WRITE, MAP_SHARED, tfp->fd, off);
 	if (tmmp->addr == MAP_FAILED)
@@ -512,7 +515,7 @@ torrent_piece_map(struct torrent *tp, u_int32_t idx)
 	off_t off;
 
 	tpp = xmalloc(sizeof(*tpp));
-	
+
 	memset(tpp, 0, sizeof(*tpp));
 	tpp->index = idx;
 	TAILQ_INIT(&tpp->mmaps);
@@ -710,11 +713,12 @@ u_int8_t *
 torrent_bitfield_get(struct torrent *tp)
 {
 	struct torrent_piece find, *res;
-	u_int32_t i;
+	u_int32_t i, len;
 	u_int8_t *bitfield;
 
-	bitfield = xmalloc(tp->num_pieces / 8);
-	memset(bitfield, 0, tp->num_pieces / 8);
+	len = (tp->num_pieces + 7) / 8;
+	bitfield = xmalloc(len);
+	memset(bitfield, 0, len);
 	for (i = 0; i < tp->num_pieces - 1; i++) {
 		find.index = i;
 		if ((res = RB_FIND(pieces, &tp->pieces, &find)) != NULL
