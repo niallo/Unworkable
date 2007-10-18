@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.135 2007-10-18 06:21:13 niallo Exp $ */
+/* $Id: network.c,v 1.136 2007-10-18 06:24:04 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1142,7 +1142,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			memcpy(&off, p->rxmsg+sizeof(idx), sizeof(off));
 			off = ntohl(off);
 			tpp = torrent_piece_find(p->sc->tp, idx);
-			if (off > tpp->len)
+			if (off > tpp->len) {
 				trace("PIECE offset out of bounds");
 				break;
 			}
@@ -1163,7 +1163,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				break;
 			}
 			tpp = torrent_piece_find(p->sc->tp, idx);
-			if (off > tpp->len)
+			if (off > tpp->len) {
 				trace("PIECE offset out of bounds");
 				break;
 			}
