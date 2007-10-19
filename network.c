@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.138 2007-10-19 17:38:53 niallo Exp $ */
+/* $Id: network.c,v 1.139 2007-10-19 20:37:09 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1041,7 +1041,10 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					p->state |= PEER_STATE_DEAD;
 					goto out;
 				}
-				xfree(p->rxmsg);
+				if (p->rxmsg != NULL) {
+					xfree(p->rxmsg);
+					p->rxmsg = NULL;
+				}
 				p->state |= PEER_STATE_GOTLEN;
 				/* keep-alive: do nothing */
 				if (p->rxmsglen == 0)
