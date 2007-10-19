@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.139 2007-10-19 20:37:09 niallo Exp $ */
+/* $Id: network.c,v 1.140 2007-10-19 21:40:51 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -136,10 +136,8 @@ struct piece_dl {
 	u_int32_t idx; /* piece index */
 	u_int32_t off; /* offset within this piece */
 	u_int32_t len; /* length of this request (=> buf size) */
-#if 0
 	u_int8_t *buf; /* data buffer */
 	u_int32_t bytes; /* how many bytes have we read so far */
-#endif
 };
 
 /* data associated with a bittorrent session */
@@ -862,25 +860,20 @@ network_peer_free(struct peer *p)
 		return;
 	if (p->bufev != NULL && p->bufev->enabled & EV_WRITE) {
 		bufferevent_disable(p->bufev, EV_WRITE|EV_READ);
-		//bufferevent_free(p->bufev);
+		bufferevent_free(p->bufev);
 		p->bufev = NULL;
 	}
-	trace("rxmsg");
 	if (p->rxmsg != NULL)
 		xfree(p->rxmsg);
-	trace("txmsg");
 	if (p->txmsg != NULL)
 		xfree(p->txmsg);
-	trace("bitfield");
 	if (p->bitfield != NULL)
 		xfree(p->bitfield);
-	trace("connfd");
 	if (p->connfd != 0) {
 		(void)  close(p->connfd);
 		p->connfd = 0;
 	}
 
-	trace("p");
 	xfree(p);
 	p = NULL;
 }
@@ -1159,10 +1152,8 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			idx = ntohl(idx);
 			memcpy(&off, p->rxmsg+sizeof(id)+sizeof(idx), sizeof(off));
 			off = ntohl(off);
-			/*
 			trace("PIECE message (idx=%u off=%u len=%u) from peer %s:%d", idx,
 			    off, p->rxmsglen, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-			*/
 			p->queue_len--;
 			if (idx > p->sc->tp->num_pieces - 1) {
 				trace("PIECE index out of bounds");
@@ -1181,6 +1172,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				    p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)),
 				    p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
 			} else {
+				trace("already have piece");
 				break;
 			}
 			/* if there are more blocks in this piece, ask for another */
@@ -1254,7 +1246,7 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 	if ((pd = network_piece_dl_find(p->sc, idx, offset, 0)) == NULL)
 		errx(1, "network_peer_read_piece: no piece_dl for idx %u", idx);
 	torrent_block_write(tpp, offset, len, data);
-	//pd->bytes += len;
+	pd->bytes += len;
 	/* XXX not really accurate measure of progress since the data could be bad */
 	p->sc->tp->downloaded += len;
 	p->state &= ~PEER_STATE_ISTRANSFERRING;
@@ -1588,11 +1580,8 @@ network_scheduler(int fd, short type, void *arg)
 					if (pd->pc == p)
 						network_piece_dl_free(pd);
 				}
-				trace("about to remove a peer");
 				TAILQ_REMOVE(&sc->peers, p, peer_list);
-				trace("removed peer, about to free");
 				network_peer_free(p);
-				trace("freed peer");
 				pd = NULL;
 				continue;
 			}
@@ -1636,7 +1625,7 @@ network_scheduler(int fd, short type, void *arg)
 			reqs++;
 	}
 	/* Every 10 seconds, interested remote peers  */
-	trace("Peers: %u Good pieces: %u/%u Reqs in flight: %u choked: %u unchoked: %u",
+	trace("Peers: %u Good pieces: %u/%u Reqs in flight: %u Choked: %u Unchoked: %u",
 	      peer_count, sc->tp->good_pieces, sc->tp->num_pieces, reqs, choked, unchoked);
 #if 0
 	if (pieces_left <= 5) {
@@ -1803,11 +1792,9 @@ network_piece_dl_create(struct peer *p, u_int32_t idx, u_int32_t off,
 	pd->pc = p;
 	pd->idx = idx;
 	pd->off = off;
-#if 0
 	pd->len = len;
 	pd->buf = xmalloc(pd->len);
 	memset(pd->buf, 0, pd->len);
-#endif
 
 	TAILQ_INSERT_TAIL(&p->sc->piece_dls, pd, piece_dl_list);
 
@@ -1818,10 +1805,8 @@ static void
 network_piece_dl_free(struct piece_dl *pd)
 {
 	TAILQ_REMOVE(&pd->pc->sc->piece_dls, pd, piece_dl_list);
-#if 0
 	if (pd->buf != NULL)
 		xfree(pd->buf);
-#endif
 	xfree(pd);
 }
 
