@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.86 2007-10-18 04:44:46 niallo Exp $ */
+/* $Id: torrent.c,v 1.87 2007-10-19 17:38:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -352,7 +352,6 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d
 			 * we need to write the remainder to the next
 			 * mapping(s)*/
 			if (len > tlen) {
-				trace("continuing buffer");
 				memcpy(aptr, d, tlen);
 				bytesleft -= tlen;
 				continue;
@@ -445,7 +444,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	struct stat sb;
 	char buf[MAXPATHLEN], zero = 0x00, *basedir;
 	int fd = 0, l;
-	trace("torrent_mmap_create:  off: %llu len: %u", off, len);
+	//trace("torrent_mmap_create:  off: %llu len: %u", off, len);
 	open:
 	if (tfp->fd == 0) {
 		if (tp->type == SINGLEFILE)
@@ -474,7 +473,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
 	/* trace("size: %llu vs. len+off: %llu", sb.st_size, (off_t)len + off); */
 	if (sb.st_size < ((off_t)len + off)) {
-		trace("%llu offset zeroed, len %u, size: %u", off, len, sb.st_size);
+		//trace("%llu offset zeroed, len %u, size: %u", off, len, sb.st_size);
 		tp->isnew = 1;
 		/* seek to the expected size of file ... */
 		if (lseek(tfp->fd, (off_t)len + off - 1, SEEK_SET) == -1)

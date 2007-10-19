@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.37 2007-10-18 03:40:55 niallo Exp $ */
+/* $Id: main.c,v 1.38 2007-10-19 17:38:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -95,6 +95,7 @@ main(int argc, char **argv)
 #endif
 	}
 
+	srandomdev();
 	network_init();
 	network_start_torrent(torrent);
 
