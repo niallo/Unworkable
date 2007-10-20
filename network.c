@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.141 2007-10-20 23:42:26 niallo Exp $ */
+/* $Id: network.c,v 1.142 2007-10-20 23:46:57 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1422,7 +1422,7 @@ network_piece_inqueue(struct session *sc, struct torrent_piece *tpp, u_int32_t i
 
 	/* if this piece and all its blocks are already in our download queue, skip it */
 	for (off = 0; ; off += BLOCK_SIZE) {
-		if (off == tpp->len)
+		if (off >= tpp->len)
 			return (1);
 		if (network_piece_dl_find(sc, idx, off, 1) == NULL)
 			return (0);
