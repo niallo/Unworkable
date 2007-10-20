@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.140 2007-10-19 21:40:51 niallo Exp $ */
+/* $Id: network.c,v 1.141 2007-10-20 23:42:26 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -131,7 +131,7 @@ struct peer {
 
 /* piece download transaction */
 struct piece_dl {
-	TAILQ_ENTRY(piece_dl) piece_dl_list;
+	TAILQ_ENTRY(piece_dl) piece_dl_list; /* XXX: make this an RB tree for performance? */
 	struct peer *pc; /* peer we're requesting from */
 	u_int32_t idx; /* piece index */
 	u_int32_t off; /* offset within this piece */
@@ -202,6 +202,7 @@ static void	network_peer_request_block(struct peer *, u_int32_t, u_int32_t,
 static void	network_peer_write_unchoke(struct peer *);
 static struct piece_dl *network_piece_gimme(struct peer *);
 static void	network_peer_cancel_piece(struct piece_dl *);
+static void	network_peer_write_have(struct peer *, u_int32_t);
 static void	network_peer_process_message(u_int8_t, struct peer *);
 
 static DH	*network_crypto_dh(void);
@@ -935,6 +936,9 @@ static void
 network_handle_peer_write(struct bufferevent *bufev, void *data)
 {
 	struct peer *p = data;
+	/* XXX: may be insufficient to prevent leaks, as
+	 * what if the peer write event never fires? do we need to keep a list of writes for each peer?
+	 * */
 	if (p->txmsg != NULL) {
 		xfree(p->txmsg);
 		p->txmsg = NULL;
@@ -1068,6 +1072,7 @@ static void
 network_peer_process_message(u_int8_t id, struct peer *p)
 {
 	struct torrent_piece *tpp;
+	struct peer *tp;
 	struct piece_dl *pd;
 	u_int32_t bitfieldlen, idx, blocklen, off;
 	int res;
@@ -1186,6 +1191,9 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 					refresh_progress_meter();
 					exit(0);
 				}
+				/* send HAVE messages to all peers */
+				TAILQ_FOREACH(tp, &p->sc->peers, peer_list)
+					network_peer_write_have(tp, idx);
 				/* clean up all the piece dls for this now that its done */
 				for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
 					if ((pd = network_piece_dl_find(p->sc, idx, off, 1)) != NULL) {
@@ -1207,6 +1215,29 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			trace("Unknown message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			break;
 	}
+}
+
+static void
+network_peer_write_have(struct peer *p, u_int32_t idx)
+{
+	u_int32_t msglen, msglen2;
+	u_int8_t  *msg, id;
+
+	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx);
+	msg = xmalloc(msglen);
+
+	msglen2 = htonl(msglen - sizeof(msglen));
+	id = PEER_MSG_ID_HAVE;
+	idx = htonl(idx);
+
+	memcpy(msg, &msglen2, sizeof(msglen2));
+	memcpy(msg+sizeof(msglen2), &id, sizeof(id));
+	memcpy(msg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
+
+	p->txmsg = msg;
+	if (bufferevent_write(p->bufev, msg, msglen) != 0)
+		errx(1, "network_peer_request_block: bufferevent_write failure");
+
 }
 
 static void
@@ -1388,19 +1419,14 @@ static int
 network_piece_inqueue(struct session *sc, struct torrent_piece *tpp, u_int32_t idx)
 {
 	u_int32_t off;
-	int skip = 0;
 
 	/* if this piece and all its blocks are already in our download queue, skip it */
-	for (off = 0; off + BLOCK_SIZE + 1 < tpp->len; off += BLOCK_SIZE) {
-		if (network_piece_dl_find(sc, idx, off, 1)) {
-			skip = 0;
-			continue;
-		}
-		skip = 1;
-		break;
+	for (off = 0; ; off += BLOCK_SIZE) {
+		if (off == tpp->len)
+			return (1);
+		if (network_piece_dl_find(sc, idx, off, 1) == NULL)
+			return (0);
 	}
-	return (skip == 0);
-
 }
 static int
 network_piece_cmp(const void *a, const void *b)
@@ -1474,6 +1500,8 @@ network_piece_find_rarest(struct session *sc, int flag, int *res)
 			/* if this piece and all its blocks are already in our download queue, skip it */
 			if (network_piece_inqueue(sc, tpp, pieces[i].idx)) {
 				continue;
+			} else {
+				break;
 			}
 		}
 	}
@@ -1500,12 +1528,8 @@ network_piece_gimme(struct peer *peer)
 	TAILQ_FOREACH(pd, &peer->sc->piece_dls, piece_dl_list) {
 		tpp = torrent_piece_find(peer->sc->tp, pd->idx);
 		if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
-			for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
-				if (network_piece_dl_find(peer->sc, pd->idx, off, 1))
-						continue;
-				found = 1;
-			}
-			if (found) {
+			/* if not all this piece's blocks are in the download queue */
+			if (!network_piece_inqueue(peer->sc, tpp, pd->idx)) {
 				idx = pd->idx;
 				goto get_block;
 			}
@@ -1515,17 +1539,18 @@ network_piece_gimme(struct peer *peer)
 	if (peer->sc->tp->good_pieces < 4) {
 		idx = random() % (peer->sc->tp->num_pieces - 2);
 	} else {
-
 		/* find the rarest piece that does not have all its blocks already in the download queue */
 		idx = network_piece_find_rarest(peer->sc, FIND_RAREST_IGNORE_INQUEUE, &res);
 	}
 	tpp = torrent_piece_find(peer->sc->tp, idx);
 get_block:
 	/* find the next block (by offset) in the piece, which is not already in the download queue */
-	for (off = 0; off + BLOCK_SIZE + 1 < tpp->len; off += BLOCK_SIZE) {
-		if (network_piece_dl_find(peer->sc, idx, off, 1))
-			continue;
-		break;
+	for (off = 0; ; off += BLOCK_SIZE) {
+		if (off >= tpp->len)
+			errx(1, "gone to a bad offset %u in idx %u, len %u", off, idx, tpp->len);
+		if (network_piece_dl_find(peer->sc, idx, off, 1) == NULL) {
+			break;
+		}
 	}
 	if (BLOCK_SIZE > tpp->len - off)
 		len = tpp->len - off;
