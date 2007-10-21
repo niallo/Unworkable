@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.142 2007-10-20 23:46:57 niallo Exp $ */
+/* $Id: network.c,v 1.143 2007-10-21 01:14:13 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1536,7 +1536,7 @@ network_piece_gimme(struct peer *peer)
 		}
 	}
 	/* XXX: first 4 pieces should be chosen at random */
-	if (peer->sc->tp->good_pieces < 4) {
+	if (peer->sc->tp->good_pieces < 4 && peer->sc->tp->num_pieces > 4) {
 		idx = random() % (peer->sc->tp->num_pieces - 2);
 	} else {
 		/* find the rarest piece that does not have all its blocks already in the download queue */
