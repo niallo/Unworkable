@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.147 2007-10-23 22:59:43 niallo Exp $ */
+/* $Id: network.c,v 1.148 2007-10-23 23:23:48 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1081,11 +1081,11 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 	/* XXX: safety-check for correct message lengths */
 	switch (id) {
 		case PEER_MSG_ID_CHOKE:
-			//trace("CHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			trace("CHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			p->state |= PEER_STATE_CHOKED;
 			break;
 		case PEER_MSG_ID_UNCHOKE:
-			//trace("UNCHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			trace("UNCHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			p->state &= ~PEER_STATE_CHOKED;
 			break;
 		case PEER_MSG_ID_INTERESTED:
@@ -1099,7 +1099,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 		case PEER_MSG_ID_HAVE:
 			memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
 			idx = ntohl(idx);
-			//trace("HAVE message from peer %s:%d (idx=%u)", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx);
+			trace("HAVE message from peer %s:%d (idx=%u)", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx);
 			if (idx > p->sc->tp->num_pieces - 1) {
 				trace("have index overflow, ignoring");
 				break;
@@ -1114,7 +1114,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			setbit(p->bitfield, idx);
 			break;
 		case PEER_MSG_ID_BITFIELD:
-			//trace("BITFIELD message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			trace("BITFIELD message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			if (!(p->state & PEER_STATE_BITFIELD)) {
 				trace("not expecting bitfield!");
 				break;
@@ -1200,10 +1200,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 					trace("hash check failure for piece %d", idx);
 				}
 			} else {
-				/* hash check failed, try re-downloading this piece */
-				//p->state = 0;
-				//p->state |= PEER_STATE_DEAD;
-				//network_peer_request_piece(p, p->piece, p->bytes);
+				/* XXX hash check failed, try re-downloading this piece? */
 				/* clean up all the piece dls for this now that its done */
 				if ((pd = network_piece_dl_find(p->sc, idx, off, 1)) != NULL) {
 					network_piece_dl_free(pd);
@@ -1433,6 +1430,7 @@ network_piece_inqueue(struct session *sc, struct torrent_piece *tpp)
 			return (0);
 	}
 }
+
 static int
 network_piece_cmp(const void *a, const void *b)
 {
