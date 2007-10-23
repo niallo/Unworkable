@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.145 2007-10-23 22:48:47 niallo Exp $ */
+/* $Id: network.c,v 1.146 2007-10-23 22:52:38 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1253,13 +1253,13 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t 
 	trace("network_peer_write_piece() at index %u offset %u length %u to peer %s:%d",
 	      idx, offset, len, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	if ((tpp = torrent_piece_find(p->sc->tp, idx)) == NULL) {
-		trace("REQUEST for piece %u - failed at torrent_piece_find(), returning", idx);
+		trace("network_peer_write_piece() piece %u - failed at torrent_piece_find(), returning", idx);
 		return;
 	}
 	if (!(tpp->flags & TORRENT_PIECE_MAPPED))
 		torrent_piece_map(tpp);
 	if ((data = torrent_block_read(tpp, offset, len, &hint)) == NULL) {
-		trace("REQUEST for piece %u - failed at torrent_block_read(), returning", idx);
+		trace("network_peer_write_piece() piece %u - failed at torrent_block_read(), returning", idx);
 		return;
 	}
 	torrent_piece_unmap(tpp);
@@ -1274,7 +1274,7 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 	struct piece_dl *pd;
 
 	if ((tpp = torrent_piece_find(p->sc->tp, idx)) == NULL) {
-		trace("REQUEST for piece %u - failed at torrent_piece_find(), returning", idx);
+		trace("network_peer_read_piece: piece %u - failed at torrent_piece_find(), returning", idx);
 		return;
 	}
 	trace("network_peer_read_piece() at index %u offset %llu length %u", idx, offset, len);
