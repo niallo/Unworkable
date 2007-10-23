@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.38 2007-10-19 17:38:53 niallo Exp $ */
+/* $Id: main.c,v 1.39 2007-10-23 22:37:23 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -81,18 +81,19 @@ main(int argc, char **argv)
 	/* a little extra info? torrent_print(torrent); */
 	for (i = 0; i < torrent->num_pieces; i++) {
 		torrent_piece_create(torrent, i);
-#if 0
-		if (torrent->isnew == 0) {
-			tpp = torrent_piece_find(torrent, i);
-			j = torrent_piece_checkhash(torrent, tpp);
-			if (j != 0) {
-				printf("%u ", i);
-				fflush(stdout);
-			} else {
-				torrent->good_pieces++;
-			}
+		#if 0
+		trace("checking");
+		tpp = torrent_piece_find(torrent, i);
+		torrent_piece_map(tpp);
+		j = torrent_piece_checkhash(torrent, tpp);
+		torrent_piece_unmap(tpp);
+		if (j != 0) {
+			printf("%u ", i);
+			fflush(stdout);
+		} else {
+			torrent->good_pieces++;
 		}
-#endif
+		#endif
 	}
 
 	srandomdev();

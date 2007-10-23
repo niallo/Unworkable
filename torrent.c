@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.87 2007-10-19 17:38:53 niallo Exp $ */
+/* $Id: torrent.c,v 1.88 2007-10-23 22:37:23 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -485,7 +485,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 		tfp->fd = 0;
 		goto open;
 	}
-	/* printf("mmap: len: %u off: %llu sbsiz: %llu fd: %d\n", len, off, sb.st_size, tfp->fd); */
+	/* trace("mmap: len: %u off: %llu sbsiz: %llu fd: %d", len, off, sb.st_size, tfp->fd); */
 	tmmp = xmalloc(sizeof(*tmmp));
 	memset(tmmp, 0, sizeof(*tmmp));
 
@@ -649,6 +649,8 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 	u_int8_t *d, *s, results[SHA1_DIGEST_LENGTH];
 	int hint, res;
 
+	if (!(tpp->flags & TORRENT_PIECE_MAPPED))
+		errx(1, "torrent_piece_checkhash: unmapped piece: %u", tpp->index);
 	d = torrent_block_read(tpp, 0, tpp->len, &hint);
 	if (d == NULL)
 		return (-1);
@@ -666,10 +668,11 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 		s = tp->body.singlefile.pieces
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
 	}
-	res = memcmp(results, s, SHA1_DIGEST_LENGTH);
-	if (res == 0)
-		tpp->flags |= TORRENT_PIECE_CKSUMOK;
 
+	res = memcmp(results, s, SHA1_DIGEST_LENGTH);
+	if (res == 0) {
+		tpp->flags |= TORRENT_PIECE_CKSUMOK;
+	}
 
 	return (res);
 }

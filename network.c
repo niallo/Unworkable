@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.143 2007-10-21 01:14:13 niallo Exp $ */
+/* $Id: network.c,v 1.144 2007-10-23 22:37:23 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -208,7 +208,7 @@ static void	network_peer_process_message(u_int8_t, struct peer *);
 static DH	*network_crypto_dh(void);
 static long	network_peer_lastcomms(struct peer *);
 static u_int64_t network_peer_rate(struct peer *);
-static int network_piece_inqueue(struct session *, struct torrent_piece *, u_int32_t);
+static int network_piece_inqueue(struct session *, struct torrent_piece *);
 static u_int32_t network_piece_find_rarest(struct session *, int, int *);
 static struct piece_dl * network_piece_dl_create(struct peer *, u_int32_t,
     u_int32_t, u_int32_t);
@@ -433,7 +433,7 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 	trace("network_handle_announce_error() bencode parsing buffer");
 	troot = benc_root_create();
 	if ((troot = benc_parse_buf(buf, troot)) == NULL)
-		errx(1,"network_handle_announce_error: HTTP response parsing failed");
+		errx(1,"network_handle_announce_error: HTTP response parsing failed (no peers?)");
 
 	if ((node = benc_node_find(troot, "interval")) == NULL) {
 		tp->interval = DEFAULT_ANNOUNCE_INTERVAL;
@@ -1075,7 +1075,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 	struct peer *tp;
 	struct piece_dl *pd;
 	u_int32_t bitfieldlen, idx, blocklen, off;
-	int res;
+	int res = 0;
 
 	/* XXX: safety-check for correct message lengths */
 	switch (id) {
@@ -1159,7 +1159,6 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			off = ntohl(off);
 			trace("PIECE message (idx=%u off=%u len=%u) from peer %s:%d", idx,
 			    off, p->rxmsglen, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-			p->queue_len--;
 			if (idx > p->sc->tp->num_pieces - 1) {
 				trace("PIECE index out of bounds");
 				break;
@@ -1170,41 +1169,45 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				break;
 			}
 			/* Only read if we don't already have it */
-			if (p != NULL && !(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
+			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
+				p->queue_len--;
 				if (!(tpp->flags & TORRENT_PIECE_MAPPED))
 					torrent_piece_map(tpp);
 				network_peer_read_piece(p, idx, off,
 				    p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)),
 				    p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
-			} else {
-				trace("already have piece");
-				break;
-			}
-			/* if there are more blocks in this piece, ask for another */
-			res = torrent_piece_checkhash(p->sc->tp, tpp);
-			torrent_piece_unmap(tpp);
-			if (res == 0) {
-				trace("hash check success for piece %d", idx);
-				p->sc->tp->good_pieces++;
-				p->sc->tp->left -= tpp->len;
-				if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
-					refresh_progress_meter();
-					exit(0);
-				}
-				/* send HAVE messages to all peers */
-				TAILQ_FOREACH(tp, &p->sc->peers, peer_list)
-					network_peer_write_have(tp, idx);
-				/* clean up all the piece dls for this now that its done */
-				for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
-					if ((pd = network_piece_dl_find(p->sc, idx, off, 1)) != NULL) {
-						network_piece_dl_free(pd);
+				res = torrent_piece_checkhash(p->sc->tp, tpp);
+				torrent_piece_unmap(tpp);
+				if (res == 0) {
+					trace("hash check success for piece %d", idx);
+					p->sc->tp->good_pieces++;
+					p->sc->tp->left -= tpp->len;
+					if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
+						refresh_progress_meter();
+						exit(0);
 					}
+					/* send HAVE messages to all peers */
+					TAILQ_FOREACH(tp, &p->sc->peers, peer_list)
+						network_peer_write_have(tp, idx);
+					/* clean up all the piece dls for this now that its done */
+					for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
+						if ((pd = network_piece_dl_find(p->sc, idx, off, 1)) != NULL) {
+							network_piece_dl_free(pd);
+						}
+					}
+				} else {
+					trace("hash check failure for piece %d", idx);
 				}
 			} else {
 				/* hash check failed, try re-downloading this piece */
 				//p->state = 0;
 				//p->state |= PEER_STATE_DEAD;
 				//network_peer_request_piece(p, p->piece, p->bytes);
+				/* clean up all the piece dls for this now that its done */
+				if ((pd = network_piece_dl_find(p->sc, idx, off, 1)) != NULL) {
+					network_piece_dl_free(pd);
+					p->queue_len--;
+				}
 			}
 			break;
 		case PEER_MSG_ID_CANCEL:
@@ -1274,6 +1277,7 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 		trace("REQUEST for piece %u - failed at torrent_piece_find(), returning", idx);
 		return;
 	}
+	trace("network_peer_read_piece() at index %u offset %llu length %u", idx, offset, len);
 	if ((pd = network_piece_dl_find(p->sc, idx, offset, 0)) == NULL)
 		errx(1, "network_peer_read_piece: no piece_dl for idx %u", idx);
 	torrent_block_write(tpp, offset, len, data);
@@ -1416,7 +1420,7 @@ network_peer_write_unchoke(struct peer *p)
  * Returns 1 on success, 0 on failure
  */
 static int
-network_piece_inqueue(struct session *sc, struct torrent_piece *tpp, u_int32_t idx)
+network_piece_inqueue(struct session *sc, struct torrent_piece *tpp)
 {
 	u_int32_t off;
 
@@ -1424,7 +1428,7 @@ network_piece_inqueue(struct session *sc, struct torrent_piece *tpp, u_int32_t i
 	for (off = 0; ; off += BLOCK_SIZE) {
 		if (off >= tpp->len)
 			return (1);
-		if (network_piece_dl_find(sc, idx, off, 1) == NULL)
+		if (network_piece_dl_find(sc, tpp->index, off, 1) == NULL)
 			return (0);
 	}
 }
@@ -1483,14 +1487,15 @@ network_piece_find_rarest(struct session *sc, int flag, int *res)
 {
 	struct torrent_piece *tpp;
 	struct piececounter *pieces;
-	u_int32_t i, idx;
+	u_int32_t i;
+	int found = 0;
 
-	idx = 0;
 	tpp = NULL;
+	*res = 1;
 
 	pieces = network_piece_rarityarray(sc);
 	/* find the rarest piece amongst our peers */
-	for (i = 0; i < sc->tp->num_pieces - 1; i++) {
+	for (i = 0; i < sc->tp->num_pieces; i++) {
 		tpp = torrent_piece_find(sc->tp, pieces[i].idx);
 		/* if we have this piece, skip it */
 		if (tpp->flags & TORRENT_PIECE_CKSUMOK) {
@@ -1498,17 +1503,21 @@ network_piece_find_rarest(struct session *sc, int flag, int *res)
 		}
 		if (flag == FIND_RAREST_IGNORE_INQUEUE) {
 			/* if this piece and all its blocks are already in our download queue, skip it */
-			if (network_piece_inqueue(sc, tpp, pieces[i].idx)) {
+			if (network_piece_inqueue(sc, tpp)) {
 				continue;
 			} else {
+				found = 1;
 				break;
 			}
+		} else {
+			found = 1;
+			break;
 		}
 	}
 
-	idx = pieces[i].idx;
+	*res = found;
 	xfree(pieces);
-	return (idx);
+	return (tpp->index);
 }
 
 
@@ -1519,9 +1528,10 @@ network_piece_gimme(struct peer *peer)
 	struct torrent_piece *tpp;
 	struct piece_dl *pd;
 	u_int32_t idx, len, off;
-	int found, res;
+	int res;
 
-	idx = off = found = 0;
+	res = 0;
+	idx = off = 0;
 	tpp = NULL;
 
 	/* XXX: prioritise incomplete pieces for which we have some blocks */
@@ -1529,7 +1539,7 @@ network_piece_gimme(struct peer *peer)
 		tpp = torrent_piece_find(peer->sc->tp, pd->idx);
 		if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
 			/* if not all this piece's blocks are in the download queue */
-			if (!network_piece_inqueue(peer->sc, tpp, pd->idx)) {
+			if (!network_piece_inqueue(peer->sc, tpp)) {
 				idx = pd->idx;
 				goto get_block;
 			}
@@ -1537,12 +1547,26 @@ network_piece_gimme(struct peer *peer)
 	}
 	/* XXX: first 4 pieces should be chosen at random */
 	if (peer->sc->tp->good_pieces < 4 && peer->sc->tp->num_pieces > 4) {
-		idx = random() % (peer->sc->tp->num_pieces - 2);
+		for (;;) {
+			idx = random() % (peer->sc->tp->num_pieces - 1);
+			tpp = torrent_piece_find(peer->sc->tp, idx);
+			/* do we already have this piece? */
+			if (tpp->flags & TORRENT_PIECE_CKSUMOK)
+				continue;
+			/* is it already in our download queue? */
+			if (network_piece_inqueue(peer->sc, tpp))
+				continue;
+			/* if not, run with it */
+			break;
+		}
 	} else {
 		/* find the rarest piece that does not have all its blocks already in the download queue */
 		idx = network_piece_find_rarest(peer->sc, FIND_RAREST_IGNORE_INQUEUE, &res);
+		/* there are no more pieces */
+		if (res == 0)
+			return(NULL);
+		tpp = torrent_piece_find(peer->sc->tp, idx);
 	}
-	tpp = torrent_piece_find(peer->sc->tp, idx);
 get_block:
 	/* find the next block (by offset) in the piece, which is not already in the download queue */
 	for (off = 0; ; off += BLOCK_SIZE) {
