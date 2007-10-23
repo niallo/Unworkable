@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.39 2007-10-23 22:37:23 niallo Exp $ */
+/* $Id: main.c,v 1.40 2007-10-23 22:43:38 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -42,10 +42,13 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	int ch, j;
+	int ch;
 	u_int32_t i;
 	struct torrent *torrent;
+#if 0
 	struct torrent_piece *tpp;
+	int j;
+#endif
 
 	#if defined(USE_BOEHM_GC)
 	GC_INIT();
