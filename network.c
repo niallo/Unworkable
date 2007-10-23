@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.146 2007-10-23 22:52:38 niallo Exp $ */
+/* $Id: network.c,v 1.147 2007-10-23 22:59:43 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1023,8 +1023,9 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				p->rxmsg = NULL;
 				p->state |= PEER_STATE_BITFIELD;
 				p->state &= ~PEER_STATE_HANDSHAKE2;
-				//network_peer_write_bitfield(p);
-				//network_peer_write_unchoke(p);
+				/* XXX if we have some pieces, we probably want to send our bitfield
+				network_peer_write_bitfield(p);
+				*/
 				p->rxpending = 0;
 				goto out;
 			}
