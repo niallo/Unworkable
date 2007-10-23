@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.144 2007-10-23 22:37:23 niallo Exp $ */
+/* $Id: network.c,v 1.145 2007-10-23 22:48:47 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1563,8 +1563,8 @@ network_piece_gimme(struct peer *peer)
 		/* find the rarest piece that does not have all its blocks already in the download queue */
 		idx = network_piece_find_rarest(peer->sc, FIND_RAREST_IGNORE_INQUEUE, &res);
 		/* there are no more pieces */
-		if (res == 0)
-			return(NULL);
+		if (!res)
+			return (NULL);
 		tpp = torrent_piece_find(peer->sc->tp, idx);
 	}
 get_block:
@@ -1601,7 +1601,7 @@ network_scheduler(int fd, short type, void *arg)
 	u_int32_t pieces_left, reqs;
 	u_int64_t peer_rate;
 	/* between 2 and 15 */
-	u_int8_t peer_count, queue_len, i, count, choked, unchoked;
+	u_int8_t peer_count, queue_len, i, choked, unchoked;
 
 	peer_count = reqs = choked = unchoked = 0;
 	p = NULL;
@@ -1751,7 +1751,6 @@ network_scheduler(int fd, short type, void *arg)
 		/* XXX: try to connect some more peers */
 	}
 #endif
-	count++;
 }
 /* start handling network stuff for a new torrent */
 int
