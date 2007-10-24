@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.149 2007-10-24 06:35:17 niallo Exp $ */
+/* $Id: network.c,v 1.150 2007-10-24 23:31:54 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -162,6 +162,7 @@ struct session {
 	struct sockaddr_in sa;
 	struct torrent *tp;
 	struct http_response *res;
+	u_int8_t num_peers;
 };
 
 struct piececounter {
@@ -522,6 +523,7 @@ network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
 	bufferevent_enable(p->bufev, EV_READ|EV_WRITE);
 	trace("network_handle_peer_connect() initiating handshake");
 	TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
+	sc->num_peers++;
 	network_peer_handshake(sc, p);
 
 }
@@ -693,6 +695,7 @@ network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 			if (found == 0) {
 				trace("network_peerlist_update() adding peer to list");
 				TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
+				sc->num_peers++;
 			}
 			continue;
 		}
@@ -724,6 +727,7 @@ network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 			    inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
 			TAILQ_REMOVE(&sc->peers, ep, peer_list);
 			network_peer_free(ep);
+			sc->num_peers--;
 		}
 	}
 	network_peerlist_connect(sc);
@@ -792,6 +796,7 @@ network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
 		if (found == 0) {
 			trace("network_peerlist_update_dict() adding peer to list");
 			TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
+			sc->num_peers++;
 		}
 	}
 
@@ -818,6 +823,7 @@ network_peerlist_connect(struct session *sc)
 				    inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
 				TAILQ_REMOVE(&sc->peers, ep, peer_list);
 				network_peer_free(ep);
+				sc->num_peers--;
 				continue;
 			}
 			trace("network_peerlist_update() connected fd %d to peer: %s:%d",
@@ -1601,10 +1607,9 @@ network_scheduler(int fd, short type, void *arg)
 	struct piece_dl *pd, *nxtpd;
 	u_int32_t pieces_left, reqs;
 	u_int64_t peer_rate;
-	/* between 2 and 15 */
-	u_int8_t peer_count, queue_len, i, choked, unchoked;
+	u_int8_t queue_len, i, choked, unchoked;
 
-	peer_count = reqs = choked = unchoked = 0;
+	reqs = choked = unchoked = 0;
 	p = NULL;
 	timerclear(&tv);
 	tv.tv_sec = 1;
@@ -1617,7 +1622,6 @@ network_scheduler(int fd, short type, void *arg)
 	pieces_left = sc->tp->num_pieces - sc->tp->good_pieces;
 	if (!TAILQ_EMPTY(&sc->peers)) {
 		for (p = TAILQ_FIRST(&sc->peers); p; p = nxt) {
-			peer_count++;
 			nxt = TAILQ_NEXT(p, peer_list);
 			if (p->state & PEER_STATE_CHOKED)
 				choked++;
@@ -1633,6 +1637,7 @@ network_scheduler(int fd, short type, void *arg)
 				TAILQ_REMOVE(&sc->peers, p, peer_list);
 				network_peer_free(p);
 				pd = NULL;
+				sc->num_peers--;
 				continue;
 			}
 			/* if we are not transferring to/from this peer */
@@ -1676,7 +1681,7 @@ network_scheduler(int fd, short type, void *arg)
 	}
 	/* Every 10 seconds, interested remote peers  */
 	trace("Peers: %u Good pieces: %u/%u Reqs in flight: %u Choked: %u Unchoked: %u",
-	      peer_count, sc->tp->good_pieces, sc->tp->num_pieces, reqs, choked, unchoked);
+	      sc->num_peers, sc->tp->good_pieces, sc->tp->num_pieces, reqs, choked, unchoked);
 #if 0
 	if (pieces_left <= 5) {
 		for (i = 0; i < sc->tp->num_pieces; i++) {
