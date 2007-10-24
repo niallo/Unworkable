@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.148 2007-10-23 23:23:48 niallo Exp $ */
+/* $Id: network.c,v 1.149 2007-10-24 06:35:17 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -212,9 +212,10 @@ static int network_piece_inqueue(struct session *, struct torrent_piece *);
 static u_int32_t network_piece_find_rarest(struct session *, int, int *);
 static struct piece_dl * network_piece_dl_create(struct peer *, u_int32_t,
     u_int32_t, u_int32_t);
-static void network_piece_dl_free(struct piece_dl *);
+static void	network_piece_dl_free(struct piece_dl *);
 static struct piece_dl *network_piece_dl_find(struct session *, u_int32_t,
     u_int32_t, int);
+static void	network_peer_piece_dl(struct piece_dl *);
 static int network_piece_cmp(const void *, const void *);
 static struct piececounter *network_piece_rarityarray(struct session *);
 
@@ -960,7 +961,6 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	 * means we have to be prepared to come back later and add more
 	 * data */
 
-	/* XXX split into multiple smaller functions */
 	if (p->state & PEER_STATE_HANDSHAKE1 && p->rxpending == 0) {
 		p->rxmsg = xmalloc(BT_INITIAL_LEN);
 		p->rxmsglen = BT_INITIAL_LEN;
@@ -992,6 +992,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				    && memcmp(p->rxmsg+1, BT_PROTOCOL, BT_PSTRLEN) == 0) {
 					xfree(p->rxmsg);
 					p->rxmsg = NULL;
+					/* see comment above network_peer_handshake() for explanation of these numbers */
 					p->rxpending = 8 + 20 + 20;
 					p->rxmsglen = p->rxpending;
 					p->rxmsg = xmalloc(p->rxmsglen);
@@ -1000,7 +1001,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					goto out;
 
 				} else {
-				/* try D-H key exchange */
+				/* XXX: try D-H key exchange */
 					trace("network_handle_peer_response: crypto, killing peer for now");
 					p->state = 0;
 					p->state |= PEER_STATE_DEAD;
@@ -1010,6 +1011,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 
 			}
 			if (p->state & PEER_STATE_HANDSHAKE2) {
+				/* see comment above network_peer_handshake() for explanation of these numbers */
 				memcpy(&p->info_hash, p->rxmsg + 8, 20);
 				memcpy(&p->id, p->rxmsg + 8 + 20, 20);
 				if (memcmp(p->info_hash, p->sc->tp->info_hash, 20) != 0) {
@@ -1201,7 +1203,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				}
 			} else {
 				/* XXX hash check failed, try re-downloading this piece? */
-				/* clean up all the piece dls for this now that its done */
+				/* clean up this piece dl, although its not fully the correct thing to do */
 				if ((pd = network_piece_dl_find(p->sc, idx, off, 1)) != NULL) {
 					network_piece_dl_free(pd);
 					p->queue_len--;
@@ -1287,9 +1289,9 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 }
 
 static void
-network_peer_piece_dl(struct peer *p, struct piece_dl *pd)
+network_peer_piece_dl(struct piece_dl *pd)
 {
-	network_peer_request_block(p, pd->idx, pd->off, pd->len);
+	network_peer_request_block(pd->pc, pd->idx, pd->off, pd->len);
 }
 
 static void
@@ -1653,7 +1655,7 @@ network_scheduler(int fd, short type, void *arg)
 						if (pd == NULL) {
 							continue;
 						}
-						network_peer_piece_dl(p, pd);
+						network_peer_piece_dl(pd);
 						p->queue_len++;
 					}
 				}
