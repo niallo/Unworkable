@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.53 2007-07-20 01:13:54 niallo Exp $ */
+/* $Id: parse.y,v 1.54 2007-10-25 04:52:19 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -104,7 +104,7 @@ bencode		: /* empty */
 number		: STRING					{
 			long long lval;
 			const char *errstr;
-			lval = strtonum($1, LLONG_MIN, LLONG_MAX, &errstr);
+			lval = strtonum($1, LONG_MIN, LONG_MAX, &errstr);
 			if (errstr) {
 				yyerror("%s is %s", $1, errstr);
 				xfree($1);
