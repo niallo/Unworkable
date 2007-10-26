@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.151 2007-10-26 02:57:35 niallo Exp $ */
+/* $Id: network.c,v 1.152 2007-10-26 06:19:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -93,6 +93,9 @@
 #define BIT_ISSET(a,i)			((a)[(i)/8] & (1<<(7-((i)%8))))
 #define BIT_ISCLR(a,i)			(((a)[(i)/8] & (1<<(7-((i)%8)))) == 0)
 
+/* try to keep this many peer connections at all times */
+#define PEERS_WANTED				10
+
 /* data for a http response */
 struct http_response {
 	/* response buffer */
@@ -164,6 +167,8 @@ struct session {
 	struct torrent *tp;
 	struct http_response *res;
 	u_int8_t num_peers;
+	rlim_t maxfds;
+	u_int8_t tracker_num_peers;
 };
 
 struct piececounter {
@@ -280,7 +285,7 @@ network_announce(struct session *sc, const char *event)
 		path[strlen(path) - 1] = '\0';
 
 	/* build params string */
-	l = snprintf(tparams, GETSTRINGLEN,
+	l = snprintf(params, GETSTRINGLEN,
 	    "?info_hash=%s"
 	    "&peer_id=%s"
 	    "&port=%s"
@@ -298,6 +303,7 @@ network_announce(struct session *sc, const char *event)
 		goto trunc;
 	/* these parts are optional */
 	if (event != NULL) {
+		strlcpy(tparams, params, GETSTRINGLEN);
 		l = snprintf(params, GETSTRINGLEN, "%s&event=%s", tparams,
 		    event);
 		if (l == -1 || l >= GETSTRINGLEN)
@@ -404,8 +410,10 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 	u_char *c;
 
 	trace("network_handle_announce_error() called");
+	/* shouldn't have to worry about this case */
+	if (sc->res == NULL)
+		return;
 	/* still could be data left for reading */
-
 	do {
 		l = sc->res->rxread;
 		network_handle_announce_response(bufev, sc);
@@ -419,22 +427,26 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 
 	c = sc->res->rxmsg;
 	/* XXX: need HTTP/1.1 support - tricky part is chunked encoding I think */
-	if (strncmp(c, "HTTP/1.0", 8) != 0 && strncmp(c, "HTTP/1.1", 8)) {
+#define HTTP_1_0 "HTTP/1.0"
+#define HTTP_1_1 "HTTP/1.1"
+	if (strncmp(c, HTTP_1_0, strlen(HTTP_1_0)) != 0 && strncmp(c, HTTP_1_1, strlen(HTTP_1_1))) {
 		warnx("network_handle_announce_error: server did not send a valid HTTP/1.0 response");
 		goto err;
 	}
-	c += 9;
-	if (strncmp(c, "200", 3) != 0) {
-		*(c + 3) = '\0';
+	c += strlen(HTTP_1_0) + 1;
+#define HTTP_OK "200"
+	if (strncmp(c, HTTP_OK, strlen(HTTP_OK)) != 0) {
+		*(c + strlen(HTTP_OK)) = '\0';
 		warnx("network_handle_announce_error: HTTP response indicates error (code: %s)", c);
 		goto err;
 	}
-	c = strstr(c, "\r\n\r\n");
+#define HTTP_END "\r\n\r\n"
+	c = strstr(c, HTTP_END);
 	if (c == NULL) {
 		warnx("network_handle_announce_error: HTTP response had no content");
 		goto err;
 	}
-	c += 4;
+	c += strlen(HTTP_END);
 
 	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL)
 		errx(1,"network_handle_announce_error: could not allocate buffer");
@@ -453,6 +465,17 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 		tp->interval = node->body.number;
 	}
 
+	if ((node = benc_node_find(troot, "complete")) != NULL) {
+		if (!(node->flags & BINT))
+			errx(1, "complete is not a number");
+		tp->complete = node->body.number;
+	}
+
+	if ((node = benc_node_find(troot, "incomplete")) != NULL) {
+		if (!(node->flags & BINT))
+			errx(1, "incomplete is not a number");
+		tp->incomplete = node->body.number;
+	}
 
 	if ((node = benc_node_find(troot, "peers")) == NULL)
 		errx(1, "no peers field");
@@ -489,9 +512,11 @@ err:
 	if (buf != NULL)
 		buf_free(buf);
 	trace("network_handle_announce_error() freeing res2");
-	xfree(sc->res->rxmsg);
-	xfree(sc->res);
-	sc->res = NULL;
+	if (sc->res != NULL) {
+		xfree(sc->res->rxmsg);
+		xfree(sc->res);
+		sc->res = NULL;
+	}
 	(void) close(sc->connfd);
 	trace("network_handle_announce_error() done");
 
@@ -617,7 +642,9 @@ network_connect_tracker(const char *host, const char *port)
 	int error, sockfd;
 
 	memset(&hints, 0, sizeof(hints));
-	/* IPv4-only for now */
+	/* I think that this is the only place where we should actually
+	 * have to resolve host names.  The getaddrinfo() calls elsewhere
+	 * should be very fast. */
 	hints.ai_family = PF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	trace("network_connect_tracker() calling getaddrinfo()");
@@ -818,6 +845,12 @@ network_peerlist_connect(struct session *sc)
 
 	for (ep = TAILQ_FIRST(&sc->peers); ep != TAILQ_END(&sc->peers) ; ep = nxt) {
 		nxt = TAILQ_NEXT(ep, peer_list);
+		/* stay within our limits */
+		if (sc->num_peers >= sc->maxfds - 5) {
+				network_peer_free(ep);
+				sc->num_peers--;
+				continue;
+		}
 		trace("network_peerlist_update() we have a peer: %s:%d", inet_ntoa(ep->sa.sin_addr),
 		    ntohs(ep->sa.sin_port));
 		if (ep->connfd != 0) {
@@ -1291,7 +1324,7 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 		trace("network_peer_read_piece: piece %u - failed at torrent_piece_find(), returning", idx);
 		return;
 	}
-	trace("network_peer_read_piece() at index %u offset %llu length %u", idx, offset, len);
+	trace("network_peer_read_piece() at index %u offset %u length %u", idx, offset, len);
 	if ((pd = network_piece_dl_find(p->sc, idx, offset, 0)) == NULL)
 		errx(1, "network_peer_read_piece: no piece_dl for idx %u", idx);
 	torrent_block_write(tpp, offset, len, data);
@@ -1639,8 +1672,9 @@ network_scheduler(int fd, short type, void *arg)
 			if (p->state & PEER_STATE_DEAD) {
 				for (pd = TAILQ_FIRST(&sc->piece_dls); pd; pd = nxtpd) {
 					nxtpd = TAILQ_NEXT(pd, piece_dl_list);
-					if (pd->pc == p)
+					if (pd->pc == p) {
 						network_piece_dl_free(pd);
+					}
 				}
 				TAILQ_REMOVE(&sc->peers, p, peer_list);
 				network_peer_free(p);
@@ -1675,12 +1709,24 @@ network_scheduler(int fd, short type, void *arg)
 				continue;
 			} else {
 				/* if we have not received data in PEER_COMMS_THRESHOLD,
-				 * take some action */
-				if (network_peer_lastcomms(p) >= PEER_COMMS_THRESHOLD)
+				 * remove the block requests from our list and kill the peer */
+				if (network_peer_lastcomms(p) >= PEER_COMMS_THRESHOLD) {
 					trace("comms threshold exceeded for peer %s:%d",
 					    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+					p->state = 0;
+					p->state |= PEER_STATE_DEAD;
+				}
 			}
 		}
+	}
+	/* try to get some more peers */
+	if (sc->num_peers < PEERS_WANTED) {
+		/* But what if the tracker really only has a small number of peers?
+		 * We will keep asking over and over, wasting resources.
+		 * This should be fixed */
+#if 0
+		network_announce(sc, NULL);
+#endif
 	}
 	TAILQ_FOREACH(pd, &sc->piece_dls, piece_dl_list) {
 		tpp = torrent_piece_find(sc->tp, pd->idx);
@@ -1768,7 +1814,7 @@ network_scheduler(int fd, short type, void *arg)
 }
 /* start handling network stuff for a new torrent */
 int
-network_start_torrent(struct torrent *tp)
+network_start_torrent(struct torrent *tp, rlim_t maxfds)
 {
 	int ret;
 	struct session *sc;
@@ -1780,6 +1826,7 @@ network_start_torrent(struct torrent *tp)
 	TAILQ_INIT(&sc->peers);
 	TAILQ_INIT(&sc->piece_dls);
 	sc->tp = tp;
+	sc->maxfds = maxfds;
 	if (user_port == NULL) {
 		sc->port = xstrdup("6668");
 	} else {

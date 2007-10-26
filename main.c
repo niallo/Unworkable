@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.41 2007-10-26 02:49:43 niallo Exp $ */
+/* $Id: main.c,v 1.42 2007-10-26 06:19:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -14,6 +14,9 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include <sys/types.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #include <sys/time.h>
 
@@ -47,6 +50,7 @@ main(int argc, char **argv)
 	int ch;
 	u_int32_t i;
 	struct torrent *torrent;
+	struct rlimit rlp;
 	struct timeval now;
 #if 0
 	struct torrent_piece *tpp;
@@ -83,6 +87,9 @@ main(int argc, char **argv)
 	if (argc == 0)
 		usage();
 
+
+	if (getrlimit(RLIMIT_NOFILE, &rlp) == -1)
+		err(1, "getrlimit");
 	torrent = torrent_parse_file(argv[0]);
 	/* a little extra info? torrent_print(torrent); */
 	for (i = 0; i < torrent->num_pieces; i++) {
@@ -106,7 +113,7 @@ main(int argc, char **argv)
 		err(1, "gettimeofday");
 	srandom(now.tv_sec);
 	network_init();
-	network_start_torrent(torrent);
+	network_start_torrent(torrent, rlp.rlim_cur);
 
 	exit(0);
 }
