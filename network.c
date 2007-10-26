@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.152 2007-10-26 06:19:53 niallo Exp $ */
+/* $Id: network.c,v 1.153 2007-10-26 06:33:32 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -168,7 +168,7 @@ struct session {
 	struct http_response *res;
 	u_int8_t num_peers;
 	rlim_t maxfds;
-	u_int8_t tracker_num_peers;
+	int announce_underway;
 };
 
 struct piececounter {
@@ -358,6 +358,7 @@ network_announce(struct session *sc, const char *event)
 #define RESBUFLEN 1024
 	sc->res->rxmsg = xmalloc(RESBUFLEN);
 	sc->res->rxmsglen = RESBUFLEN;
+	sc->announce_underway = 1;
 	bufev = bufferevent_new(sc->connfd, network_handle_announce_response,
 	    network_handle_write, network_handle_announce_error, sc);
 	if (bufev == NULL)
@@ -519,6 +520,7 @@ err:
 	}
 	(void) close(sc->connfd);
 	trace("network_handle_announce_error() done");
+	sc->announce_underway = 0;
 
 }
 
@@ -679,7 +681,8 @@ network_announce_update(int fd, short type, void *arg)
 	struct timeval tv;
 
 	trace("network_announce_update() called");
-	network_announce(sc, NULL);
+	if (!sc->announce_underway)
+		network_announce(sc, NULL);
 	timerclear(&tv);
 	tv.tv_sec = sc->tp->interval;
 	evtimer_set(&sc->announce_event, network_announce_update, sc);
@@ -731,6 +734,8 @@ network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 				trace("network_peerlist_update() adding peer to list");
 				TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
 				sc->num_peers++;
+			} else {
+				network_peer_free(p);
 			}
 			continue;
 		}
@@ -832,6 +837,8 @@ network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
 			trace("network_peerlist_update_dict() adding peer to list");
 			TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
 			sc->num_peers++;
+		} else {
+			network_peer_free(p);
 		}
 	}
 
@@ -856,9 +863,9 @@ network_peerlist_connect(struct session *sc)
 		if (ep->connfd != 0) {
 			/* XXX */
 		} else {
-			/* XXX non-blocking connect? */
 			trace("network_peerlist_update() connecting to peer: %s:%d",
 			    inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
+			/* XXX does this failure case do anything worthwhile? */
 			if ((ep->connfd = network_connect_peer(ep)) == -1) {
 				trace("network_peerlist_update() failure connecting to peer: %s:%d - removing",
 				    inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
@@ -1123,7 +1130,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 {
 	struct torrent_piece *tpp;
 	struct peer *tp;
-	struct piece_dl *pd;
+	struct piece_dl *pd, *nxtpd;
 	u_int32_t bitfieldlen, idx, blocklen, off;
 	int res = 0;
 
@@ -1132,6 +1139,11 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 		case PEER_MSG_ID_CHOKE:
 			trace("CHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			p->state |= PEER_STATE_CHOKED;
+			for (pd = TAILQ_FIRST(&p->sc->piece_dls); pd; pd = nxtpd) {
+				nxtpd = TAILQ_NEXT(pd, piece_dl_list);
+				if (pd->pc == p)
+					network_piece_dl_free(pd);
+			}
 			break;
 		case PEER_MSG_ID_UNCHOKE:
 			trace("UNCHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
@@ -1917,6 +1929,7 @@ network_piece_dl_free(struct piece_dl *pd)
 	if (pd->buf != NULL)
 		xfree(pd->buf);
 	xfree(pd);
+	pd = NULL;
 }
 
 static struct piece_dl *
