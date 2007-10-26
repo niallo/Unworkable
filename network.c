@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.150 2007-10-24 23:31:54 niallo Exp $ */
+/* $Id: network.c,v 1.151 2007-10-26 02:57:35 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/queue.h>
+#include <sys/param.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -227,14 +228,16 @@ network_announce(struct session *sc, const char *event)
 	size_t n;
 	char host[MAXHOSTNAMELEN], port[6], path[MAXPATHLEN], *c;
 #define GETSTRINGLEN 2048
-	char *params, *request;
+	char *params, *tparams, *request;
 	char tbuf[3*SHA1_DIGEST_LENGTH+1];
 	struct bufferevent *bufev;
 
 	trace("network_announce");
 	params = xmalloc(GETSTRINGLEN);
+	tparams = xmalloc(GETSTRINGLEN);
 	request = xmalloc(GETSTRINGLEN);
 	memset(params, '\0', GETSTRINGLEN);
+	memset(tparams, '\0', GETSTRINGLEN);
 	memset(request, '\0', GETSTRINGLEN);
 
 	/* convert binary info hash to url encoded format */
@@ -277,7 +280,7 @@ network_announce(struct session *sc, const char *event)
 		path[strlen(path) - 1] = '\0';
 
 	/* build params string */
-	l = snprintf(params, GETSTRINGLEN,
+	l = snprintf(tparams, GETSTRINGLEN,
 	    "?info_hash=%s"
 	    "&peer_id=%s"
 	    "&port=%s"
@@ -295,30 +298,36 @@ network_announce(struct session *sc, const char *event)
 		goto trunc;
 	/* these parts are optional */
 	if (event != NULL) {
-		l = snprintf(params, GETSTRINGLEN, "%s&event=%s", params,
+		l = snprintf(params, GETSTRINGLEN, "%s&event=%s", tparams,
 		    event);
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
+	/* while OpenBSD's snprintf doesn't mind snprintf(X, len, "%sblah", X) others
+	 * don't like this, so I do the strlcpy and use the temporary buffer tparams. */
 	if (sc->ip != NULL) {
-		l = snprintf(params, GETSTRINGLEN, "%s&ip=%s", params,
+		strlcpy(tparams, params, GETSTRINGLEN);
+		l = snprintf(params, GETSTRINGLEN, "%s&ip=%s", tparams,
 		    sc->ip);
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
 	if (sc->numwant != NULL) {
+		strlcpy(tparams, params, GETSTRINGLEN);
 		l = snprintf(params, GETSTRINGLEN, "%s&numwant=%s", params,
 		    sc->numwant);
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
 	if (sc->key != NULL) {
+		strlcpy(tparams, params, GETSTRINGLEN);
 		l = snprintf(params, GETSTRINGLEN, "%s&key=%s", params,
 		    sc->key);
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
 	if (sc->trackerid != NULL) {
+		strlcpy(tparams, params, GETSTRINGLEN);
 		l = snprintf(params, GETSTRINGLEN, "%s&trackerid=%s",
 		    params, sc->trackerid);
 		if (l == -1 || l >= GETSTRINGLEN)
@@ -326,8 +335,8 @@ network_announce(struct session *sc, const char *event)
 	}
 
 	l = snprintf(request, GETSTRINGLEN,
-	    "GET %s%s HTTP/1.0\r\nHost: %s\r\nUser-agent: Unworkable/1.0\r\n\r\n", path,
-	    params, host);
+	    "GET %s%s HTTP/1.0\r\nHost: %s\r\nUser-agent: Unworkable/%s\r\n\r\n", path,
+	    params, host, UNWORKABLE_VERSION);
 	if (l == -1 || l >= GETSTRINGLEN)
 		goto trunc;
 
@@ -358,10 +367,9 @@ network_announce(struct session *sc, const char *event)
 
 trunc:
 	warnx("network_announce: string truncation detected");
-	trace("freeing params");
 	xfree(params);
-	trace("freeing request");
 	xfree(request);
+	xfree(tparams);
 	return (-1);
 }
 
