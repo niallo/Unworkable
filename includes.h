@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.21 2007-10-26 02:53:05 niallo Exp $ */
+/* $Id: includes.h,v 1.22 2007-10-26 06:18:41 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,6 +20,8 @@
 
 #include <sys/queue.h>
 #include <sys/tree.h>
+#include <sys/resource.h>
+#include <sys/time.h>
 
 #include <signal.h>
 #include <stdarg.h>
@@ -125,10 +127,12 @@ struct torrent {
 	off_t					downloaded;
 	off_t					left;
 	struct benc_node			*broot;
-	size_t					interval;
+	u_int32_t				interval;
 	char					*trackerid;
 	char					*name;
 	short					isnew;
+	u_int32_t				complete;
+	u_int32_t				incomplete;
 };
 
 void			 benc_node_add(struct benc_node *, struct benc_node *);
@@ -165,7 +169,7 @@ size_t		 buf_pos(BUF *);
 
 int		 mkpath(const char *, mode_t);
 void		 network_init(void);
-int		 network_start_torrent(struct torrent *);
+int		 network_start_torrent(struct torrent *, rlim_t);
 int				yyerror(const char *, ...);
 int				yyparse(void);
 int				yylex(void);
