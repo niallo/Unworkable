@@ -1,0 +1,43 @@
+Unworkable BitTorrent Implementation
+
+Author:   Niall O'Higgins <niallo at unworkable.org>
+Homepage: http://niallohiggins.com/unworkable/
+====================================================
+
+Unworkable is a BSD-licensed BitTorrent implementation for UNIX written
+from-scratch in C.  It uses libevent for scalable asynchronous networking and
+the mmap() system call for local data access.  Some of the goals of the project
+include (in no particular order) high code quality, efficiency, simplicity and
+security.
+
+FEATURES
+========
+
+Unworkable is still in an early stage of development, and is far behind most
+other BitTorrent implementations.  However, it is usable for some basic things
+and the source code is quite minimal (4,000 lines of C compared to rTorrent's
+40,000+ of C++).
+
+Current state:
+
+Unworkable currently lacks support for the following:
+
+    * HTTP/1.1 client. Many trackers do not correctly support HTTP/1.0 so
+      downloads will not work.
+    * Encryption.
+    * Seed mode.
+    * Trackerless (DHT) operation.
+    * Probably lots of other stuff.
+
+BUILDING
+========
+
+Unworkable will build cleanly on OpenBSD (tested on i386, amd64, zaurus,
+sparc64, macppc) without any additional dependencies beyond the base install.
+Simply type 'make'.
+
+On other platforms, you must use the SCons (http://www.scons.org) build tool.
+After installing scons, type 'scons' to compile. Make sure you have libevent
+and OpenSSL installed.  If you get it working on other platforms, please let me
+know and send along any portability diffs.  It is known to work on at least
+Ubuntu Linux 7.10.
