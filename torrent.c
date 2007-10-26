@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.89 2007-10-23 23:23:48 niallo Exp $ */
+/* $Id: torrent.c,v 1.90 2007-10-26 02:56:28 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -15,6 +15,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef __linux__
+#include <sys/file.h>
+#endif
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/param.h>
@@ -442,8 +445,14 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 {
 	struct torrent_mmap *tmmp;
 	struct stat sb;
-	char buf[MAXPATHLEN], zero = 0x00, *basedir;
+	char buf[MAXPATHLEN], *buf2, zero = 0x00, *basedir;
 	int fd = 0, l;
+	long pagesize;
+	u_int8_t *nearest_page = NULL;
+	off_t page_off;
+
+	if ((pagesize = sysconf(_SC_PAGESIZE)) == -1)
+		err(1, "torrent_mmap_create: sysconf");
 	open:
 	if (tfp->fd == 0) {
 		if (tp->type == SINGLEFILE)
@@ -453,13 +462,15 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 			    tp->body.multifile.name, tfp->path);
 			if (l == -1 || l >= (int)sizeof(buf))
 				errx(1, "torrent_mmap_create: path too long");
-			if ((basedir = dirname(buf)) == NULL)
+			/* Linux dirname() modifies the buffer, so make a copy */
+			buf2 = xstrdup(buf);
+			if ((basedir = dirname(buf2)) == NULL)
 				err(1, "torrent_mmap_create: basename");
 			if (mkpath(basedir, 0755) == -1)
 				if (errno != EEXIST)
 					err(1, "torrent_mmap_create \"%s\": mkdir", basedir);
-
-
+			xfree(buf2);
+			basedir = NULL;
 		}
 		if ((fd = open(buf, O_RDWR|O_CREAT, 0600)) == -1)
 			err(1, "torrent_mmap_create: open `%s'", buf);
@@ -470,7 +481,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	}
 	if (fstat(tfp->fd, &sb) == -1)
 		err(1, "torrent_mmap_create: fstat `%d'", tfp->fd);
-	/* trace("size: %llu vs. len+off: %llu", sb.st_size, (off_t)len + off); */
+	/* trace("size: %u vs. len+off: %u", sb.st_size, (off_t)len + off); */
 	if (sb.st_size < ((off_t)len + off)) {
 		/* trace("%llu offset zeroed, len %u, size: %u", off, len, sb.st_size); */
 		tp->isnew = 1;
@@ -484,16 +495,23 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 		tfp->fd = 0;
 		goto open;
 	}
-	/* trace("mmap: len: %u off: %llu sbsiz: %llu fd: %d", len, off, sb.st_size, tfp->fd); */
+	/* OpenBSD does not require us to align our mmap to page-size boundaries,
+	 * but Linux and no doubt other platforms do.
+	 */
+	page_off = ((off / pagesize) * pagesize);
+	/* trace("mmap: len: %u off: %u sbsiz: %u fd: %d aligned off: %u pagesize: %d", len, off, sb.st_size, tfp->fd, page_off, pagesize); */
 	tmmp = xmalloc(sizeof(*tmmp));
 	memset(tmmp, 0, sizeof(*tmmp));
 
 	tmmp->tfp = tfp;
-	tmmp->addr = mmap(0, len, PROT_READ|PROT_WRITE, MAP_SHARED, tfp->fd, off);
-	if (tmmp->addr == MAP_FAILED)
+	tmmp->aligned_addr = mmap(0, len + (off - page_off),
+				  PROT_READ|PROT_WRITE, MAP_SHARED, tfp->fd, page_off);
+	if (tmmp->aligned_addr == MAP_FAILED)
 		err(1, "torrent_mmap_create: mmap");
-	if (madvise(tmmp->addr, len, MADV_SEQUENTIAL|MADV_WILLNEED) == -1)
+	if (madvise(tmmp->aligned_addr, len, MADV_SEQUENTIAL|MADV_WILLNEED) == -1)
 		err(1, "torrent_mmap_create: madvise");
+	nearest_page = tmmp->aligned_addr + (off - page_off);
+	tmmp->addr = nearest_page;
 	tmmp->len = len;
 
 	tfp->refs++;
@@ -688,7 +706,7 @@ torrent_piece_sync(struct torrent *tp, u_int32_t idx)
 		errx(1, "torrent_piece_sync: NULL piece");
 
 	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps)
-		if (msync(tmmp->addr, tmmp->len, MS_SYNC) == -1)
+		if (msync(tmmp->aligned_addr, tmmp->len, MS_SYNC) == -1)
 			err(1, "torrent_piece_sync: msync");
 
 }
@@ -705,9 +723,9 @@ torrent_piece_unmap(struct torrent_piece *tpp)
 			(void)  close(tmmp->tfp->fd);
 			tmmp->tfp->fd = 0;
 		}
-		if (msync(tmmp->addr, tmmp->len, MS_SYNC) == -1)
+		if (msync(tmmp->aligned_addr, tmmp->len, MS_SYNC) == -1)
 			err(1, "torrent_piece_unmape: msync");
-		if (munmap(tmmp->addr, tmmp->len) == -1)
+		if (munmap(tmmp->aligned_addr, tmmp->len) == -1)
 			err(1, "torrent_piece_unmap: munmap");
 	}
 	while ((tmmp = TAILQ_FIRST(&tpp->mmaps))) {
