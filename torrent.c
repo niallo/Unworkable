@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.90 2007-10-26 02:56:28 niallo Exp $ */
+/* $Id: torrent.c,v 1.91 2007-10-26 06:16:02 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -449,7 +449,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	int fd = 0, l;
 	long pagesize;
 	u_int8_t *nearest_page = NULL;
-	off_t page_off;
+	off_t page_off = 0;
 
 	if ((pagesize = sysconf(_SC_PAGESIZE)) == -1)
 		err(1, "torrent_mmap_create: sysconf");
@@ -498,21 +498,23 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	/* OpenBSD does not require us to align our mmap to page-size boundaries,
 	 * but Linux and no doubt other platforms do.
 	 */
-	page_off = ((off / pagesize) * pagesize);
-	/* trace("mmap: len: %u off: %u sbsiz: %u fd: %d aligned off: %u pagesize: %d", len, off, sb.st_size, tfp->fd, page_off, pagesize); */
 	tmmp = xmalloc(sizeof(*tmmp));
 	memset(tmmp, 0, sizeof(*tmmp));
+	tmmp->len = len;
+	if (off > 0) {
+		page_off = ((off / pagesize) * pagesize);
+		len += off - page_off;
+	}
+	/* trace("mmap: len: %u off: %u sbsiz: %u fd: %d aligned off: %u pagesize: %d", len, off, sb.st_size, tfp->fd, page_off, pagesize); */
 
 	tmmp->tfp = tfp;
-	tmmp->aligned_addr = mmap(0, len + (off - page_off),
-				  PROT_READ|PROT_WRITE, MAP_SHARED, tfp->fd, page_off);
+	tmmp->aligned_addr = mmap(0, len, PROT_READ|PROT_WRITE, MAP_SHARED, tfp->fd, page_off);
 	if (tmmp->aligned_addr == MAP_FAILED)
 		err(1, "torrent_mmap_create: mmap");
 	if (madvise(tmmp->aligned_addr, len, MADV_SEQUENTIAL|MADV_WILLNEED) == -1)
 		err(1, "torrent_mmap_create: madvise");
 	nearest_page = tmmp->aligned_addr + (off - page_off);
 	tmmp->addr = nearest_page;
-	tmmp->len = len;
 
 	tfp->refs++;
 	return (tmmp);
