@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.20 2007-10-18 03:40:55 niallo Exp $ */
+/* $Id: includes.h,v 1.21 2007-10-26 02:53:05 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -22,6 +22,10 @@
 #include <sys/tree.h>
 
 #include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+
+#define UNWORKABLE_VERSION "0.1"
 
 #define BSTRING		(1 << 0)
 #define BINT		(1 << 1)
@@ -58,6 +62,7 @@ enum type { MULTIFILE, SINGLEFILE };
 
 struct torrent_mmap {
 	void				*addr;
+	void				*aligned_addr;
 	u_int32_t			len;
 	struct torrent_file		*tfp;
 	TAILQ_ENTRY(torrent_mmap)	mmaps;
@@ -150,8 +155,6 @@ int		 buf_getc(BUF *);
 void		 buf_empty(BUF *);
 ssize_t		 buf_set(BUF *, const void *, size_t, size_t);
 ssize_t		 buf_append(BUF *, const void *, size_t);
-ssize_t		 buf_fappend(BUF *, const char *, ...)
-		     __attribute__((format(printf, 2, 3)));
 void		 buf_putc(BUF *, int);
 size_t		 buf_len(BUF *);
 int		 buf_write_fd(BUF *, int);
@@ -242,3 +245,12 @@ static const u_int8_t mse_P[] = {
 
 static const u_int8_t mse_G[] = { 2 };
 static const u_int8_t mse_VC[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+#ifdef NO_STRLCPY
+size_t		strlcpy(char *, const char *, size_t);
+#endif
+#ifdef NO_STRLCAT
+size_t		strlcat(char *, const char *, size_t);
+#endif
+#ifdef NO_STRTONUM
+long long	strtonum(const char *, long long, long long, const char **);
+#endif
