@@ -1,4 +1,4 @@
-/* $Id: buf.c,v 1.6 2007-07-20 01:13:54 niallo Exp $ */
+/* $Id: buf.c,v 1.7 2007-10-26 02:50:06 niallo Exp $ */
 /*
  * Copyright (c) 2003 Jean-Francois Brousseau <jfb@openbsd.org>
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
@@ -289,29 +289,6 @@ buf_append(BUF *b, const void *data, size_t len)
 	b->cb_len += rlen;
 
 	return (rlen);
-}
-
-/*
- * buf_fappend()
- *
- */
-ssize_t
-buf_fappend(BUF *b, const char *fmt, ...)
-{
-	ssize_t ret;
-	char *str;
-	va_list vap;
-
-	va_start(vap, fmt);
-	ret = vasprintf(&str, fmt, vap);
-	va_end(vap);
-
-	if (ret == -1)
-		errx(1, "buf_fappend: failed to format data");
-
-	ret = buf_append(b, str, (size_t)ret);
-	xfree(str);
-	return (ret);
 }
 
 /*
