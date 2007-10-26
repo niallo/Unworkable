@@ -1,0 +1,49 @@
+.\"	$Id: unworkable.1,v 1.1 2007-10-26 03:55:48 niallo Exp $
+.\"
+.\" Copyright (c) 2007 Niall O'Higgins <niallo@unworkable.org>
+.\" All rights reserved.
+.\"
+.\" Permission to use, copy, modify, and distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.Dd $Mdocdate: May 31 2007 $
+.Dt Unworkable 1
+.Os
+.Sh NAME
+.Nm unworkable
+.Nd download files via BitTorrent
+.Sh SYNOPSIS
+.Nm
+.Bk -words
+.Op Fl p Ns Ar port
+.Op Fl t Ns Ar file
+.Ar
+.Ek
+.Sh DESCRIPTION
+The
+.Nm
+program is used to download files via the BitTorrent protocol.
+.Pp
+When
+.Nm
+is executed with a valid .torrent file as an argument, it will proceed
+to announce to the tracker, connect to peers and download the data.
+Upon completion of the download, the program will exit.
+.Bl -tag -width Ds
+.It Fl p Ns Ar port
+Specify a port to listen on.
+.It Fl t Ns Ar file
+Trace execution, outputting to
+.Ar tracefile .
+.Sh AUTHORS
+The
+.Nm
+program was written by Niall O'Higgins.
