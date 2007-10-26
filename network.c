@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.153 2007-10-26 06:33:32 niallo Exp $ */
+/* $Id: network.c,v 1.154 2007-10-26 23:01:43 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -96,6 +96,10 @@
 /* try to keep this many peer connections at all times */
 #define PEERS_WANTED				10
 
+/* when trying to fetch more peers, make sure we don't announce
+ * more often than this interval allows */
+#define MIN_ANNOUNCE_INTERVAL			60
+
 /* data for a http response */
 struct http_response {
 	/* response buffer */
@@ -169,6 +173,8 @@ struct session {
 	u_int8_t num_peers;
 	rlim_t maxfds;
 	int announce_underway;
+	u_int32_t tracker_num_peers;
+	struct timeval last_announce;
 };
 
 struct piececounter {
@@ -238,6 +244,8 @@ network_announce(struct session *sc, const char *event)
 	struct bufferevent *bufev;
 
 	trace("network_announce");
+	if (gettimeofday(&sc->last_announce, NULL) == -1)
+		err(1, "network_announce: gettimeofday");
 	params = xmalloc(GETSTRINGLEN);
 	tparams = xmalloc(GETSTRINGLEN);
 	request = xmalloc(GETSTRINGLEN);
@@ -521,7 +529,6 @@ err:
 	(void) close(sc->connfd);
 	trace("network_handle_announce_error() done");
 	sc->announce_underway = 0;
-
 }
 
 static void
@@ -1655,7 +1662,7 @@ network_scheduler(int fd, short type, void *arg)
 	struct torrent_piece *tpp;
 	struct peer *p, *nxt;
 	struct session *sc = arg;
-	struct timeval tv;
+	struct timeval tv, now;
 	/* piece rarity array */
 	struct piece_dl *pd, *nxtpd;
 	u_int32_t pieces_left, reqs;
@@ -1731,21 +1738,21 @@ network_scheduler(int fd, short type, void *arg)
 			}
 		}
 	}
+	if (gettimeofday(&now, NULL) == -1)
+		err(1, "network_scheduler: gettimeofday");
 	/* try to get some more peers */
-	if (sc->num_peers < PEERS_WANTED) {
-		/* But what if the tracker really only has a small number of peers?
+	if (sc->num_peers < PEERS_WANTED
+	    && (now.tv_sec - sc->last_announce.tv_sec) > MIN_ANNOUNCE_INTERVAL) {
+		/* XXX: But what if the tracker really only has a small number of peers?
 		 * We will keep asking over and over, wasting resources.
 		 * This should be fixed */
-#if 0
 		network_announce(sc, NULL);
-#endif
 	}
 	TAILQ_FOREACH(pd, &sc->piece_dls, piece_dl_list) {
 		tpp = torrent_piece_find(sc->tp, pd->idx);
 		if (!(tpp->flags & TORRENT_PIECE_CKSUMOK))
 			reqs++;
 	}
-	/* Every 10 seconds, interested remote peers  */
 	trace("Peers: %u Good pieces: %u/%u Reqs in flight: %u Choked: %u Unchoked: %u",
 	      sc->num_peers, sc->tp->good_pieces, sc->tp->num_pieces, reqs, choked, unchoked);
 #if 0
