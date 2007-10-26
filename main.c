@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.40 2007-10-23 22:43:38 niallo Exp $ */
+/* $Id: main.c,v 1.41 2007-10-26 02:49:43 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -14,6 +14,8 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+
+#include <sys/time.h>
 
 #include <err.h>
 #include <fcntl.h>
@@ -45,6 +47,7 @@ main(int argc, char **argv)
 	int ch;
 	u_int32_t i;
 	struct torrent *torrent;
+	struct timeval now;
 #if 0
 	struct torrent_piece *tpp;
 	int j;
@@ -99,7 +102,9 @@ main(int argc, char **argv)
 		#endif
 	}
 
-	srandomdev();
+	if (gettimeofday(&now, NULL) == -1)
+		err(1, "gettimeofday");
+	srandom(now.tv_sec);
 	network_init();
 	network_start_torrent(torrent);
 
