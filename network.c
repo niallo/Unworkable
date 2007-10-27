@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.154 2007-10-26 23:01:43 niallo Exp $ */
+/* $Id: network.c,v 1.155 2007-10-27 04:52:46 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -755,6 +755,7 @@ network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 		for (i = 0; i < len; i++ ) {
 			if (i % 6 == 0) {
 				p = network_peer_create();
+				p->sc = sc;
 				memcpy(&p->sa.sin_addr, peerlist + i, 4);
 				memcpy(&p->sa.sin_port, peerlist + i + 4, 2);
 				/* Is this peer in the new list? */
@@ -919,8 +920,14 @@ network_peer_create(void)
 static void
 network_peer_free(struct peer *p)
 {
-	if (p == NULL)
-		return;
+	struct piece_dl *pd, *nxtpd;
+	/* search the piece dl list for any dls associated with this peer */
+	for (pd = TAILQ_FIRST(&p->sc->piece_dls); pd; pd = nxtpd) {
+		nxtpd = TAILQ_NEXT(pd, piece_dl_list);
+		if (pd->pc == p) {
+			network_piece_dl_free(pd);
+		}
+	}
 	if (p->bufev != NULL && p->bufev->enabled & EV_WRITE) {
 		bufferevent_disable(p->bufev, EV_WRITE|EV_READ);
 		bufferevent_free(p->bufev);
@@ -1664,7 +1671,7 @@ network_scheduler(int fd, short type, void *arg)
 	struct session *sc = arg;
 	struct timeval tv, now;
 	/* piece rarity array */
-	struct piece_dl *pd, *nxtpd;
+	struct piece_dl *pd;
 	u_int32_t pieces_left, reqs;
 	u_int64_t peer_rate;
 	u_int8_t queue_len, i, choked, unchoked;
@@ -1689,16 +1696,20 @@ network_scheduler(int fd, short type, void *arg)
 				unchoked++;
 			/* if peer is marked dead, free it */
 			if (p->state & PEER_STATE_DEAD) {
-				for (pd = TAILQ_FIRST(&sc->piece_dls); pd; pd = nxtpd) {
-					nxtpd = TAILQ_NEXT(pd, piece_dl_list);
-					if (pd->pc == p) {
-						network_piece_dl_free(pd);
-					}
-				}
 				TAILQ_REMOVE(&sc->peers, p, peer_list);
 				network_peer_free(p);
 				pd = NULL;
 				sc->num_peers--;
+				continue;
+			}
+			/* if we have not received data in PEER_COMMS_THRESHOLD,
+			 * remove the block requests from our list and kill the peer */
+			if ((p->state & PEER_STATE_BITFIELD || p->state & PEER_STATE_ESTABLISHED)
+			    && network_peer_lastcomms(p) >= PEER_COMMS_THRESHOLD) {
+				trace("comms threshold exceeded for peer %s:%d",
+				    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+				p->state = 0;
+				p->state |= PEER_STATE_DEAD;
 				continue;
 			}
 			/* if we are not transferring to/from this peer */
@@ -1725,16 +1736,6 @@ network_scheduler(int fd, short type, void *arg)
 						p->queue_len++;
 					}
 				}
-				continue;
-			} else {
-				/* if we have not received data in PEER_COMMS_THRESHOLD,
-				 * remove the block requests from our list and kill the peer */
-				if (network_peer_lastcomms(p) >= PEER_COMMS_THRESHOLD) {
-					trace("comms threshold exceeded for peer %s:%d",
-					    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-					p->state = 0;
-					p->state |= PEER_STATE_DEAD;
-				}
 			}
 		}
 	}
@@ -1755,6 +1756,17 @@ network_scheduler(int fd, short type, void *arg)
 	}
 	trace("Peers: %u Good pieces: %u/%u Reqs in flight: %u Choked: %u Unchoked: %u",
 	      sc->num_peers, sc->tp->good_pieces, sc->tp->num_pieces, reqs, choked, unchoked);
+
+	/* every 30 seconds, print out all the piece dls and their peers */
+	if ((now.tv_sec % 30) == 0) {
+		TAILQ_FOREACH(pd, &sc->piece_dls, piece_dl_list) {
+			tpp = torrent_piece_find(sc->tp, pd->idx);
+			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK))
+				reqs++;
+			trace("Piece dl idx: %u off %u len %u peer: %s:%d",  pd->idx,
+			    pd->off, pd->len, inet_ntoa(pd->pc->sa.sin_addr), ntohs(pd->pc->sa.sin_port));
+		}
+	}
 #if 0
 	if (pieces_left <= 5) {
 		for (i = 0; i < sc->tp->num_pieces; i++) {
@@ -1902,10 +1914,15 @@ static u_int64_t
 network_peer_rate(struct peer *p)
 {
 	struct timeval now;
+	u_int64_t rate;
 
 	if (gettimeofday(&now, NULL) != 0)
 		err(1, "network_peer_rate: gettimeofday");
-	return (p->totalrx /(u_int64_t)(now.tv_sec - p->connected.tv_sec));
+	rate = now.tv_sec - p->connected.tv_sec;
+	/* prevent divide by zero */
+	if (rate == 0)
+		return (0);
+	return (p->totalrx / rate);
 
 }
 
