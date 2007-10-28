@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.155 2007-10-27 04:52:46 niallo Exp $ */
+/* $Id: network.c,v 1.156 2007-10-28 22:27:38 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -65,7 +65,7 @@
 #define PEER_MSG_ID_PIECE		7
 #define PEER_MSG_ID_CANCEL		8
 
-#define PEER_COMMS_THRESHOLD		10 /* 10 seconds */
+#define PEER_COMMS_THRESHOLD		60 /* 60 seconds */
 
 #define BLOCK_SIZE			16384 /* 16KB */
 #define MAX_BACKLOG			65536 /* 64KB */
@@ -100,6 +100,8 @@
  * more often than this interval allows */
 #define MIN_ANNOUNCE_INTERVAL			60
 
+#define PEER_ID_LEN				20
+
 /* data for a http response */
 struct http_response {
 	/* response buffer */
@@ -112,6 +114,8 @@ struct http_response {
 /* bittorrent peer */
 struct peer {
 	TAILQ_ENTRY(peer) peer_list;
+	RB_ENTRY(peer_idxnode) entry;
+	TAILQ_HEAD(peer_piece_dls, piece_dl) peer_piece_dls;
 	struct sockaddr_in sa;
 	int connfd;
 	int state;
@@ -123,7 +127,7 @@ struct peer {
 	u_int8_t *bitfield;
 	/* from peer's handshake message */
 	u_int8_t pstrlen;
-	u_int8_t id[20];
+	u_int8_t id[PEER_ID_LEN];
 	u_int8_t info_hash[20];
 
 	struct session *sc;
@@ -139,13 +143,23 @@ struct peer {
 
 /* piece download transaction */
 struct piece_dl {
-	TAILQ_ENTRY(piece_dl) piece_dl_list; /* XXX: make this an RB tree for performance? */
+	TAILQ_ENTRY(piece_dl) peer_piece_dl_list;
+	TAILQ_ENTRY(piece_dl) idxnode_piece_dl_list;
 	struct peer *pc; /* peer we're requesting from */
 	u_int32_t idx; /* piece index */
 	u_int32_t off; /* offset within this piece */
 	u_int32_t len; /* length of this request (=> buf size) */
-	u_int8_t *buf; /* data buffer */
 	u_int32_t bytes; /* how many bytes have we read so far */
+};
+
+/* For the binary tree which does lookups based on piece dl index and offset,
+ * we do not guarantee that key to be unique - ie there may be multiple piece_dls
+ * in progress for the same block.  Instead, we have a list of piece_dls. */
+struct piece_dl_idxnode {
+	RB_ENTRY(piece_dl_idxnode) entry;
+	u_int32_t idx; /* piece index */
+	u_int32_t off; /* offset within this piece */
+	TAILQ_HEAD(idxnode_piece_dls, piece_dl) idxnode_piece_dls;
 };
 
 /* data associated with a bittorrent session */
@@ -153,9 +167,8 @@ struct session {
 	/* don't expect to have huge numbers of peers, or be searching very often, so linked list
 	 * should be fine for storage */
 	TAILQ_HEAD(peers, peer) peers;
-	/* considered a red-black tree for this, but I just don't see us having all that many
-	 * piece transactions at a time.  Can change later if it turns out to be an issue. */
-	TAILQ_HEAD(piece_dls, piece_dl) piece_dls;
+	/* index piece_dls by block index / offset */
+	RB_HEAD(piece_dl_by_idxoff, piece_dl_idxnode) piece_dl_by_idxoff;
 	int connfd;
 	int servfd;
 	char *key;
@@ -181,6 +194,7 @@ struct piececounter {
 	u_int32_t count;
 	u_int32_t idx;
 };
+
 
 char *user_port = NULL;
 
@@ -226,11 +240,30 @@ static u_int32_t network_piece_find_rarest(struct session *, int, int *);
 static struct piece_dl * network_piece_dl_create(struct peer *, u_int32_t,
     u_int32_t, u_int32_t);
 static void	network_piece_dl_free(struct piece_dl *);
-static struct piece_dl *network_piece_dl_find(struct session *, u_int32_t,
-    u_int32_t, int);
+static struct piece_dl *network_piece_dl_find(struct session *, u_int32_t, u_int32_t);
 static void	network_peer_piece_dl(struct piece_dl *);
 static int network_piece_cmp(const void *, const void *);
 static struct piececounter *network_piece_rarityarray(struct session *);
+
+static int	piece_dl_idxnode_cmp(struct piece_dl_idxnode *, struct piece_dl_idxnode *);
+
+/* index of piece dls by block index and offset */
+RB_PROTOTYPE(piece_dl_by_idxoff, piece_dl_idxnode, entry, piece_dl_idxnode_cmp)
+RB_GENERATE(piece_dl_by_idxoff, piece_dl_idxnode, entry, piece_dl_idxnode_cmp)
+
+static int
+piece_dl_idxnode_cmp(struct piece_dl_idxnode *p1, struct piece_dl_idxnode *p2)
+{
+	int64_t idxdiff;
+
+	idxdiff = p1->idx - p2->idx;
+
+	if (idxdiff == 0)
+		return (p1->off - p2->off);
+	else
+		return (idxdiff);
+}
+
 
 static int
 network_announce(struct session *sc, const char *event)
@@ -911,6 +944,7 @@ network_peer_create(void)
 	struct peer *p;
 	p = xmalloc(sizeof(*p));
 	memset(p, 0, sizeof(*p));
+	TAILQ_INIT(&p->peer_piece_dls);
 	/* peers start in choked state */
 	p->state |= PEER_STATE_CHOKED;
 
@@ -922,11 +956,9 @@ network_peer_free(struct peer *p)
 {
 	struct piece_dl *pd, *nxtpd;
 	/* search the piece dl list for any dls associated with this peer */
-	for (pd = TAILQ_FIRST(&p->sc->piece_dls); pd; pd = nxtpd) {
-		nxtpd = TAILQ_NEXT(pd, piece_dl_list);
-		if (pd->pc == p) {
-			network_piece_dl_free(pd);
-		}
+	for (pd = TAILQ_FIRST(&p->peer_piece_dls); pd; pd = nxtpd) {
+		nxtpd = TAILQ_NEXT(pd, peer_piece_dl_list);
+		network_piece_dl_free(pd);
 	}
 	if (p->bufev != NULL && p->bufev->enabled & EV_WRITE) {
 		bufferevent_disable(p->bufev, EV_WRITE|EV_READ);
@@ -1076,7 +1108,6 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 					goto out;
 				}
 
-
 			}
 			if (p->state & PEER_STATE_HANDSHAKE2) {
 				/* see comment above network_peer_handshake() for explanation of these numbers */
@@ -1153,10 +1184,9 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 		case PEER_MSG_ID_CHOKE:
 			trace("CHOKE message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			p->state |= PEER_STATE_CHOKED;
-			for (pd = TAILQ_FIRST(&p->sc->piece_dls); pd; pd = nxtpd) {
-				nxtpd = TAILQ_NEXT(pd, piece_dl_list);
-				if (pd->pc == p)
-					network_piece_dl_free(pd);
+			for (pd = TAILQ_FIRST(&p->peer_piece_dls); pd; pd = nxtpd) {
+				nxtpd = TAILQ_NEXT(pd, peer_piece_dl_list);
+				network_piece_dl_free(pd);
 			}
 			break;
 		case PEER_MSG_ID_UNCHOKE:
@@ -1267,7 +1297,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 						network_peer_write_have(tp, idx);
 					/* clean up all the piece dls for this now that its done */
 					for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
-						if ((pd = network_piece_dl_find(p->sc, idx, off, 1)) != NULL) {
+						if ((pd = network_piece_dl_find(p->sc, idx, off)) != NULL) {
 							network_piece_dl_free(pd);
 						}
 					}
@@ -1277,7 +1307,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			} else {
 				/* XXX hash check failed, try re-downloading this piece? */
 				/* clean up this piece dl, although its not fully the correct thing to do */
-				if ((pd = network_piece_dl_find(p->sc, idx, off, 1)) != NULL) {
+				if ((pd = network_piece_dl_find(p->sc, idx, off)) != NULL) {
 					network_piece_dl_free(pd);
 					p->queue_len--;
 				}
@@ -1351,7 +1381,7 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 		return;
 	}
 	trace("network_peer_read_piece() at index %u offset %u length %u", idx, offset, len);
-	if ((pd = network_piece_dl_find(p->sc, idx, offset, 0)) == NULL)
+	if ((pd = network_piece_dl_find(p->sc, idx, offset)) == NULL)
 		errx(1, "network_peer_read_piece: no piece_dl for idx %u", idx);
 	torrent_block_write(tpp, offset, len, data);
 	pd->bytes += len;
@@ -1501,7 +1531,7 @@ network_piece_inqueue(struct session *sc, struct torrent_piece *tpp)
 	for (off = 0; ; off += BLOCK_SIZE) {
 		if (off >= tpp->len)
 			return (1);
-		if (network_piece_dl_find(sc, tpp->index, off, 1) == NULL)
+		if (network_piece_dl_find(sc, tpp->index, off) == NULL)
 			return (0);
 	}
 }
@@ -1601,6 +1631,7 @@ network_piece_gimme(struct peer *peer)
 {
 	struct torrent_piece *tpp;
 	struct piece_dl *pd;
+	struct piece_dl_idxnode *pdin;
 	u_int32_t idx, len, off;
 	int res;
 
@@ -1609,12 +1640,12 @@ network_piece_gimme(struct peer *peer)
 	tpp = NULL;
 
 	/* XXX: prioritise incomplete pieces for which we have some blocks */
-	TAILQ_FOREACH(pd, &peer->sc->piece_dls, piece_dl_list) {
-		tpp = torrent_piece_find(peer->sc->tp, pd->idx);
+	RB_FOREACH(pdin, piece_dl_by_idxoff, &peer->sc->piece_dl_by_idxoff) {
+		tpp = torrent_piece_find(peer->sc->tp, pdin->idx);
 		if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
 			/* if not all this piece's blocks are in the download queue */
 			if (!network_piece_inqueue(peer->sc, tpp)) {
-				idx = pd->idx;
+				idx = pdin->idx;
 				goto get_block;
 			}
 		}
@@ -1646,7 +1677,7 @@ get_block:
 	for (off = 0; ; off += BLOCK_SIZE) {
 		if (off >= tpp->len)
 			errx(1, "gone to a bad offset %u in idx %u, len %u", off, idx, tpp->len);
-		if (network_piece_dl_find(peer->sc, idx, off, 1) == NULL) {
+		if (network_piece_dl_find(peer->sc, idx, off) == NULL) {
 			break;
 		}
 	}
@@ -1672,6 +1703,7 @@ network_scheduler(int fd, short type, void *arg)
 	struct timeval tv, now;
 	/* piece rarity array */
 	struct piece_dl *pd;
+	struct piece_dl_idxnode *pdin;
 	u_int32_t pieces_left, reqs;
 	u_int64_t peer_rate;
 	u_int8_t queue_len, i, choked, unchoked;
@@ -1749,8 +1781,8 @@ network_scheduler(int fd, short type, void *arg)
 		 * This should be fixed */
 		network_announce(sc, NULL);
 	}
-	TAILQ_FOREACH(pd, &sc->piece_dls, piece_dl_list) {
-		tpp = torrent_piece_find(sc->tp, pd->idx);
+	RB_FOREACH(pdin, piece_dl_by_idxoff, &sc->piece_dl_by_idxoff) {
+		tpp = torrent_piece_find(sc->tp, pdin->idx);
 		if (!(tpp->flags & TORRENT_PIECE_CKSUMOK))
 			reqs++;
 	}
@@ -1759,89 +1791,13 @@ network_scheduler(int fd, short type, void *arg)
 
 	/* every 30 seconds, print out all the piece dls and their peers */
 	if ((now.tv_sec % 30) == 0) {
-		TAILQ_FOREACH(pd, &sc->piece_dls, piece_dl_list) {
-			tpp = torrent_piece_find(sc->tp, pd->idx);
+		RB_FOREACH(pdin, piece_dl_by_idxoff, &sc->piece_dl_by_idxoff) {
+			tpp = torrent_piece_find(sc->tp, pdin->idx);
 			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK))
 				reqs++;
-			trace("Piece dl idx: %u off %u len %u peer: %s:%d",  pd->idx,
-			    pd->off, pd->len, inet_ntoa(pd->pc->sa.sin_addr), ntohs(pd->pc->sa.sin_port));
+			trace("Piece dl idx: %u off %u",  pdin->idx, pdin->off);
 		}
 	}
-#if 0
-	if (pieces_left <= 5) {
-		for (i = 0; i < sc->tp->num_pieces; i++) {
-			tpp = torrent_piece_find(sc->tp, i);
-			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
-				/* aggressively ask for the missing pieces */
-				trace("network_scheduler() missing piece %u", i);
-				TAILQ_FOREACH(p, &sc->peers, peer_list) {
-					if (p->state & PEER_STATE_DEAD)
-						continue;
-					if (p->state & PEER_STATE_ISTRANSFERRING)
-						continue;
-					p->piece  = i;
-					p->bytes = 0;
-					network_peer_request_piece(p, p->piece,
-					    p->bytes);
-				}
-			}
-		}
-	}
-
-
-	/* XXX: probably this should be some sane threshold like 11 */
-	if (!TAILQ_EMPTY(&sc->peers)) {
-		for (p = TAILQ_FIRST(&sc->peers); p; p = nxt) {
-			nxt = TAILQ_NEXT(p, peer_list);
-			/* if peer is marked dead, free it */
-			if (p->state & PEER_STATE_DEAD) {
-				trace("network_scheduler() removing dead peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				TAILQ_REMOVE(&sc->peers, p, peer_list);
-				network_peer_free(p);
-				continue;
-			}
-			/* if we are not transferring to/from this peer */
-			if (!(p->state & PEER_STATE_ISTRANSFERRING)) {
-				/* if we are not transferring and interested, tell the peer */
-				if (!(p->state & PEER_STATE_AMINTERESTED)) {
-					i = network_piece_next_rarest(sc);
-					if (i != 0xffff) {
-						network_peer_write_interested(p);
-						p->piece = i;
-						network_peer_request_piece(p, p->piece, p->bytes);
-					}
-					continue;
-				}
-				if (p->piece != 0xffff)
-					tpp = torrent_piece_find(p->sc->tp,
-					    p->piece);
-				/* if this piece is complete, start a new one */
-				if (tpp != NULL
-				    && p->bytes == tpp->len
-				    && p->sc->tp->num_pieces != p->sc->tp->good_pieces) {
-					i = network_piece_next_rarest(sc);
-					if (i != 0xffff) {
-						trace("network_scheduler() just completed piece %u total pieces: %u good pieces: %u",
-						    p->piece,
-						    p->sc->tp->num_pieces,
-						    p->sc->tp->good_pieces);
-						p->piece  = i;
-						p->bytes = 0;
-						network_peer_request_piece(p, p->piece, p->bytes);
-					}
-				}
-				tpp = NULL;
-/		} else {
-				/* if we have not received data in PEER_COMMS_THRESHOLD,
-				 * take some action */
-				if (network_peer_lastcomms(p) >= PEER_COMMS_THRESHOLD)
-					network_peer_request_piece(p, p->piece, p->bytes);
-			}
-		}
-	} else {
-		/* XXX: try to connect some more peers */
-	}
-#endif
 }
 /* start handling network stuff for a new torrent */
 int
@@ -1855,7 +1811,6 @@ network_start_torrent(struct torrent *tp, rlim_t maxfds)
 	memset(sc, 0, sizeof(*sc));
 
 	TAILQ_INIT(&sc->peers);
-	TAILQ_INIT(&sc->piece_dls);
 	sc->tp = tp;
 	sc->maxfds = maxfds;
 	if (user_port == NULL) {
@@ -1864,6 +1819,7 @@ network_start_torrent(struct torrent *tp, rlim_t maxfds)
 		sc->port = xstrdup(user_port);
 		trace("using port %s instead of default", user_port);
 	}
+	/* XXX: this needs to be randomly generated */
 	sc->peerid = xstrdup("U1234567891234567890");
 
 	if (tp->type == SINGLEFILE)
@@ -1931,6 +1887,7 @@ network_piece_dl_create(struct peer *p, u_int32_t idx, u_int32_t off,
     u_int32_t len)
 {
 	struct piece_dl *pd;
+	struct piece_dl_idxnode find, *res;
 
 	pd = xmalloc(sizeof(*pd));
 	memset(pd, 0, sizeof(*pd));
@@ -1938,10 +1895,24 @@ network_piece_dl_create(struct peer *p, u_int32_t idx, u_int32_t off,
 	pd->idx = idx;
 	pd->off = off;
 	pd->len = len;
-	pd->buf = xmalloc(pd->len);
-	memset(pd->buf, 0, pd->len);
 
-	TAILQ_INSERT_TAIL(&p->sc->piece_dls, pd, piece_dl_list);
+	/* check for an existing piece_dl_idxnode */
+	find.off = off;
+	find.idx = idx;
+	if ((res = RB_FIND(piece_dl_by_idxoff, &p->sc->piece_dl_by_idxoff, &find)) == NULL) {
+		/* need to create one */
+		res = xmalloc(sizeof(*res));
+		memset(res, 0, sizeof(*res));
+		res->off = off;
+		res->idx = idx;
+		TAILQ_INIT(&res->idxnode_piece_dls);
+		TAILQ_INSERT_TAIL(&res->idxnode_piece_dls, pd, idxnode_piece_dl_list);
+		RB_INSERT(piece_dl_by_idxoff, &p->sc->piece_dl_by_idxoff, res);
+	} else {
+		/* found a pre-existing one, just append this to its list */
+		TAILQ_INSERT_TAIL(&res->idxnode_piece_dls, pd, idxnode_piece_dl_list);
+	}
+	TAILQ_INSERT_TAIL(&p->peer_piece_dls, pd, peer_piece_dl_list);
 
 	return (pd);
 }
@@ -1949,33 +1920,42 @@ network_piece_dl_create(struct peer *p, u_int32_t idx, u_int32_t off,
 static void
 network_piece_dl_free(struct piece_dl *pd)
 {
-	TAILQ_REMOVE(&pd->pc->sc->piece_dls, pd, piece_dl_list);
-	if (pd->buf != NULL)
-		xfree(pd->buf);
+	struct piece_dl_idxnode find, *res;
+	find.off = pd->off;
+	find.idx = pd->idx;
+	/* remove from index/offset btree */
+	if ((res = RB_FIND(piece_dl_by_idxoff, &pd->pc->sc->piece_dl_by_idxoff, &find)) == NULL) {
+		errx(1, "network_piece_dl_free: could not find idxoff node in tree");
+	} else {
+		trace("found idxnode idx %u off %u", res->idx, res->off);
+		TAILQ_REMOVE(&res->idxnode_piece_dls, pd, idxnode_piece_dl_list);
+
+	}
+	/* remove from per-peer list */
+	TAILQ_REMOVE(&pd->pc->peer_piece_dls, pd, peer_piece_dl_list);
+	/* RB_REMOVE(piece_dl_by_idxoff, &pd->pc->sc->piece_dl_by_idxoff, pd); */
 	xfree(pd);
 	pd = NULL;
 }
 
 static struct piece_dl *
-network_piece_dl_find(struct session *sc, u_int32_t idx, u_int32_t off, int flag)
+network_piece_dl_find(struct session *sc, u_int32_t idx, u_int32_t off)
 {
-	struct piece_dl *pd;
+	struct piece_dl_idxnode find, *res;
 
-	TAILQ_FOREACH(pd, &sc->piece_dls, piece_dl_list) {
-		if (pd->idx  == idx) {
-			if (flag == 1) {
-				if (pd->off == off) {
-					return (pd);
-				} else {
-					continue;
-				}
-			} else {
-				return (pd);
-			}
-		}
-	}
+	find.off = off;
+	find.idx = idx;
+	if ((res = RB_FIND(piece_dl_by_idxoff, &sc->piece_dl_by_idxoff, &find)) == NULL)
+		return (NULL);
+	
+	/* XXX: for now, return the first piece_dl in the peice_dl_idxnode's list.
+	 * later, uniqueness of piece_dl by their index and offset will not be
+	 * assumed and we will have to mroe properly handle this */
+	if (TAILQ_EMPTY(&res->idxnode_piece_dls))
+		return (NULL);
 
-	return (NULL);
+
+	return (TAILQ_FIRST(&res->idxnode_piece_dls));
 }
 
 /* network subsystem init, needs to be called before doing anything */
