@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.156 2007-10-28 22:27:38 niallo Exp $ */
+/* $Id: network.c,v 1.157 2007-10-29 04:34:26 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1178,6 +1178,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 	struct piece_dl *pd, *nxtpd;
 	u_int32_t bitfieldlen, idx, blocklen, off;
 	int res = 0;
+	int found = 0;
 
 	/* XXX: safety-check for correct message lengths */
 	switch (id) {
@@ -1282,27 +1283,37 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				network_peer_read_piece(p, idx, off,
 				    p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)),
 				    p->rxmsg+sizeof(id)+sizeof(off)+sizeof(idx));
-				res = torrent_piece_checkhash(p->sc->tp, tpp);
-				torrent_piece_unmap(tpp);
-				if (res == 0) {
-					trace("hash check success for piece %d", idx);
-					p->sc->tp->good_pieces++;
-					p->sc->tp->left -= tpp->len;
-					if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
-						refresh_progress_meter();
-						exit(0);
+				/* only checksum if we think we have every block of this piece */
+				found = 1;
+				for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
+					if ((pd = network_piece_dl_find(p->sc, idx, off)) == NULL) {
+						found = 0;
+						break;
 					}
-					/* send HAVE messages to all peers */
-					TAILQ_FOREACH(tp, &p->sc->peers, peer_list)
-						network_peer_write_have(tp, idx);
-					/* clean up all the piece dls for this now that its done */
-					for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
-						if ((pd = network_piece_dl_find(p->sc, idx, off)) != NULL) {
-							network_piece_dl_free(pd);
+				}
+				if (found) {
+					res = torrent_piece_checkhash(p->sc->tp, tpp);
+					torrent_piece_unmap(tpp);
+					if (res == 0) {
+						trace("hash check success for piece %d", idx);
+						p->sc->tp->good_pieces++;
+						p->sc->tp->left -= tpp->len;
+						if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
+							refresh_progress_meter();
+							exit(0);
 						}
+						/* send HAVE messages to all peers */
+						TAILQ_FOREACH(tp, &p->sc->peers, peer_list)
+							network_peer_write_have(tp, idx);
+						/* clean up all the piece dls for this now that its done */
+						for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
+							if ((pd = network_piece_dl_find(p->sc, idx, off)) != NULL) {
+								network_piece_dl_free(pd);
+							}
+						}
+					} else {
+						trace("hash check failure for piece %d", idx);
 					}
-				} else {
-					trace("hash check failure for piece %d", idx);
 				}
 			} else {
 				/* XXX hash check failed, try re-downloading this piece? */
