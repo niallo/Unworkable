@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.158 2007-10-29 05:11:57 niallo Exp $ */
+/* $Id: network.c,v 1.159 2007-10-29 05:13:10 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1936,7 +1936,6 @@ network_piece_dl_free(struct piece_dl *pd)
 	if ((res = RB_FIND(piece_dl_by_idxoff, &pd->pc->sc->piece_dl_by_idxoff, &find)) == NULL) {
 		errx(1, "network_piece_dl_free: could not find idxoff node in tree");
 	} else {
-		trace("found idxnode idx %u off %u", res->idx, res->off);
 		TAILQ_REMOVE(&res->idxnode_piece_dls, pd, idxnode_piece_dl_list);
 
 	}
