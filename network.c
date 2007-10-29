@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.157 2007-10-29 04:34:26 niallo Exp $ */
+/* $Id: network.c,v 1.158 2007-10-29 05:11:57 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1696,8 +1696,6 @@ get_block:
 		len = tpp->len - off;
 	else
 		len = BLOCK_SIZE;
-	if (len == tpp->len)
-		errx(1, "network_piece_gimme: len %u == tpp->len %u", len, tpp->len);
 	pd = network_piece_dl_create(peer, idx, off, len);
 
 	trace("choosing next dl (tpp->len %u) len %u idx %u off %u", tpp->len, len, idx, off);
