@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.159 2007-10-29 05:13:10 niallo Exp $ */
+/* $Id: network.c,v 1.160 2007-10-29 05:24:33 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -224,6 +224,7 @@ static void	network_handle_peer_write(struct bufferevent *, void *);
 static void	network_handle_peer_error(struct bufferevent *, short, void *);
 static void	network_scheduler(int, short, void *);
 static int	network_listen(struct session *, char *, char *);
+static char	*network_peer_id_create(void);
 static void	network_peer_request_block(struct peer *, u_int32_t, u_int32_t,
     u_int32_t);
 static void	network_peer_write_unchoke(struct peer *);
@@ -274,6 +275,7 @@ network_announce(struct session *sc, const char *event)
 #define GETSTRINGLEN 2048
 	char *params, *tparams, *request;
 	char tbuf[3*SHA1_DIGEST_LENGTH+1];
+	char pbuf[3*PEER_ID_LEN+1];
 	struct bufferevent *bufev;
 
 	trace("network_announce");
@@ -290,6 +292,12 @@ network_announce(struct session *sc, const char *event)
 	for (i = 0; i < SHA1_DIGEST_LENGTH; i++) {
 		l = snprintf(&tbuf[3*i], sizeof(tbuf), "%%%02x", sc->tp->info_hash[i]);
 		if (l == -1 || l >= (int)sizeof(tbuf))
+			goto trunc;
+	}
+	/* convert peer id to url encoded format */
+	for (i = 0; i < PEER_ID_LEN; i++) {
+		l = snprintf(&pbuf[3*i], sizeof(pbuf), "%%%02x", sc->peerid[i]);
+		if (l == -1 || l >= (int)sizeof(pbuf))
 			goto trunc;
 	}
 #define HTTPLEN 7
@@ -335,7 +343,7 @@ network_announce(struct session *sc, const char *event)
 	    "&left=%llu"
 	    "&compact=1",
 	    tbuf,
-	    sc->peerid,
+	    pbuf,
 	    sc->port,
 	    sc->tp->uploaded,
 	    sc->tp->downloaded,
@@ -1828,8 +1836,8 @@ network_start_torrent(struct torrent *tp, rlim_t maxfds)
 		sc->port = xstrdup(user_port);
 		trace("using port %s instead of default", user_port);
 	}
-	/* XXX: this needs to be randomly generated */
-	sc->peerid = xstrdup("U1234567891234567890");
+	sc->peerid = network_peer_id_create();
+	trace("my peer id: %s", sc->peerid);
 
 	if (tp->type == SINGLEFILE)
 		len = tp->body.singlefile.tfp.file_length;
@@ -1955,7 +1963,7 @@ network_piece_dl_find(struct session *sc, u_int32_t idx, u_int32_t off)
 	find.idx = idx;
 	if ((res = RB_FIND(piece_dl_by_idxoff, &sc->piece_dl_by_idxoff, &find)) == NULL)
 		return (NULL);
-	
+
 	/* XXX: for now, return the first piece_dl in the peice_dl_idxnode's list.
 	 * later, uniqueness of piece_dl by their index and offset will not be
 	 * assumed and we will have to mroe properly handle this */
@@ -1964,6 +1972,22 @@ network_piece_dl_find(struct session *sc, u_int32_t idx, u_int32_t off)
 
 
 	return (TAILQ_FIRST(&res->idxnode_piece_dls));
+}
+
+/* generate a random peer id string for us to use */
+static char *
+network_peer_id_create()
+{
+	long r;
+	int l;
+	char *id;
+
+	r = random();
+	id = xmalloc(PEER_ID_LEN);
+	memset(id, '\0', PEER_ID_LEN);
+	l = snprintf(id, PEER_ID_LEN, "-UL-0001-%-ld", r);
+
+	return (id);
 }
 
 /* network subsystem init, needs to be called before doing anything */
