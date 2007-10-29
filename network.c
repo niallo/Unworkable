@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.160 2007-10-29 05:24:33 niallo Exp $ */
+/* $Id: network.c,v 1.161 2007-10-29 18:12:19 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1964,13 +1964,13 @@ network_piece_dl_find(struct session *sc, u_int32_t idx, u_int32_t off)
 	if ((res = RB_FIND(piece_dl_by_idxoff, &sc->piece_dl_by_idxoff, &find)) == NULL)
 		return (NULL);
 
-	/* XXX: for now, return the first piece_dl in the peice_dl_idxnode's list.
-	 * later, uniqueness of piece_dl by their index and offset will not be
-	 * assumed and we will have to mroe properly handle this */
 	if (TAILQ_EMPTY(&res->idxnode_piece_dls))
 		return (NULL);
 
 
+	/* XXX: for now, return the first piece_dl in the peice_dl_idxnode's list.
+	 * later, uniqueness of piece_dl by their index and offset will not be
+	 * assumed and we will have to mroe properly handle this */
 	return (TAILQ_FIRST(&res->idxnode_piece_dls));
 }
 
