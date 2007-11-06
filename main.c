@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.44 2007-11-06 19:37:48 niallo Exp $ */
+/* $Id: main.c,v 1.45 2007-11-06 23:11:04 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -103,6 +103,11 @@ main(int argc, char **argv)
 				torrent->downloaded += tpp->len;
 			}
 		}
+	}
+	/* do we already have everything? */
+	if (torrent->good_pieces == torrent->num_pieces) {
+		printf("download already complete!\n");
+		exit(0);
 	}
 
 	srandom(time(NULL));
