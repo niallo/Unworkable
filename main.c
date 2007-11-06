@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.43 2007-11-06 19:24:55 niallo Exp $ */
+/* $Id: main.c,v 1.44 2007-11-06 19:37:48 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #if defined(USE_BOEHM_GC)
 #include <gc.h>
@@ -51,7 +52,6 @@ main(int argc, char **argv)
 	u_int32_t i;
 	struct torrent *torrent;
 	struct rlimit rlp;
-	struct timeval now;
 	struct torrent_piece *tpp;
 	int j;
 
@@ -105,9 +105,7 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (gettimeofday(&now, NULL) == -1)
-		err(1, "gettimeofday");
-	srandom(now.tv_sec);
+	srandom(time(NULL));
 	network_init();
 	network_start_torrent(torrent, rlp.rlim_cur);
 

@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.163 2007-11-06 19:24:55 niallo Exp $ */
+/* $Id: network.c,v 1.164 2007-11-06 19:37:48 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "includes.h"
@@ -139,9 +140,9 @@ struct peer {
 
 	struct session *sc;
 	/* last time we rx'd something from this peer */
-	struct timeval lastrecv;
+	time_t  lastrecv;
 	/* time we connected this peer (ie start of its life) */
-	struct timeval connected;
+	time_t connected;
 	/* how many bytes have we rx'd from the peer since it was connected */
 	u_int64_t totalrx;
 	/* block request queue length*/
@@ -194,7 +195,7 @@ struct session {
 	rlim_t maxfds;
 	int announce_underway;
 	u_int32_t tracker_num_peers;
-	struct timeval last_announce;
+	time_t last_announce;
 };
 
 struct piececounter {
@@ -290,8 +291,7 @@ network_announce(struct session *sc, const char *event)
 	struct bufferevent *bufev;
 
 	trace("network_announce");
-	if (gettimeofday(&sc->last_announce, NULL) == -1)
-		err(1, "network_announce: gettimeofday");
+	sc->last_announce = time(NULL);
 	params = xmalloc(GETSTRINGLEN);
 	tparams = xmalloc(GETSTRINGLEN);
 	request = xmalloc(GETSTRINGLEN);
@@ -474,8 +474,8 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 	struct session *sc = data;
 	struct benc_node *node, *troot;
 	struct torrent *tp;
-	struct timeval tv;
 	struct bufferevent *bev;
+	struct timeval tv;
 	BUF *buf = NULL;
 	u_int32_t l;
 	u_char *c;
@@ -1070,8 +1070,7 @@ network_peer_handshake(struct session *sc, struct peer *p)
 	*
 	* In version 1.0 of the BitTorrent protocol, pstrlen = 19, and pstr = "BitTorrent protocol".
 	*/
-	if (gettimeofday(&p->connected, NULL) == -1)
-		err(1, "network_peer_handshake: gettimeofday");
+	p->connected = time(NULL);
 	#define HANDSHAKELEN (1 + 19 + 8 + 20 + 20)
 	p->txmsg = xmalloc(HANDSHAKELEN);
 	memset(p->txmsg, 0, HANDSHAKELEN);
@@ -1155,8 +1154,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	 * data */
 
 	if (p->state & PEER_STATE_HANDSHAKE1 && p->rxpending == 0) {
-		if (gettimeofday(&p->lastrecv, NULL) == -1)
-			err(1, "network_handle_peer_response: gettimeofday");
+		p->lastrecv = time(NULL);
 		p->rxmsg = xmalloc(BT_INITIAL_LEN);
 		p->rxmsglen = BT_INITIAL_LEN;
 		p->rxpending = p->rxmsglen;
@@ -1433,9 +1431,8 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 					p->queue_len--;
 				}
 			}
-			if (gettimeofday(&p->lastrecv, NULL) == -1)
-				err(1, "network_handle_peer_response: gettimeofday");
-					break;
+			p->lastrecv = time(NULL);
+			break;
 		case PEER_MSG_ID_CANCEL:
 			/* XXX: not sure how to cancel a write */
 			trace("CANCEL message from peer %s:%d",
@@ -1904,7 +1901,7 @@ network_scheduler(int fd, short type, void *arg)
 {
 	struct peer *p, *nxt;
 	struct session *sc = arg;
-	struct timeval tv, now;
+	struct timeval tv;
 	/* piece rarity array */
 	struct piece_dl *pd;
 	struct piece_dl_idxnode *pdin;
@@ -1912,6 +1909,7 @@ network_scheduler(int fd, short type, void *arg)
 	u_int64_t peer_rate;
 	u_int8_t queue_len, i, choked, unchoked;
 	char tbuf[64];
+	time_t now;
 
 	reqs_outstanding = reqs_completed = reqs_orphaned = choked = unchoked = 0;
 	p = NULL;
@@ -1974,12 +1972,11 @@ network_scheduler(int fd, short type, void *arg)
 			}
 		}
 	}
-	if (gettimeofday(&now, NULL) == -1)
-		err(1, "network_scheduler: gettimeofday");
+	now = time(NULL);
 	/* try to get some more peers */
 	if (sc->num_peers < PEERS_WANTED
 	    && !sc->announce_underway
-	    && (now.tv_sec - sc->last_announce.tv_sec) > MIN_ANNOUNCE_INTERVAL) {
+	    && (now - sc->last_announce) > MIN_ANNOUNCE_INTERVAL) {
 		/* XXX: But what if the tracker really only has a small number of peers?
 		 * We will keep asking over and over, wasting resources.
 		 * This should be fixed */
@@ -2000,7 +1997,7 @@ network_scheduler(int fd, short type, void *arg)
 			reqs_completed++;
 			strlcat(tbuf, " [done] ", sizeof(tbuf));
 		}
-		if ((now.tv_sec % 60) == 0) {
+		if ((now % 60) == 0) {
 			trace("piece_dl: idx %u off: %u len: %u %s", pd->idx, pd->off, pd->len, tbuf);
 		}
 	}
@@ -2080,12 +2077,7 @@ network_crypto_dh()
 static long
 network_peer_lastcomms(struct peer *p)
 {
-	struct timeval now;
-
-	if (gettimeofday(&now, NULL) != 0)
-		err(1, "network_peer_lastcomms: gettimeofday");
-
-	return (now.tv_sec - p->lastrecv.tv_sec);
+	return (time(NULL) - p->lastrecv);
 }
 
 /*
@@ -2096,12 +2088,9 @@ network_peer_lastcomms(struct peer *p)
 static u_int64_t
 network_peer_rate(struct peer *p)
 {
-	struct timeval now;
 	u_int64_t rate;
 
-	if (gettimeofday(&now, NULL) != 0)
-		err(1, "network_peer_rate: gettimeofday");
-	rate = now.tv_sec - p->connected.tv_sec;
+	rate = time(NULL) - p->connected;
 	/* prevent divide by zero */
 	if (rate == 0)
 		return (0);
