@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.42 2007-10-26 06:19:53 niallo Exp $ */
+/* $Id: main.c,v 1.43 2007-11-06 19:24:55 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -52,10 +52,8 @@ main(int argc, char **argv)
 	struct torrent *torrent;
 	struct rlimit rlp;
 	struct timeval now;
-#if 0
 	struct torrent_piece *tpp;
 	int j;
-#endif
 
 	#if defined(USE_BOEHM_GC)
 	GC_INIT();
@@ -92,21 +90,19 @@ main(int argc, char **argv)
 		err(1, "getrlimit");
 	torrent = torrent_parse_file(argv[0]);
 	/* a little extra info? torrent_print(torrent); */
+	printf("checking data, this could take a while\n");
 	for (i = 0; i < torrent->num_pieces; i++) {
 		torrent_piece_create(torrent, i);
-		#if 0
-		trace("checking");
 		tpp = torrent_piece_find(torrent, i);
 		torrent_piece_map(tpp);
-		j = torrent_piece_checkhash(torrent, tpp);
-		torrent_piece_unmap(tpp);
-		if (j != 0) {
-			printf("%u ", i);
-			fflush(stdout);
-		} else {
-			torrent->good_pieces++;
+		if (!torrent->isnew) {
+			j = torrent_piece_checkhash(torrent, tpp);
+			torrent_piece_unmap(tpp);
+			if (j == 0) {
+				torrent->good_pieces++;
+				torrent->downloaded += tpp->len;
+			}
 		}
-		#endif
 	}
 
 	if (gettimeofday(&now, NULL) == -1)

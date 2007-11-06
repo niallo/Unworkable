@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.162 2007-11-06 05:12:43 niallo Exp $ */
+/* $Id: network.c,v 1.163 2007-11-06 19:24:55 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -2041,7 +2041,7 @@ network_start_torrent(struct torrent *tp, rlim_t maxfds)
 		len = tp->body.multifile.total_length;
 	}
 
-	start_progress_meter(tp->name, len, &tp->downloaded);
+	start_progress_meter(tp->name, len, &tp->downloaded, &tp->good_pieces, tp->num_pieces);
 	ret = network_announce(sc, "started");
 
 	event_dispatch();

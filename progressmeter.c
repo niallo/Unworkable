@@ -1,4 +1,4 @@
-/* $OpenBSD: progressmeter.c,v 1.37 2006/08/03 03:34:42 deraadt Exp $ */
+/* $OpenBSD: progressmeter.c,v 1.1 2007/05/16 04:54:38 niallo Exp $ */
 /*
  * Copyright (c) 2003 Nils Nordman.  All rights reserved.
  *
@@ -72,6 +72,8 @@ static volatile off_t *counter;	/* progress counter */
 static long stalled;		/* how long we have been stalled */
 static int bytes_per_second;	/* current speed in bytes per second */
 static int win_size;		/* terminal window size */
+static volatile u_int32_t *good_pieces; 
+static u_int32_t num_pieces; /* bittorrent specific */
 static volatile sig_atomic_t win_resized; /* for window resizing */
 
 /* units for format_size */
@@ -172,7 +174,7 @@ refresh_progress_meter(void)
 
 	/* percent of transfer done */
 	if (end_pos != 0)
-		percent = ((float)cur_pos / end_pos) * 100;
+		percent = ((float)*good_pieces / num_pieces) * 100;
 	else
 		percent = 100;
 	snprintf(buf + strlen(buf), win_size - strlen(buf),
@@ -247,7 +249,7 @@ update_progress_meter(int ignore)
 }
 
 void
-start_progress_meter(char *f, off_t filesize, off_t *ctr)
+start_progress_meter(char *f, off_t filesize, off_t *ctr, u_int32_t *gp, u_int32_t np)
 {
 	start = last_update = time(NULL);
 	file = f;
@@ -256,6 +258,8 @@ start_progress_meter(char *f, off_t filesize, off_t *ctr)
 	counter = ctr;
 	stalled = 0;
 	bytes_per_second = 0;
+	good_pieces = gp;
+	num_pieces = np;
 
 	setscreensize();
 	if (can_output())
@@ -303,7 +307,7 @@ setscreensize(void)
 		win_size = DEFAULT_WINSIZE;
 	win_size += 1;					/* trailing \0 */
 }
-/* $OpenBSD: atomicio.c,v 1.23 2006/08/03 03:34:41 deraadt Exp $ */
+/* $OpenBSD: progressmeter.c,v 1.1 2007/05/16 04:54:38 niallo Exp $ */
 /*
  * Copyright (c) 2006 Damien Miller. All rights reserved.
  * Copyright (c) 2005 Anil Madhavapeddy. All rights reserved.
