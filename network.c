@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.167 2007-11-07 07:46:47 niallo Exp $ */
+/* $Id: network.c,v 1.168 2007-11-07 07:53:29 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1217,8 +1217,10 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				p->rxmsg = NULL;
 				p->state |= PEER_STATE_BITFIELD;
 				p->state &= ~PEER_STATE_HANDSHAKE2;
+				/*
 				if (!torrent_empty(p->sc->tp))
 					network_peer_write_bitfield(p);
+				*/
 				p->rxpending = 0;
 				goto out;
 			}
@@ -1962,6 +1964,7 @@ network_scheduler(int fd, short type, void *arg)
 				p->state |= PEER_STATE_DEAD;
 				continue;
 			}
+			/* if peer is not choked, make sure it has enough requests in its queue */
 			if (!(p->state & PEER_STATE_CHOKED)) {
 				peer_rate = network_peer_rate(p);
 				/* for each 10k/sec on this peer, add a request. */
