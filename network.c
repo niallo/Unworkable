@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.166 2007-11-07 07:45:08 niallo Exp $ */
+/* $Id: network.c,v 1.167 2007-11-07 07:46:47 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1217,9 +1217,8 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				p->rxmsg = NULL;
 				p->state |= PEER_STATE_BITFIELD;
 				p->state &= ~PEER_STATE_HANDSHAKE2;
-				/* XXX if we have some pieces, we probably want to send our bitfield
-				network_peer_write_bitfield(p);
-				*/
+				if (!torrent_empty(p->sc->tp))
+					network_peer_write_bitfield(p);
 				p->rxpending = 0;
 				goto out;
 			}
@@ -1843,7 +1842,7 @@ network_piece_gimme(struct peer *peer, int nocreate, int *hint)
 			/* if not all this piece's blocks are in the download queue
 			 * and this peer actually has this piece */
 			if (!network_piece_assigned(peer->sc, tpp)
-			    && BIT_ISSET(p->bitfield, pdin->idx)) {
+			    && BIT_ISSET(peer->bitfield, pdin->idx)) {
 				idx = pdin->idx;
 				goto get_block;
 			}
@@ -1854,7 +1853,7 @@ network_piece_gimme(struct peer *peer, int nocreate, int *hint)
 		for (;;) {
 			idx = random() % (peer->sc->tp->num_pieces - 1);
 			/* does this peer have this piece? */
-			if (!BIT_ISSET(p->bitfield, idx))
+			if (!BIT_ISSET(peer->bitfield, idx))
 				continue;
 			tpp = torrent_piece_find(peer->sc->tp, idx);
 			/* do we already have this piece? */
