@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.164 2007-11-06 19:37:48 niallo Exp $ */
+/* $Id: network.c,v 1.165 2007-11-07 06:35:50 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -115,7 +115,7 @@ struct http_response {
 	/* response buffer */
 	u_int8_t *rxmsg;
 	/* size of buffer so far */
-	u_int32_t rxread,rxmsglen;
+	u_int32_t rxread, rxmsglen;
 };
 
 
@@ -236,7 +236,7 @@ static char	*network_peer_id_create(void);
 static void	network_peer_request_block(struct peer *, u_int32_t, u_int32_t,
     u_int32_t);
 static void	network_peer_write_unchoke(struct peer *);
-static struct piece_dl *network_piece_gimme(struct peer *);
+static struct piece_dl *network_piece_gimme(struct peer *, int, int *);
 static void	network_peer_cancel_piece(struct piece_dl *);
 static void	network_peer_write_have(struct peer *, u_int32_t);
 static void	network_peer_process_message(u_int8_t, struct peer *);
@@ -1322,6 +1322,10 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				p->state |= PEER_STATE_ESTABLISHED;
 			}
 			setbit(p->bitfield, idx);
+			/* does this peer have anything we want? */
+			network_piece_gimme(p, 1, &res);
+			if (res && !(p->state & PEER_STATE_AMINTERESTED))
+				network_peer_write_interested(p);
 			break;
 		case PEER_MSG_ID_BITFIELD:
 			trace("BITFIELD message from peer %s:%d",
@@ -1342,7 +1346,10 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			memcpy(p->bitfield, p->rxmsg+sizeof(id), bitfieldlen);
 			p->state &= ~PEER_STATE_BITFIELD;
 			p->state |= PEER_STATE_ESTABLISHED;
-			network_peer_write_interested(p);
+			/* does this peer have anything we want? */
+			network_piece_gimme(p, 1, &res);
+			if (res && !(p->state & PEER_STATE_AMINTERESTED))
+				network_peer_write_interested(p);
 			break;
 		case PEER_MSG_ID_REQUEST:
 			trace("REQUEST message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
@@ -1817,7 +1824,7 @@ network_piece_find_rarest(struct peer *p, int flag, int *res)
  * According to various selection strategies, hand me something to download.
  */
 static struct piece_dl *
-network_piece_gimme(struct peer *peer)
+network_piece_gimme(struct peer *peer, int nocreate, int *hint)
 {
 	struct torrent_piece *tpp;
 	struct piece_dl *pd;
@@ -1861,6 +1868,10 @@ network_piece_gimme(struct peer *peer)
 		if (!res)
 			return (NULL);
 		tpp = torrent_piece_find(peer->sc->tp, idx);
+	}
+	if (nocreate) {
+		*hint = 1;
+		return (NULL);
 	}
 get_block:
 	/* find the next block (by offset) in the piece, which is not already assigned to a peer */
@@ -1910,6 +1921,7 @@ network_scheduler(int fd, short type, void *arg)
 	u_int8_t queue_len, i, choked, unchoked;
 	char tbuf[64];
 	time_t now;
+	int hint = 0;
 
 	reqs_outstanding = reqs_completed = reqs_orphaned = choked = unchoked = 0;
 	p = NULL;
@@ -1960,7 +1972,7 @@ network_scheduler(int fd, short type, void *arg)
 				queue_len -= p->queue_len;
 
 				for (i = 0; i < queue_len; i++) {
-					pd = network_piece_gimme(p);
+					pd = network_piece_gimme(p, 0, &hint);
 					/* probably means no bitfield from this peer yet, or all requests are in transit. give it some time. */
 					if (pd == NULL) {
 						continue;
@@ -2200,13 +2212,13 @@ static char *
 network_peer_id_create()
 {
 	long r;
-	int l;
 	char *id;
 
 	r = random();
 	id = xmalloc(PEER_ID_LEN);
 	memset(id, '\0', PEER_ID_LEN);
-	l = snprintf(id, PEER_ID_LEN, "-UL-0001-%-ld", r);
+	/* we don't care about truncation  here */
+	(void) snprintf(id, PEER_ID_LEN, "-UL-0001-%-ld", r);
 
 	return (id);
 }
