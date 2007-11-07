@@ -40,4 +40,4 @@ On other platforms, you must use the SCons (http://www.scons.org) build tool.
 After installing scons, type 'scons' to compile. Make sure you have libevent
 and OpenSSL installed.  If you get it working on other platforms, please let me
 know and send along any portability diffs.  It is known to work on at least
-Ubuntu Linux 7.10.
+Ubuntu Linux 7.10 and Centos 5.
