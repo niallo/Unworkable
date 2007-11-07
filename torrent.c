@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.91 2007-10-26 06:16:02 niallo Exp $ */
+/* $Id: torrent.c,v 1.92 2007-11-07 07:23:41 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -491,6 +491,8 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 		/* and write a byte there */
 		if (write(tfp->fd, &zero, 1) < 1)
 			err(1, "torrent_mmap_create: write() failure");
+		if (flock(tfp->fd, LOCK_UN) == -1)
+				err(1, "torrent_mmap_create: flock()");
 		close(tfp->fd);
 		tfp->fd = 0;
 		goto open;
