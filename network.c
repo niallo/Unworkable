@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.165 2007-11-07 06:35:50 niallo Exp $ */
+/* $Id: network.c,v 1.166 2007-11-07 07:45:08 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1840,8 +1840,10 @@ network_piece_gimme(struct peer *peer, int nocreate, int *hint)
 	RB_FOREACH(pdin, piece_dl_by_idxoff, &peer->sc->piece_dl_by_idxoff) {
 		tpp = torrent_piece_find(peer->sc->tp, pdin->idx);
 		if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
-			/* if not all this piece's blocks are in the download queue */
-			if (!network_piece_assigned(peer->sc, tpp)) {
+			/* if not all this piece's blocks are in the download queue
+			 * and this peer actually has this piece */
+			if (!network_piece_assigned(peer->sc, tpp)
+			    && BIT_ISSET(p->bitfield, pdin->idx)) {
 				idx = pdin->idx;
 				goto get_block;
 			}
@@ -1851,6 +1853,9 @@ network_piece_gimme(struct peer *peer, int nocreate, int *hint)
 	if (peer->sc->tp->good_pieces < 4 && peer->sc->tp->num_pieces > 4) {
 		for (;;) {
 			idx = random() % (peer->sc->tp->num_pieces - 1);
+			/* does this peer have this piece? */
+			if (!BIT_ISSET(p->bitfield, idx))
+				continue;
 			tpp = torrent_piece_find(peer->sc->tp, idx);
 			/* do we already have this piece? */
 			if (tpp->flags & TORRENT_PIECE_CKSUMOK)
