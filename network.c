@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.168 2007-11-07 07:53:29 niallo Exp $ */
+/* $Id: network.c,v 1.169 2007-11-09 00:42:38 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -478,7 +478,7 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 	struct timeval tv;
 	BUF *buf = NULL;
 	u_int32_t l;
-	u_char *c;
+	u_int8_t *c;
 
 	trace("network_handle_announce_error() called");
 	/* shouldn't have to worry about this case */

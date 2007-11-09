@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.92 2007-11-07 07:23:41 niallo Exp $ */
+/* $Id: torrent.c,v 1.93 2007-11-09 00:42:39 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -322,7 +322,7 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d
 {
 	struct torrent_mmap *tmmp;
 	off_t cntlen = 0, cntbase = 0;
-	u_char *aptr;
+	u_int8_t *aptr;
 	u_int32_t tlen, bytesleft = len, diff = 0;
 
 	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps) {
@@ -331,13 +331,13 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d
 			/* write as much as we can here and jump to next
 			 * mapping if required*/
 			if (bytesleft > tmmp->len) {
-				memcpy(tmmp->addr, (u_char *)d + diff,
+				memcpy(tmmp->addr, (u_int8_t *)d + diff,
 				    tmmp->len);
 				bytesleft -= tmmp->len;
 				continue;
 			}
 			/* done once we make it here */
-			memcpy(tmmp->addr, (u_char *)d + diff, bytesleft);
+			memcpy(tmmp->addr, (u_int8_t *)d + diff, bytesleft);
 			return;
 
 		}
@@ -349,7 +349,7 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d
 			aptr = tmmp->addr;
 			for (; cntbase < off; cntbase++)
 				aptr++;
-			tlen = tmmp->len - (aptr - (u_char *)tmmp->addr);
+			tlen = tmmp->len - (aptr - (u_int8_t *)tmmp->addr);
 			/* its possible that we are writing more bytes than
 			 * remain in this single mapping.  in this case,
 			 * we need to write the remainder to the next
@@ -369,7 +369,7 @@ void *
 torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hint)
 {
 	void *block;
-	u_char *aptr, *bptr;
+	u_int8_t *aptr, *bptr;
 	struct torrent_mmap *tmmp;
 	off_t cntlen = 0, cntbase = 0;
 	u_int32_t tlen = len;
@@ -492,7 +492,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 		if (write(tfp->fd, &zero, 1) < 1)
 			err(1, "torrent_mmap_create: write() failure");
 		if (flock(tfp->fd, LOCK_UN) == -1)
-				err(1, "torrent_mmap_create: flock()");
+			err(1, "torrent_mmap_create: flock()");
 		close(tfp->fd);
 		tfp->fd = 0;
 		goto open;
