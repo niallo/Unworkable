@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.169 2007-11-09 00:42:38 niallo Exp $ */
+/* $Id: network.c,v 1.170 2007-11-10 19:16:11 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -203,6 +203,10 @@ struct piececounter {
 	u_int32_t idx;
 };
 
+struct peercounter {
+	u_int64_t rate;
+	struct peer *peer;
+};
 
 char *user_port = NULL;
 
@@ -235,6 +239,7 @@ static int	network_listen(struct session *, char *, char *);
 static char	*network_peer_id_create(void);
 static void	network_peer_request_block(struct peer *, u_int32_t, u_int32_t,
     u_int32_t);
+static void	network_peer_write_choke(struct peer *);
 static void	network_peer_write_unchoke(struct peer *);
 static struct piece_dl *network_piece_gimme(struct peer *, int, int *);
 static void	network_peer_cancel_piece(struct piece_dl *);
@@ -251,7 +256,9 @@ static struct piece_dl * network_piece_dl_create(struct peer *, u_int32_t,
 static void	network_piece_dl_free(struct session *, struct piece_dl *);
 static struct piece_dl *network_piece_dl_find(struct session *, u_int32_t, u_int32_t);
 static int network_piece_cmp(const void *, const void *);
+static int network_peer_cmp(const void *, const void *);
 static struct piececounter *network_piece_rarityarray(struct session *);
+static struct peercounter *network_peer_speedrank(struct session *);
 
 static int	piece_dl_idxnode_cmp(struct piece_dl_idxnode *, struct piece_dl_idxnode *);
 
@@ -1003,6 +1010,7 @@ network_peer_create(void)
 	TAILQ_INIT(&p->peer_piece_dls);
 	/* peers start in choked state */
 	p->state |= PEER_STATE_CHOKED;
+	p->state |= PEER_STATE_AMCHOKING;
 
 	return (p);
 }
@@ -1683,6 +1691,31 @@ network_peer_write_unchoke(struct peer *p)
 
 	if (bufferevent_write(p->bufev, p->txmsg, sizeof(len) + sizeof(id)) != 0)
 		errx(1, "network_peer_write_unchoke: bufferevent_write failure");
+	p->state &= ~PEER_STATE_AMCHOKING;
+}
+
+/*
+ * network_peer_write_choke()
+ *
+ * Send a CHOKE message to remote peer.
+ */
+static void
+network_peer_write_choke(struct peer *p)
+{
+	u_int8_t id;
+	u_int32_t len;
+
+	trace("network_peer_write_choke() to peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+	len = htonl(sizeof(id));
+	id = PEER_MSG_ID_CHOKE;
+
+	p->txmsg = xmalloc(sizeof(len) + sizeof(id));
+	memcpy(p->txmsg, &len, sizeof(len));
+	memcpy(p->txmsg+sizeof(len), &id, sizeof(id));
+
+	if (bufferevent_write(p->bufev, p->txmsg, sizeof(len) + sizeof(id)) != 0)
+		errx(1, "network_peer_write_choke: bufferevent_write failure");
+	p->state |= PEER_STATE_AMCHOKING;
 }
 
 /*
@@ -1723,6 +1756,55 @@ network_piece_cmp(const void *a, const void *b)
 
 	return (x->count - y->count);
 
+}
+
+/*
+ * network_peer_cmp()
+ *
+ * Used by qsort()
+ */
+static int
+network_peer_cmp(const void *a, const void *b)
+{
+	const struct peercounter *x, *y;
+
+	x = a;
+	y = b;
+
+	return (x->rate - y->rate);
+
+}
+
+/*
+ * network_peer_speedrank()
+ *
+ * For a given session return an array of peers sorted by their download speeds.
+ */
+static struct peercounter *
+network_peer_speedrank(struct session *sc)
+{
+	struct peer *p;
+	struct peercounter *peers;
+	int i = 0;
+
+	peers = xcalloc(sc->num_peers, sizeof(*peers));
+	TAILQ_FOREACH(p, &sc->peers, peer_list) {
+		peers[i].peer = p;
+		if (p->state & PEER_STATE_INTERESTED) {
+			peers[i].rate = network_peer_rate(p);
+			/* kind of a hack so we don't unchoke 
+			 * un-interested peers */
+			if (peers[i].rate == 0)
+				peers[i].rate = 1;
+		}
+		i++;
+	}
+	if (i != sc->num_peers)
+		errx(1, "network_peer_speedrank: peer number mismatch");
+
+	qsort(peers, sc->num_peers, sizeof(*peers), network_peer_cmp);
+
+	return (peers);
 }
 
 /*
@@ -1830,7 +1912,7 @@ network_piece_gimme(struct peer *peer, int nocreate, int *hint)
 	struct torrent_piece *tpp;
 	struct piece_dl *pd;
 	struct piece_dl_idxnode *pdin;
-	u_int32_t idx, len, off;
+	u_int32_t i, j, idx, len, off, *pieces, peerpieces;
 	int res;
 
 	res = 0;
@@ -1852,21 +1934,43 @@ network_piece_gimme(struct peer *peer, int nocreate, int *hint)
 	}
 	/* first 4 pieces should be chosen randomly */
 	if (peer->sc->tp->good_pieces < 4 && peer->sc->tp->num_pieces > 4) {
-		for (;;) {
-			idx = random() % (peer->sc->tp->num_pieces - 1);
-			/* does this peer have this piece? */
-			if (!BIT_ISSET(peer->bitfield, idx))
-				continue;
-			tpp = torrent_piece_find(peer->sc->tp, idx);
-			/* do we already have this piece? */
-			if (tpp->flags & TORRENT_PIECE_CKSUMOK)
-				continue;
-			/* is it already assigned? */
-			if (network_piece_assigned(peer->sc, tpp))
-				continue;
-			/* if not, run with it */
-			break;
+		/* check how many useful pieces this peer has */
+		peerpieces = 0;
+		for (i = 0; i < peer->sc->tp->num_pieces; i++) {
+			if (BIT_ISSET(peer->bitfield, i)) {
+				tpp = torrent_piece_find(peer->sc->tp, i);
+				/* do we already have this piece? */
+				if (tpp->flags & TORRENT_PIECE_CKSUMOK)
+					continue;
+				/* is it already assigned? */
+				if (network_piece_assigned(peer->sc, tpp))
+					continue;
+				peerpieces++;
+			}
+
 		}
+		/* peer has no pieces */
+		if (peerpieces == 0)
+			return (NULL);
+		/* build array of pieces this peer has */
+		pieces = xcalloc(peerpieces, sizeof(*pieces));
+		j = 0;
+		for (i = 0; i < peer->sc->tp->num_pieces; i++) {
+			if (BIT_ISSET(peer->bitfield, i)) {
+				tpp = torrent_piece_find(peer->sc->tp, i);
+				/* do we already have this piece? */
+				if (tpp->flags & TORRENT_PIECE_CKSUMOK)
+					continue;
+				/* is it already assigned? */
+				if (network_piece_assigned(peer->sc, tpp))
+					continue;
+				pieces[j] = i;
+				j++;
+			}
+		}
+		/* select piece randomly */
+		idx = pieces[random() % peerpieces];
+		xfree(pieces);
 	} else {
 		/* find the rarest piece that does not have all its blocks already in the download queue */
 		idx = network_piece_find_rarest(peer, FIND_RAREST_IGNORE_ASSIGNED, &res);
@@ -1916,27 +2020,27 @@ get_block:
 static void
 network_scheduler(int fd, short type, void *arg)
 {
-	struct peer *p, *nxt;
+	struct peer *p, *p2, *nxt;
 	struct session *sc = arg;
 	struct timeval tv;
 	/* piece rarity array */
 	struct piece_dl *pd;
 	struct piece_dl_idxnode *pdin;
+	struct peercounter *pc;
 	u_int32_t pieces_left, reqs_outstanding, reqs_completed, reqs_orphaned;
 	u_int64_t peer_rate;
 	u_int8_t queue_len, i, choked, unchoked;
 	char tbuf[64];
 	time_t now;
-	int hint = 0;
+	int hint = 0, j, k, num_interested;
 
 	reqs_outstanding = reqs_completed = reqs_orphaned = choked = unchoked = 0;
 	p = NULL;
+	pc = NULL;
 	timerclear(&tv);
 	tv.tv_sec = 1;
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
 	evtimer_add(&sc->scheduler_event, &tv);
-
-	/* XXX: need choke algorithm */
 
 	pieces_left = sc->tp->num_pieces - sc->tp->good_pieces;
 	if (!TAILQ_EMPTY(&sc->peers)) {
@@ -1992,6 +2096,54 @@ network_scheduler(int fd, short type, void *arg)
 		}
 	}
 	now = time(NULL);
+
+	/* choke algorithm */
+	/* every 10 seconds, sort peers by speed and unchoke the 3 fastest */
+	if ((now % 10) == 0) {
+		pc = network_peer_speedrank(sc);
+		for (i = 0; i < 3; i++) {
+			/* if this peer is already unchoked, leave it */
+			if (!(pc->peer->state & PEER_STATE_AMCHOKING))
+				continue;
+			/* scan for another peer to choke, so that we can unchoke this one */
+			TAILQ_FOREACH(p, &sc->peers, peer_list) {
+				if (!(p->state & PEER_STATE_AMCHOKING)) {
+					network_peer_write_choke(p);
+					break;
+				}
+			}
+			/* now we can unchoke this one */
+			network_peer_write_unchoke(pc->peer);
+			trace("rate: %llu", pc->rate);
+		}
+		xfree(pc);
+	}
+	/* every 30 seconds, unchoke a random peer */
+	if ((now % 30) == 0 ) {
+		num_interested = 0;
+		TAILQ_FOREACH(p, &sc->peers, peer_list) {
+			if (p->state & PEER_STATE_INTERESTED)
+				num_interested++;
+		}
+		if (num_interested > 0) {
+			j = random() % num_interested;
+			p = TAILQ_FIRST(&sc->peers);
+			for (k = 0; k < j; k++) {
+				p = TAILQ_NEXT(p, peer_list);
+				if (p == NULL)
+					errx(1, "NULL peer");
+				if (!(pc->peer->state & PEER_STATE_INTERESTED))
+					continue;
+				/* scan for another peer to choke, so that we can unchoke this one */
+				TAILQ_FOREACH(p2, &sc->peers, peer_list) {
+					if (!(p2->state & PEER_STATE_AMCHOKING)) {
+						network_peer_write_choke(p2);
+						break;
+					}
+				}
+			}
+		}
+	}
 	/* try to get some more peers */
 	if (sc->num_peers < PEERS_WANTED
 	    && !sc->announce_underway
