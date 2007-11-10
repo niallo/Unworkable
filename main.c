@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.45 2007-11-06 23:11:04 niallo Exp $ */
+/* $Id: main.c,v 1.46 2007-11-10 19:14:15 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -94,8 +94,8 @@ main(int argc, char **argv)
 	for (i = 0; i < torrent->num_pieces; i++) {
 		torrent_piece_create(torrent, i);
 		tpp = torrent_piece_find(torrent, i);
-		torrent_piece_map(tpp);
 		if (!torrent->isnew) {
+			torrent_piece_map(tpp);
 			j = torrent_piece_checkhash(torrent, tpp);
 			torrent_piece_unmap(tpp);
 			if (j == 0) {
