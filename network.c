@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.170 2007-11-10 19:16:11 niallo Exp $ */
+/* $Id: network.c,v 1.171 2007-11-11 03:24:28 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1792,7 +1792,7 @@ network_peer_speedrank(struct session *sc)
 		peers[i].peer = p;
 		if (p->state & PEER_STATE_INTERESTED) {
 			peers[i].rate = network_peer_rate(p);
-			/* kind of a hack so we don't unchoke 
+			/* kind of a hack so we don't unchoke
 			 * un-interested peers */
 			if (peers[i].rate == 0)
 				peers[i].rate = 1;
@@ -2103,7 +2103,7 @@ network_scheduler(int fd, short type, void *arg)
 		pc = network_peer_speedrank(sc);
 		for (i = 0; i < 3; i++) {
 			/* if this peer is already unchoked, leave it */
-			if (!(pc->peer->state & PEER_STATE_AMCHOKING))
+			if (!(pc[i].peer->state & PEER_STATE_AMCHOKING))
 				continue;
 			/* scan for another peer to choke, so that we can unchoke this one */
 			TAILQ_FOREACH(p, &sc->peers, peer_list) {
@@ -2113,8 +2113,8 @@ network_scheduler(int fd, short type, void *arg)
 				}
 			}
 			/* now we can unchoke this one */
-			network_peer_write_unchoke(pc->peer);
-			trace("rate: %llu", pc->rate);
+			network_peer_write_unchoke(pc[i].peer);
+			trace("rate: %llu", pc[i].rate);
 		}
 		xfree(pc);
 	}
