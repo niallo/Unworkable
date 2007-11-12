@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.93 2007-11-09 00:42:39 niallo Exp $ */
+/* $Id: torrent.c,v 1.94 2007-11-12 06:50:41 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -765,8 +765,8 @@ torrent_empty(struct torrent *tp)
 
 	RB_FOREACH(tpp, pieces, &tp->pieces) {
 		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
-			return (1);
+			return (0);
 	}
-	return (0);
+	return (1);
 }
 
