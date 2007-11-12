@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.171 2007-11-11 03:24:28 niallo Exp $ */
+/* $Id: network.c,v 1.172 2007-11-12 02:45:22 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1365,14 +1365,14 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
 			idx = ntohl(idx);
 			if (idx > p->sc->tp->num_pieces - 1) {
-				trace("PIECE index out of bounds");
+				trace("REQUEST index out of bounds (%u)", idx);
 				break;
 			}
-			memcpy(&off, p->rxmsg+sizeof(idx), sizeof(off));
+			memcpy(&off, p->rxmsg+sizeof(id)+sizeof(idx), sizeof(off));
 			off = ntohl(off);
 			tpp = torrent_piece_find(p->sc->tp, idx);
 			if (off > tpp->len) {
-				trace("PIECE offset out of bounds");
+				trace("REQUEST offset out of bounds (%u)"), off;
 				break;
 			}
 			memcpy(&blocklen, p->rxmsg+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
@@ -1771,7 +1771,7 @@ network_peer_cmp(const void *a, const void *b)
 	x = a;
 	y = b;
 
-	return (x->rate - y->rate);
+	return (y->rate - x->rate);
 
 }
 
@@ -2101,23 +2101,33 @@ network_scheduler(int fd, short type, void *arg)
 	/* every 10 seconds, sort peers by speed and unchoke the 3 fastest */
 	if ((now % 10) == 0) {
 		pc = network_peer_speedrank(sc);
-		for (i = 0; i < 3; i++) {
+		for (i = 0; i < MIN(3, sc->num_peers); i++) {
 			/* if this peer is already unchoked, leave it */
 			if (!(pc[i].peer->state & PEER_STATE_AMCHOKING))
 				continue;
-			/* scan for another peer to choke, so that we can unchoke this one */
-			TAILQ_FOREACH(p, &sc->peers, peer_list) {
-				if (!(p->state & PEER_STATE_AMCHOKING)) {
-					network_peer_write_choke(p);
+			/* now we can unchoke this one */
+			network_peer_write_unchoke(pc[i].peer);
+		}
+		/* choke any peers except for three fastest */
+		TAILQ_FOREACH(p, &sc->peers, peer_list) {
+			int c = 0;
+			/* don't try to choke any of the peers
+			 * we just unchoked above */
+			for (i = 0; i < MIN(3, sc->num_peers); i++) {
+				if (p == pc[i].peer) {
+					c = 1;
 					break;
 				}
 			}
-			/* now we can unchoke this one */
-			network_peer_write_unchoke(pc[i].peer);
-			trace("rate: %llu", pc[i].rate);
+			if (c)
+				continue;
+			if (!(p->state & PEER_STATE_AMCHOKING))
+				network_peer_write_choke(p);
 		}
 		xfree(pc);
 	}
+	/* XXX the peer we unchoke here, could easily end
+	 * up choekd by the above 10 sec loop */
 	/* every 30 seconds, unchoke a random peer */
 	if ((now % 30) == 0 ) {
 		num_interested = 0;
@@ -2129,11 +2139,12 @@ network_scheduler(int fd, short type, void *arg)
 			j = random() % num_interested;
 			p = TAILQ_FIRST(&sc->peers);
 			for (k = 0; k < j; k++) {
-				p = TAILQ_NEXT(p, peer_list);
 				if (p == NULL)
 					errx(1, "NULL peer");
-				if (!(pc->peer->state & PEER_STATE_INTERESTED))
+				if (!(pc->peer->state & PEER_STATE_INTERESTED)) {
+					p = TAILQ_NEXT(p, peer_list);
 					continue;
+				}
 				/* scan for another peer to choke, so that we can unchoke this one */
 				TAILQ_FOREACH(p2, &sc->peers, peer_list) {
 					if (!(p2->state & PEER_STATE_AMCHOKING)) {
@@ -2141,6 +2152,7 @@ network_scheduler(int fd, short type, void *arg)
 						break;
 					}
 				}
+				p = TAILQ_NEXT(p, peer_list);
 			}
 		}
 	}
