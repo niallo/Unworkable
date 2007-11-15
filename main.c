@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.46 2007-11-10 19:14:15 niallo Exp $ */
+/* $Id: main.c,v 1.47 2007-11-15 21:24:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -41,7 +41,7 @@ extern int  optind;
 void
 usage(void)
 {
-	fprintf(stderr, "unworkable: [-t tracefile] [-p port] torrent\n");
+	fprintf(stderr, "unworkable: [-s] [-t tracefile] [-p port] torrent\n");
 	exit(1);
 }
 
@@ -66,13 +66,16 @@ main(int argc, char **argv)
 	/* don't die on sigpipe */
 	signal(SIGPIPE, SIG_IGN);
 
-	while ((ch = getopt(argc, argv, "t:p:")) != -1) {
+	while ((ch = getopt(argc, argv, "st:p:")) != -1) {
 		switch (ch) {
 		case 't':
 			unworkable_trace = xstrdup(optarg);
 			break;
 		case 'p':
 			user_port = xstrdup(optarg);
+			break;
+		case 's':
+			seed = 1;
 			break;
 		default:
 			usage();
@@ -89,23 +92,25 @@ main(int argc, char **argv)
 	if (getrlimit(RLIMIT_NOFILE, &rlp) == -1)
 		err(1, "getrlimit");
 	torrent = torrent_parse_file(argv[0]);
+	torrent_pieces_create(torrent);
 	/* a little extra info? torrent_print(torrent); */
 	printf("checking data, this could take a while\n");
 	for (i = 0; i < torrent->num_pieces; i++) {
-		torrent_piece_create(torrent, i);
 		tpp = torrent_piece_find(torrent, i);
+		if (tpp->index != i)
+			errx(1, "main: something went wrong, index is %u, should be %u", tpp->index, i);
+		torrent_piece_map(tpp);
 		if (!torrent->isnew) {
-			torrent_piece_map(tpp);
 			j = torrent_piece_checkhash(torrent, tpp);
-			torrent_piece_unmap(tpp);
 			if (j == 0) {
 				torrent->good_pieces++;
 				torrent->downloaded += tpp->len;
 			}
 		}
+		torrent_piece_unmap(tpp);
 	}
 	/* do we already have everything? */
-	if (torrent->good_pieces == torrent->num_pieces) {
+	if (!seed && torrent->good_pieces == torrent->num_pieces) {
 		printf("download already complete!\n");
 		exit(0);
 	}

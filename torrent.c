@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.94 2007-11-12 06:50:41 niallo Exp $ */
+/* $Id: torrent.c,v 1.95 2007-11-15 21:24:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -37,8 +37,7 @@
 
 #include "includes.h"
 
-RB_PROTOTYPE(pieces, torrent_piece, entry, torrent_intcmp)
-RB_GENERATE(pieces, torrent_piece, entry, torrent_intcmp)
+static struct torrent_piece *piece_array = NULL;
 
 /* dedicated function which computes the torrent info hash */
 u_int8_t *
@@ -247,8 +246,6 @@ torrent_parse_file(const char *file)
 	    && node->flags & BINT)
 		torrent->creation_date = node->body.number;
 
-	RB_INIT(&torrent->pieces);
-
 	return (torrent);
 }
 
@@ -431,12 +428,12 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hin
 struct torrent_piece *
 torrent_piece_find(struct torrent *tp, u_int32_t idx)
 {
-	struct torrent_piece find, *res;
-	find.index = idx;
-	if ((res = RB_FIND(pieces, &tp->pieces, &find)) == NULL)
-		errx(1, "torrent_piece_find: piece not mapped: %u", idx);
+	struct torrent_piece *tpp;
+	if (idx > tp->num_pieces - 1)
+		errx(1, "torrent_piece_find: index %u out of bounds", idx);
+	tpp = piece_array + idx;
 
-	return (res);
+	return (tpp);
 }
 
 struct torrent_mmap *
@@ -524,41 +521,42 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 
 /* create a persistent piece descriptor */
 struct torrent_piece *
-torrent_piece_create(struct torrent *tp, u_int32_t idx)
+torrent_pieces_create(struct torrent *tp)
 {
 	struct torrent_piece *tpp;
-	u_int32_t len;
+	u_int32_t len, i;
 	off_t off;
 
-	tpp = xmalloc(sizeof(*tpp));
+	tpp = xcalloc(tp->num_pieces, sizeof(*tpp));
+	for (i = 0; i < tp->num_pieces; i++) {
+		tpp[i].tp = tp;
+		tpp[i].index = i;
+		TAILQ_INIT(&tpp[i].mmaps);
 
-	memset(tpp, 0, sizeof(*tpp));
-	tpp->tp = tp;
-	tpp->index = idx;
-	TAILQ_INIT(&tpp->mmaps);
+		off = tp->piece_length * (off_t)i;
+		/* nice and simple */
+		if (tp->type == SINGLEFILE) {
+			/* last piece is irregular */
+			if (i == tp->num_pieces - 1) {
+				len = tp->body.singlefile.tfp.file_length - off;
+			} else {
+				len = tp->piece_length;
+			}
+			tpp[i].len = len;
 
-	off = tp->piece_length * (off_t)idx;
-	/* nice and simple */
-	if (tp->type == SINGLEFILE) {
-		/* last piece is irregular */
-		if (idx == tp->num_pieces - 1) {
-			len = tp->body.singlefile.tfp.file_length - off;
 		} else {
-			len = tp->piece_length;
+			/* last piece is irregular */
+			if (i == tp->num_pieces - 1) {
+				len = tp->body.multifile.total_length
+				    - ((tp->num_pieces - 1) * tp->piece_length);
+			} else {
+				len = tp->piece_length;
+			}
+			tpp[i].len = len;
 		}
-		tpp->len = len;
-
-	} else {
-		/* last piece is irregular */
-		if (idx == tp->num_pieces - 1) {
-			len = tp->body.multifile.total_length
-			    - ((tp->num_pieces - 1) * tp->piece_length);
-		} else {
-			len = tp->piece_length;
-		}
-		tpp->len = len;
 	}
-	RB_INSERT(pieces, &tp->pieces, tpp);
+
+	piece_array = tpp;
 	return (tpp);
 }
 
@@ -742,17 +740,16 @@ torrent_piece_unmap(struct torrent_piece *tpp)
 u_int8_t *
 torrent_bitfield_get(struct torrent *tp)
 {
-	struct torrent_piece find, *res;
+	struct torrent_piece *tpp;
 	u_int32_t i, len;
 	u_int8_t *bitfield;
 
 	len = (tp->num_pieces + 7) / 8;
 	bitfield = xmalloc(len);
 	memset(bitfield, 0, len);
-	for (i = 0; i < tp->num_pieces - 1; i++) {
-		find.index = i;
-		if ((res = RB_FIND(pieces, &tp->pieces, &find)) != NULL
-		    && (res->flags & TORRENT_PIECE_CKSUMOK))
+	for (i = 0; i < tp->num_pieces; i++) {
+		tpp = torrent_piece_find(tp, i);
+		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
 			setbit(bitfield, i);
 	}
 	return (bitfield);
@@ -762,11 +759,11 @@ int
 torrent_empty(struct torrent *tp)
 {
 	struct torrent_piece *tpp;
-
-	RB_FOREACH(tpp, pieces, &tp->pieces) {
+	u_int32_t i;
+	for (i = 0; i < tp->num_pieces; i++) {
+		tpp = torrent_piece_find(tp, i);
 		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
 			return (0);
 	}
 	return (1);
 }
-

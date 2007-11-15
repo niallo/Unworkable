@@ -1,4 +1,4 @@
-.\"	$Id: unworkable.1,v 1.1 2007-10-26 03:55:48 niallo Exp $
+.\"	$Id: unworkable.1,v 1.2 2007-11-15 21:24:01 niallo Exp $
 .\"
 .\" Copyright (c) 2007 Niall O'Higgins <niallo@unworkable.org>
 .\" All rights reserved.
@@ -14,7 +14,7 @@
 .\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-.Dd $Mdocdate: May 31 2007 $
+.Dd $Mdocdate: October 26 2007 $
 .Dt Unworkable 1
 .Os
 .Sh NAME
@@ -23,6 +23,7 @@
 .Sh SYNOPSIS
 .Nm
 .Bk -words
+.Op Fl s Ns
 .Op Fl p Ns Ar port
 .Op Fl t Ns Ar file
 .Ar
@@ -36,10 +37,13 @@ When
 .Nm
 is executed with a valid .torrent file as an argument, it will proceed
 to announce to the tracker, connect to peers and download the data.
-Upon completion of the download, the program will exit.
+Upon completion of the download, the program will exit, unless seed-mode
+is enabled.
 .Bl -tag -width Ds
 .It Fl p Ns Ar port
 Specify a port to listen on.
+.It Fl s Ns
+Enable seed-mode, that is, keep running and seed after download is complete.
 .It Fl t Ns Ar file
 Trace execution, outputting to
 .Ar tracefile .

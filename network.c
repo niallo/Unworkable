@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.172 2007-11-12 02:45:22 niallo Exp $ */
+/* $Id: network.c,v 1.173 2007-11-15 21:24:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -110,6 +110,13 @@
 #define HTTP_OK				"200"
 #define HTTP_END			"\r\n\r\n"
 
+/* what percentage remaining to be considered endgame? */
+#define ENDGAME_PERCENTAGE		5
+
+#define DEFAULT_PORT			"6668"
+
+#define PIECE_GIMME_NOCREATE		(1<<0)
+
 /* data for a http response */
 struct http_response {
 	/* response buffer */
@@ -146,7 +153,7 @@ struct peer {
 	/* how many bytes have we rx'd from the peer since it was connected */
 	u_int64_t totalrx;
 	/* block request queue length*/
-	u_int16_t queue_len;
+	u_int32_t queue_len;
 };
 
 /* piece download transaction */
@@ -168,6 +175,16 @@ struct piece_dl_idxnode {
 	u_int32_t idx; /* piece index */
 	u_int32_t off; /* offset within this piece */
 	TAILQ_HEAD(idxnode_piece_dls, piece_dl) idxnode_piece_dls;
+};
+
+struct piececounter {
+	u_int32_t count;
+	u_int32_t idx;
+};
+
+struct peercounter {
+	u_int64_t rate;
+	struct peer *peer;
 };
 
 /* data associated with a bittorrent session */
@@ -196,19 +213,13 @@ struct session {
 	int announce_underway;
 	u_int32_t tracker_num_peers;
 	time_t last_announce;
+	struct piececounter *rarity_array;
+	time_t last_rarity;
 };
 
-struct piececounter {
-	u_int32_t count;
-	u_int32_t idx;
-};
-
-struct peercounter {
-	u_int64_t rate;
-	struct peer *peer;
-};
 
 char *user_port = NULL;
+int   seed = 0;
 
 static int	network_announce(struct session *, const char *);
 static void	network_announce_update(int, short, void *);
@@ -254,10 +265,10 @@ static u_int32_t network_piece_find_rarest(struct peer *, int, int *);
 static struct piece_dl * network_piece_dl_create(struct peer *, u_int32_t,
     u_int32_t, u_int32_t);
 static void	network_piece_dl_free(struct session *, struct piece_dl *);
-static struct piece_dl *network_piece_dl_find(struct session *, u_int32_t, u_int32_t);
+static struct piece_dl *network_piece_dl_find(struct session *, struct peer *, u_int32_t, u_int32_t);
 static int network_piece_cmp(const void *, const void *);
 static int network_peer_cmp(const void *, const void *);
-static struct piececounter *network_piece_rarityarray(struct session *);
+static void	network_piece_rarityarray(struct session *);
 static struct peercounter *network_peer_speedrank(struct session *);
 
 static int	piece_dl_idxnode_cmp(struct piece_dl_idxnode *, struct piece_dl_idxnode *);
@@ -1225,10 +1236,8 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				p->rxmsg = NULL;
 				p->state |= PEER_STATE_BITFIELD;
 				p->state &= ~PEER_STATE_HANDSHAKE2;
-				/*
 				if (!torrent_empty(p->sc->tp))
 					network_peer_write_bitfield(p);
-				*/
 				p->rxpending = 0;
 				goto out;
 			}
@@ -1332,7 +1341,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			}
 			setbit(p->bitfield, idx);
 			/* does this peer have anything we want? */
-			network_piece_gimme(p, 1, &res);
+			network_piece_gimme(p, PIECE_GIMME_NOCREATE, &res);
 			if (res && !(p->state & PEER_STATE_AMINTERESTED))
 				network_peer_write_interested(p);
 			break;
@@ -1356,7 +1365,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			p->state &= ~PEER_STATE_BITFIELD;
 			p->state |= PEER_STATE_ESTABLISHED;
 			/* does this peer have anything we want? */
-			network_piece_gimme(p, 1, &res);
+			network_piece_gimme(p, PIECE_GIMME_NOCREATE, &res);
 			if (res && !(p->state & PEER_STATE_AMINTERESTED))
 				network_peer_write_interested(p);
 			break;
@@ -1406,7 +1415,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				/* only checksum if we think we have every block of this piece */
 				found = 1;
 				for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
-					if ((pd = network_piece_dl_find(p->sc, idx, off)) == NULL) {
+					if ((pd = network_piece_dl_find(p->sc, NULL, idx, off)) == NULL) {
 						found = 0;
 						break;
 					}
@@ -1422,7 +1431,8 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 						trace("hash check success for piece %d", idx);
 						p->sc->tp->good_pieces++;
 						p->sc->tp->left -= tpp->len;
-						if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
+						if (p->sc->tp->good_pieces == p->sc->tp->num_pieces
+						    && !seed) {
 							refresh_progress_meter();
 							exit(0);
 						}
@@ -1431,21 +1441,31 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 							network_peer_write_have(tp, idx);
 						/* clean up all the piece dls for this now that its done */
 						for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
-							if ((pd = network_piece_dl_find(p->sc, idx, off)) != NULL) {
+							if ((pd = network_piece_dl_find(p->sc, NULL, idx, off)) != NULL) {
 								network_piece_dl_free(p->sc, pd);
 							}
 						}
 					} else {
 						trace("hash check failure for piece %d", idx);
+						for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
+							if ((pd = network_piece_dl_find(p->sc, NULL, idx, off)) != NULL) {
+								network_piece_dl_free(p->sc, pd);
+							}
+						}
 					}
+				} else {
+					trace("we don't think we have all the blocks of idx %u", idx);
 				}
 			} else {
+				/* this code is wrong */
+				#if 0
 				/* XXX hash check failed, try re-downloading this piece? */
 				/* clean up this piece dl, although its not fully the correct thing to do */
 				if ((pd = network_piece_dl_find(p->sc, idx, off)) != NULL) {
 					pd->pc = NULL;
 					p->queue_len--;
 				}
+				#endif
 			}
 			p->lastrecv = time(NULL);
 			break;
@@ -1485,7 +1505,7 @@ network_peer_write_have(struct peer *p, u_int32_t idx)
 
 	p->txmsg = msg;
 	if (bufferevent_write(p->bufev, msg, msglen) != 0)
-		errx(1, "network_peer_request_block: bufferevent_write failure");
+		errx(1, "network_peer_write_have: bufferevent_write failure");
 
 }
 
@@ -1499,6 +1519,8 @@ static void
 network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t len)
 {
 	struct torrent_piece *tpp;
+	u_int32_t msglen, msglen2;
+	u_int8_t  *msg, id;
 	void *data;
 	int hint;
 
@@ -1516,8 +1538,20 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t 
 		    idx);
 		return;
 	}
-	torrent_piece_unmap(tpp);
-	if (bufferevent_write(p->bufev, data, len) != 0)
+	/* construct PIECE message response */
+	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx) + sizeof(offset) + sizeof(len);
+	msglen2 = htonl((msglen - sizeof(msglen)));
+	msg = xmalloc(msglen);
+	id = PEER_MSG_ID_PIECE;
+	idx = htonl(idx);
+	offset = htonl(offset);
+	memcpy(msg, &msglen2, sizeof(msglen2));
+	memcpy(msg+sizeof(msglen2), &id, sizeof(id));
+	memcpy(msg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
+	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx), &offset, sizeof(offset));
+	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(offset), data, sizeof(len));
+	p->txmsg = msg;
+	if (bufferevent_write(p->bufev, msg, msglen) != 0)
 		errx(1, "network_peer_write_piece: bufferevent_write failure");
 }
 
@@ -1539,7 +1573,7 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 		return;
 	}
 	trace("network_peer_read_piece() at index %u offset %u length %u", idx, offset, len);
-	if ((pd = network_piece_dl_find(p->sc, idx, offset)) == NULL)
+	if ((pd = network_piece_dl_find(p->sc, p, idx, offset)) == NULL)
 		return;
 	torrent_block_write(tpp, offset, len, data);
 	pd->bytes += len;
@@ -1550,18 +1584,18 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 
 /* network_peer_request_block()
  *
- * Send a BLOCK request to remote peer.
+ * Send a REQUEST message to remote peer.
  */
 static void
 network_peer_request_block(struct peer *p, u_int32_t idx, u_int32_t off, u_int32_t len)
 {
 	u_int32_t msglen, msglen2, blocklen;
-	u_int8_t  *msg, id;
+	u_int8_t  id;
 
 	trace("network_peer_request_block, index: %u offset: %u len: %u to peer %s:%d", idx, off, len,
 	    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx) + sizeof(off) + sizeof(blocklen);
-	msg = xmalloc(msglen);
+	p->txmsg = xmalloc(msglen);
 
 	msglen2 = htonl(msglen - sizeof(msglen));
 	id = PEER_MSG_ID_REQUEST;
@@ -1569,14 +1603,13 @@ network_peer_request_block(struct peer *p, u_int32_t idx, u_int32_t off, u_int32
 	off = htonl(off);
 	blocklen = htonl(len);
 
-	memcpy(msg, &msglen2, sizeof(msglen2));
-	memcpy(msg+sizeof(msglen2), &id, sizeof(id));
-	memcpy(msg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
-	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx), &off, sizeof(off));
-	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(off), &blocklen, sizeof(blocklen));
+	memcpy(p->txmsg, &msglen2, sizeof(msglen2));
+	memcpy(p->txmsg+sizeof(msglen2), &id, sizeof(id));
+	memcpy(p->txmsg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
+	memcpy(p->txmsg+sizeof(msglen2)+sizeof(id)+sizeof(idx), &off, sizeof(off));
+	memcpy(p->txmsg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(off), &blocklen, sizeof(blocklen));
 
-	p->txmsg = msg;
-	if (bufferevent_write(p->bufev, msg, msglen) != 0)
+	if (bufferevent_write(p->bufev, p->txmsg, msglen) != 0)
 		errx(1, "network_peer_request_block: bufferevent_write failure");
 }
 
@@ -1645,7 +1678,7 @@ network_peer_write_interested(struct peer *p)
  */
 static void
 network_peer_write_bitfield(struct peer *p)
-{
+{ 
 	u_int8_t *bitfield, id;
 	u_int32_t bitfieldlen, msglen, msglen2;
 
@@ -1734,7 +1767,7 @@ network_piece_assigned(struct session *sc, struct torrent_piece *tpp)
 	for (off = 0; ; off += BLOCK_SIZE) {
 		if (off >= tpp->len)
 			return (1);
-		pd = network_piece_dl_find(sc, tpp->index, off);
+		pd = network_piece_dl_find(sc, NULL, tpp->index, off);
 		/* if a piece doesn't exist, or has been orphaned, then its not done */
 		if (pd == NULL || (pd->bytes != pd->len && pd->pc == NULL))
 			return (0);
@@ -1812,7 +1845,7 @@ network_peer_speedrank(struct session *sc)
  *
  * For a given session return sorted array of piece counts.
  */
-static struct piececounter *
+static void
 network_piece_rarityarray(struct session *sc)
 {
 	struct piececounter *pieces;
@@ -1846,7 +1879,11 @@ network_piece_rarityarray(struct session *sc)
 	qsort(pieces, len, sizeof(*pieces),
 	    network_piece_cmp);
 
-	return (pieces);
+	/* set the session timestamp */
+	sc->last_rarity = time(NULL);
+	if (sc->rarity_array != NULL)
+		xfree(sc->rarity_array);
+	sc->rarity_array = pieces;
 }
 
 #define FIND_RAREST_IGNORE_ASSIGNED	0
@@ -1867,7 +1904,10 @@ network_piece_find_rarest(struct peer *p, int flag, int *res)
 	tpp = NULL;
 	*res = 1;
 
-	pieces = network_piece_rarityarray(p->sc);
+#define RARITY_AGE			5
+	if (time(NULL) - p->sc->last_rarity > RARITY_AGE)
+		network_piece_rarityarray(p->sc);
+	pieces = p->sc->rarity_array;
 	/* find the rarest piece amongst our peers */
 	for (i = 0; i < p->sc->tp->num_pieces; i++) {
 		/* if this peer doesn't have this piece, skip it */
@@ -1895,7 +1935,6 @@ network_piece_find_rarest(struct peer *p, int flag, int *res)
 	}
 
 	*res = found;
-	xfree(pieces);
 	if (tpp == NULL)
 		return (0);
 	return (tpp->index);
@@ -1907,7 +1946,7 @@ network_piece_find_rarest(struct peer *p, int flag, int *res)
  * According to various selection strategies, hand me something to download.
  */
 static struct piece_dl *
-network_piece_gimme(struct peer *peer, int nocreate, int *hint)
+network_piece_gimme(struct peer *peer, int flags, int *hint)
 {
 	struct torrent_piece *tpp;
 	struct piece_dl *pd;
@@ -1947,7 +1986,6 @@ network_piece_gimme(struct peer *peer, int nocreate, int *hint)
 					continue;
 				peerpieces++;
 			}
-
 		}
 		/* peer has no pieces */
 		if (peerpieces == 0)
@@ -1979,16 +2017,16 @@ network_piece_gimme(struct peer *peer, int nocreate, int *hint)
 			return (NULL);
 		tpp = torrent_piece_find(peer->sc->tp, idx);
 	}
-	if (nocreate) {
+get_block:
+	if (flags & PIECE_GIMME_NOCREATE) {
 		*hint = 1;
 		return (NULL);
 	}
-get_block:
 	/* find the next block (by offset) in the piece, which is not already assigned to a peer */
 	for (off = 0; ; off += BLOCK_SIZE) {
 		if (off >= tpp->len)
 			errx(1, "gone to a bad offset %u in idx %u, len %u", off, idx, tpp->len);
-		pd = network_piece_dl_find(peer->sc, idx, off);
+		pd = network_piece_dl_find(peer->sc, NULL, idx, off);
 		/* no piece dl at all */
 		if (pd == NULL) {
 			break;
@@ -2027,16 +2065,18 @@ network_scheduler(int fd, short type, void *arg)
 	struct piece_dl *pd;
 	struct piece_dl_idxnode *pdin;
 	struct peercounter *pc;
-	u_int32_t pieces_left, reqs_outstanding, reqs_completed, reqs_orphaned;
+	struct torrent_piece *tpp;
+	u_int32_t pieces_left, reqs_outstanding, reqs_completed, reqs_orphaned, j, k, off, len, queue_len;
 	u_int64_t peer_rate;
-	u_int8_t queue_len, i, choked, unchoked;
+	u_int8_t i, choked, unchoked;
 	char tbuf[64];
 	time_t now;
-	int hint = 0, j, k, num_interested;
+	int hint = 0, num_interested;
 
 	reqs_outstanding = reqs_completed = reqs_orphaned = choked = unchoked = 0;
-	p = NULL;
+	p = p2 = NULL;
 	pc = NULL;
+	pd = NULL;
 	timerclear(&tv);
 	tv.tv_sec = 1;
 	evtimer_set(&sc->scheduler_event, network_scheduler, sc);
@@ -2069,25 +2109,30 @@ network_scheduler(int fd, short type, void *arg)
 				continue;
 			}
 			/* if peer is not choked, make sure it has enough requests in its queue */
-			if (!(p->state & PEER_STATE_CHOKED)) {
+			if (!(p->state & PEER_STATE_CHOKED)
+			    && pieces_left > 0) {
 				peer_rate = network_peer_rate(p);
 				/* for each 10k/sec on this peer, add a request. */
 				/* minimum queue length is 2, max is MAX_REQUESTS */
-				queue_len = peer_rate / 10240;
+				queue_len = (u_int32_t) peer_rate / 10240;
 				if (queue_len < 2) {
 					queue_len = 2;
 				} else if (queue_len > MAX_REQUESTS) {
 					queue_len = MAX_REQUESTS;
 				}
-				/* queue_len is what the peer's queue length should be */
-				queue_len -= p->queue_len;
+				/* test for overflow */
+				if (queue_len < p->queue_len) {
+					queue_len = 0;
+				} else {
+					/* queue_len is what the peer's queue length should be */
+					queue_len -= p->queue_len;
+				}
 
 				for (i = 0; i < queue_len; i++) {
 					pd = network_piece_gimme(p, 0, &hint);
 					/* probably means no bitfield from this peer yet, or all requests are in transit. give it some time. */
-					if (pd == NULL) {
+					if (pd == NULL)
 						continue;
-					}
 					network_peer_request_block(pd->pc, pd->idx, pd->off,
 					    pd->len);
 					p->queue_len++;
@@ -2108,13 +2153,33 @@ network_scheduler(int fd, short type, void *arg)
 			/* now we can unchoke this one */
 			network_peer_write_unchoke(pc[i].peer);
 		}
-		/* choke any peers except for three fastest */
+		if ((now % 30) == 0 ) {
+			num_interested = 0;
+			TAILQ_FOREACH(p2, &sc->peers, peer_list) {
+				if (p2->state & PEER_STATE_INTERESTED)
+					num_interested++;
+			}
+			if (num_interested > 0) {
+				j = random() % num_interested;
+				p2 = TAILQ_FIRST(&sc->peers);
+				for (k = 0; k < j; k++) {
+					if (p2 == NULL)
+						errx(1, "NULL peer");
+					if (!(pc->peer->state & PEER_STATE_INTERESTED)) {
+						p2 = TAILQ_NEXT(p2, peer_list);
+						continue;
+					}
+					network_peer_write_unchoke(p2);
+				}
+			}
+		}
+		/* choke any peers except for three fastest, and the one randomly selected */
 		TAILQ_FOREACH(p, &sc->peers, peer_list) {
 			int c = 0;
 			/* don't try to choke any of the peers
 			 * we just unchoked above */
 			for (i = 0; i < MIN(3, sc->num_peers); i++) {
-				if (p == pc[i].peer) {
+				if (p == pc[i].peer || p == p2) {
 					c = 1;
 					break;
 				}
@@ -2126,36 +2191,55 @@ network_scheduler(int fd, short type, void *arg)
 		}
 		xfree(pc);
 	}
-	/* XXX the peer we unchoke here, could easily end
-	 * up choekd by the above 10 sec loop */
-	/* every 30 seconds, unchoke a random peer */
-	if ((now % 30) == 0 ) {
-		num_interested = 0;
-		TAILQ_FOREACH(p, &sc->peers, peer_list) {
-			if (p->state & PEER_STATE_INTERESTED)
-				num_interested++;
-		}
-		if (num_interested > 0) {
-			j = random() % num_interested;
-			p = TAILQ_FIRST(&sc->peers);
-			for (k = 0; k < j; k++) {
-				if (p == NULL)
-					errx(1, "NULL peer");
-				if (!(pc->peer->state & PEER_STATE_INTERESTED)) {
-					p = TAILQ_NEXT(p, peer_list);
-					continue;
-				}
-				/* scan for another peer to choke, so that we can unchoke this one */
-				TAILQ_FOREACH(p2, &sc->peers, peer_list) {
-					if (!(p2->state & PEER_STATE_AMCHOKING)) {
-						network_peer_write_choke(p2);
-						break;
+	/* endgame handling */
+	if (((float) pieces_left / (float) sc->tp->num_pieces) * 100 <= ENDGAME_PERCENTAGE) {
+		trace("we are in the endgame");
+		/* find incomplete pieces */
+		for (j = 0; j < sc->tp->num_pieces; j++) {
+			if ((tpp = torrent_piece_find(sc->tp, j)) == NULL)
+				errx(1, "network_scheduler(): torrent_piece_find");
+			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
+				/* which peers have it? */
+				trace("we still need piece idx %u", j);
+				TAILQ_FOREACH(p, &sc->peers, peer_list) {
+					if (p->bitfield != NULL
+					    && BIT_SET(p->bitfield, j)) {
+						if (p->state & PEER_STATE_CHOKED) {
+							trace("    (choked) peer %s:%d has it",
+							    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+						} else {
+							trace("    (unchoked) peer %s:%d has it",
+							    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+							hint = 0;
+							/* find the  */
+							for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
+								int found = 0;
+								/* is this block offset already queued on this peer? */
+								TAILQ_FOREACH(pd, &p->peer_piece_dls, peer_piece_dl_list) {
+									if (pd->idx == j && pd->off == off) {
+										found = 1;
+										break;
+									}
+								}
+								if (found)
+									continue;
+								if (BLOCK_SIZE > tpp->len - off) {
+									len = tpp->len - off;
+								} else {
+									len = BLOCK_SIZE;
+								}
+								pd = network_piece_dl_create(p, j, off, len);
+								trace("choosing endgame dl (tpp->len %u) len %u idx %u off %u", tpp->len, len, j, off);
+								network_peer_request_block(pd->pc, pd->idx, pd->off, pd->len);
+								p->queue_len++;
+							}
+						}
 					}
 				}
-				p = TAILQ_NEXT(p, peer_list);
 			}
 		}
 	}
+
 	/* try to get some more peers */
 	if (sc->num_peers < PEERS_WANTED
 	    && !sc->announce_underway
@@ -2207,7 +2291,7 @@ network_start_torrent(struct torrent *tp, rlim_t maxfds)
 	sc->tp = tp;
 	sc->maxfds = maxfds;
 	if (user_port == NULL) {
-		sc->port = xstrdup("6668");
+		sc->port = xstrdup(DEFAULT_PORT);
 	} else {
 		sc->port = xstrdup(user_port);
 		trace("using port %s instead of default", user_port);
@@ -2225,7 +2309,7 @@ network_start_torrent(struct torrent *tp, rlim_t maxfds)
 	ret = network_announce(sc, "started");
 
 	event_dispatch();
-	trace("network_start_torrent() returning");
+	trace("network_start_torrent() returning name %s good pieces %u", tp->name, tp->good_pieces);
 
 	return (ret);
 }
@@ -2334,17 +2418,15 @@ network_piece_dl_free(struct session *sc, struct piece_dl *pd)
 	find.off = pd->off;
 	find.idx = pd->idx;
 	/* remove from index/offset btree */
-	if ((res = RB_FIND(piece_dl_by_idxoff, &sc->piece_dl_by_idxoff, &find)) == NULL) {
-		errx(1, "network_piece_dl_free: could not find idxoff node in tree");
-	} else {
+	if ((res = RB_FIND(piece_dl_by_idxoff, &sc->piece_dl_by_idxoff, &find)) != NULL)
 		TAILQ_REMOVE(&res->idxnode_piece_dls, pd, idxnode_piece_dl_list);
-
-	}
 	if (pd->pc != NULL) {
 		/* remove from per-peer list */
 		TAILQ_REMOVE(&pd->pc->peer_piece_dls, pd, peer_piece_dl_list);
 	}
-	RB_REMOVE(piece_dl_by_idxoff, &sc->piece_dl_by_idxoff, res);
+	if (res != NULL
+	    && TAILQ_EMPTY(&res->idxnode_piece_dls))
+		RB_REMOVE(piece_dl_by_idxoff, &sc->piece_dl_by_idxoff, res);
 	xfree(pd);
 	pd = NULL;
 }
@@ -2356,9 +2438,20 @@ network_piece_dl_free(struct session *sc, struct piece_dl *pd)
  * and return the result.
  */
 static struct piece_dl *
-network_piece_dl_find(struct session *sc, u_int32_t idx, u_int32_t off)
+network_piece_dl_find(struct session *sc, struct peer *p, u_int32_t idx, u_int32_t off)
 {
+	struct piece_dl *pd;
 	struct piece_dl_idxnode find, *res;
+
+	/* if a peer has been supplied, we should simply search its list for this piece. */
+	if (p != NULL) {
+		TAILQ_FOREACH(pd, &p->peer_piece_dls, peer_piece_dl_list) {
+			if (pd->off == off && pd->idx == idx) {
+				return (pd);
+			}
+		}
+		return (NULL);
+	}
 
 	find.off = off;
 	find.idx = idx;

@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.23 2007-11-06 19:24:55 niallo Exp $ */
+/* $Id: includes.h,v 1.24 2007-11-15 21:24:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -85,7 +85,6 @@ struct torrent_piece {
 	u_int32_t                          index;
 	/* list of low-level mmaps containing the blocks */
 	TAILQ_HEAD(mmaps, torrent_mmap)	mmaps;
-	RB_ENTRY(torrent_piece)		entry;
 	/* pointer to containing torrent */
 	struct torrent			*tp;
 };
@@ -120,7 +119,6 @@ struct torrent {
 	u_int8_t				*info_hash;
 	u_int32_t				num_pieces;
 	u_int32_t				piece_length;
-	RB_HEAD(pieces, torrent_piece)		pieces;
 	u_int32_t				good_pieces;
 	enum type				type;
 	off_t					uploaded;
@@ -187,7 +185,7 @@ u_int8_t		*torrent_parse_infohash(const char *, size_t);
 int			 torrent_piece_checkhash(struct torrent *,
 			    struct torrent_piece *);
 struct torrent_piece	*torrent_piece_find(struct torrent *, u_int32_t);
-struct torrent_piece	*torrent_piece_create(struct torrent *, u_int32_t);
+struct torrent_piece	*torrent_pieces_create(struct torrent *);
 int			 torrent_piece_map(struct torrent_piece *);
 void			 torrent_piece_unmap(struct torrent_piece *);
 void			 torrent_print(struct torrent *);
@@ -234,6 +232,7 @@ void	print_len(void *, size_t);
 
 extern char *unworkable_trace;
 extern char *user_port;
+extern int seed;
 
 
 static const u_int8_t mse_P[] = {
