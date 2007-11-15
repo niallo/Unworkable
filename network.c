@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.173 2007-11-15 21:24:01 niallo Exp $ */
+/* $Id: network.c,v 1.174 2007-11-15 23:35:05 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1678,7 +1678,7 @@ network_peer_write_interested(struct peer *p)
  */
 static void
 network_peer_write_bitfield(struct peer *p)
-{ 
+{
 	u_int8_t *bitfield, id;
 	u_int32_t bitfieldlen, msglen, msglen2;
 
@@ -2192,8 +2192,8 @@ network_scheduler(int fd, short type, void *arg)
 		xfree(pc);
 	}
 	/* endgame handling */
-	if (((float) pieces_left / (float) sc->tp->num_pieces) * 100 <= ENDGAME_PERCENTAGE) {
-		trace("we are in the endgame");
+	if (pieces_left > 0
+	    && ((float) pieces_left / (float) sc->tp->num_pieces) * 100  <= ENDGAME_PERCENTAGE) {
 		/* find incomplete pieces */
 		for (j = 0; j < sc->tp->num_pieces; j++) {
 			if ((tpp = torrent_piece_find(sc->tp, j)) == NULL)
