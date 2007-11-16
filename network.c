@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.175 2007-11-16 06:17:16 niallo Exp $ */
+/* $Id: network.c,v 1.176 2007-11-16 20:21:40 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1417,7 +1417,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				/* only checksum if we think we have every block of this piece */
 				found = 1;
 				for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
-					if ((pd = network_piece_dl_find(p->sc, NULL, idx, off)) == NULL) {
+					if ((pd = network_piece_dl_find(p->sc, p, idx, off)) == NULL) {
 						found = 0;
 						break;
 					}
@@ -1433,10 +1433,14 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 						trace("hash check success for piece %d", idx);
 						p->sc->tp->good_pieces++;
 						p->sc->tp->left -= tpp->len;
-						if (p->sc->tp->good_pieces == p->sc->tp->num_pieces
-						    && !seed) {
-							refresh_progress_meter();
-							exit(0);
+						if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
+							if (!seed) {
+								refresh_progress_meter();
+								exit(0);
+							} else if (!p->sc->announce_underway) {
+								/* tell tracker we're done */
+								network_announce(p->sc, "completed");
+							}
 						}
 						/* send HAVE messages to all peers */
 						TAILQ_FOREACH(tp, &p->sc->peers, peer_list)
@@ -2463,7 +2467,6 @@ network_piece_dl_find(struct session *sc, struct peer *p, u_int32_t idx, u_int32
 				return (pd);
 			}
 		}
-		return (NULL);
 	}
 
 	find.off = off;
