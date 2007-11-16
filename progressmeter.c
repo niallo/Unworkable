@@ -1,4 +1,4 @@
-/* $OpenBSD: progressmeter.c,v 1.1 2007/05/16 04:54:38 niallo Exp $ */
+/* $OpenBSD: progressmeter.c,v 1.2 2007/11/06 19:24:55 niallo Exp $ */
 /*
  * Copyright (c) 2003 Nils Nordman.  All rights reserved.
  *
@@ -72,9 +72,10 @@ static volatile off_t *counter;	/* progress counter */
 static long stalled;		/* how long we have been stalled */
 static int bytes_per_second;	/* current speed in bytes per second */
 static int win_size;		/* terminal window size */
-static volatile u_int32_t *good_pieces; 
+static volatile u_int32_t *good_pieces;
 static u_int32_t num_pieces; /* bittorrent specific */
 static volatile sig_atomic_t win_resized; /* for window resizing */
+static off_t started; /* how many bytes did we start with */
 
 /* units for format_size */
 static const char unit[] = " KMGT";
@@ -122,7 +123,7 @@ refresh_progress_meter(void)
 {
 	char buf[MAX_WINSIZE + 1];
 	time_t now;
-	off_t transferred;
+	off_t transferred, transferred_adj;
 	double elapsed;
 	int percent;
 	off_t bytes_left;
@@ -144,7 +145,6 @@ refresh_progress_meter(void)
 		transferred = end_pos;
 		bytes_per_second = 0;
 	}
-
 	/* calculate speed */
 	if (elapsed != 0)
 		cur_speed = (transferred / elapsed);
@@ -182,7 +182,7 @@ refresh_progress_meter(void)
 
 	/* amount transferred */
 	format_size(buf + strlen(buf), win_size - strlen(buf),
-	    cur_pos);
+	    *counter + started);
 	strlcat(buf, " ", win_size);
 
 	/* bandwidth usage */
@@ -249,7 +249,7 @@ update_progress_meter(int ignore)
 }
 
 void
-start_progress_meter(char *f, off_t filesize, off_t *ctr, u_int32_t *gp, u_int32_t np)
+start_progress_meter(char *f, off_t filesize, off_t *ctr, u_int32_t *gp, u_int32_t np, off_t st)
 {
 	start = last_update = time(NULL);
 	file = f;
@@ -260,6 +260,7 @@ start_progress_meter(char *f, off_t filesize, off_t *ctr, u_int32_t *gp, u_int32
 	bytes_per_second = 0;
 	good_pieces = gp;
 	num_pieces = np;
+	started = st;
 
 	setscreensize();
 	if (can_output())
@@ -307,7 +308,7 @@ setscreensize(void)
 		win_size = DEFAULT_WINSIZE;
 	win_size += 1;					/* trailing \0 */
 }
-/* $OpenBSD: progressmeter.c,v 1.1 2007/05/16 04:54:38 niallo Exp $ */
+/* $OpenBSD: progressmeter.c,v 1.2 2007/11/06 19:24:55 niallo Exp $ */
 /*
  * Copyright (c) 2006 Damien Miller. All rights reserved.
  * Copyright (c) 2005 Anil Madhavapeddy. All rights reserved.

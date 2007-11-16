@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.24 2007-11-15 21:24:01 niallo Exp $ */
+/* $Id: includes.h,v 1.25 2007-11-16 06:17:16 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -221,7 +221,7 @@ size_t	atomicio(ssize_t (*)(int, void *, size_t), int, void *, size_t);
 
 #define vwrite (ssize_t (*)(int, void *, size_t))write
 void	refresh_progress_meter(void);
-void	start_progress_meter(char *, off_t, off_t *, u_int32_t *, u_int32_t);
+void	start_progress_meter(char *, off_t, off_t *, u_int32_t *, u_int32_t, off_t);
 void	stop_progress_meter(void);
 
 void	trace(const char *, ...);

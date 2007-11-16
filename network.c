@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.174 2007-11-15 23:35:05 niallo Exp $ */
+/* $Id: network.c,v 1.175 2007-11-16 06:17:16 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1236,8 +1236,10 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				p->rxmsg = NULL;
 				p->state |= PEER_STATE_BITFIELD;
 				p->state &= ~PEER_STATE_HANDSHAKE2;
+				/*
 				if (!torrent_empty(p->sc->tp))
 					network_peer_write_bitfield(p);
+				*/
 				p->rxpending = 0;
 				goto out;
 			}
@@ -2150,7 +2152,11 @@ network_scheduler(int fd, short type, void *arg)
 			/* if this peer is already unchoked, leave it */
 			if (!(pc[i].peer->state & PEER_STATE_AMCHOKING))
 				continue;
+			/* don't unchoke peers who have not expressed interest */
+			if (!(pc[i].peer->state & PEER_STATE_INTERESTED))
+				continue;
 			/* now we can unchoke this one */
+			trace("fastest unchoke");
 			network_peer_write_unchoke(pc[i].peer);
 		}
 		if ((now % 30) == 0 ) {
@@ -2169,6 +2175,7 @@ network_scheduler(int fd, short type, void *arg)
 						p2 = TAILQ_NEXT(p2, peer_list);
 						continue;
 					}
+					trace("opportunistic unchoke");
 					network_peer_write_unchoke(p2);
 				}
 			}
@@ -2242,6 +2249,7 @@ network_scheduler(int fd, short type, void *arg)
 
 	/* try to get some more peers */
 	if (sc->num_peers < PEERS_WANTED
+	    && pieces_left > 0
 	    && !sc->announce_underway
 	    && (now - sc->last_announce) > MIN_ANNOUNCE_INTERVAL) {
 		/* XXX: But what if the tracker really only has a small number of peers?
@@ -2282,7 +2290,7 @@ network_start_torrent(struct torrent *tp, rlim_t maxfds)
 {
 	int ret;
 	struct session *sc;
-	off_t len;
+	off_t len, started;
 
 	sc = xmalloc(sizeof(*sc));
 	memset(sc, 0, sizeof(*sc));
@@ -2290,6 +2298,8 @@ network_start_torrent(struct torrent *tp, rlim_t maxfds)
 	TAILQ_INIT(&sc->peers);
 	sc->tp = tp;
 	sc->maxfds = maxfds;
+	if (tp->good_pieces == tp->num_pieces)
+		tp->left = 0;
 	if (user_port == NULL) {
 		sc->port = xstrdup(DEFAULT_PORT);
 	} else {
@@ -2298,6 +2308,9 @@ network_start_torrent(struct torrent *tp, rlim_t maxfds)
 	}
 	sc->peerid = network_peer_id_create();
 	trace("my peer id: %s", sc->peerid);
+	/* an ugly way to find out how much data we started with. */
+	started = tp->downloaded;
+	tp->downloaded = 0;
 
 	if (tp->type == SINGLEFILE) {
 		len = tp->body.singlefile.tfp.file_length;
@@ -2305,7 +2318,7 @@ network_start_torrent(struct torrent *tp, rlim_t maxfds)
 		len = tp->body.multifile.total_length;
 	}
 
-	start_progress_meter(tp->name, len, &tp->downloaded, &tp->good_pieces, tp->num_pieces);
+	start_progress_meter(tp->name, len, &tp->downloaded, &tp->good_pieces, tp->num_pieces, started);
 	ret = network_announce(sc, "started");
 
 	event_dispatch();
