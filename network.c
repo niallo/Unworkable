@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.176 2007-11-16 20:21:40 niallo Exp $ */
+/* $Id: network.c,v 1.177 2007-11-16 22:32:27 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1236,10 +1236,6 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				p->rxmsg = NULL;
 				p->state |= PEER_STATE_BITFIELD;
 				p->state &= ~PEER_STATE_HANDSHAKE2;
-				/*
-				if (!torrent_empty(p->sc->tp))
-					network_peer_write_bitfield(p);
-				*/
 				p->rxpending = 0;
 				goto out;
 			}
@@ -1279,6 +1275,9 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 out:
 	if (EVBUFFER_LENGTH(EVBUFFER_INPUT(bufev)))
 		bufev->readcb(bufev, data);
+	if (p->state & PEER_STATE_BITFIELD)
+		if (!torrent_empty(p->sc->tp))
+			network_peer_write_bitfield(p);
 }
 
 /*
@@ -1690,13 +1689,12 @@ network_peer_write_bitfield(struct peer *p)
 
 	bitfieldlen = (p->sc->tp->num_pieces + 7) / 8;
 
-	trace("network_peer_write_bitfield() to peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+	trace("network_peer_write_bitfield() to peer %s:%d len: %u", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), bitfieldlen);
 	id = PEER_MSG_ID_BITFIELD;
 	bitfield = torrent_bitfield_get(p->sc->tp);
 
 	msglen = sizeof(id) + bitfieldlen;
 	p->txmsg = xmalloc(msglen);
-	memset(p->txmsg, 0, msglen);
 	msglen2 = htonl(msglen);
 	memcpy(p->txmsg, &msglen2, sizeof(msglen2));
 	memcpy(p->txmsg+sizeof(msglen), &id, sizeof(id));
