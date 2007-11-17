@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.177 2007-11-16 22:32:27 niallo Exp $ */
+/* $Id: network.c,v 1.178 2007-11-17 08:40:56 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1969,6 +1969,7 @@ network_piece_gimme(struct peer *peer, int flags, int *hint)
 			/* if not all this piece's blocks are in the download queue
 			 * and this peer actually has this piece */
 			if (!network_piece_assigned(peer->sc, tpp)
+			    && peer->bitfield != NULL
 			    && BIT_ISSET(peer->bitfield, pdin->idx)) {
 				idx = pdin->idx;
 				goto get_block;
@@ -1980,7 +1981,8 @@ network_piece_gimme(struct peer *peer, int flags, int *hint)
 		/* check how many useful pieces this peer has */
 		peerpieces = 0;
 		for (i = 0; i < peer->sc->tp->num_pieces; i++) {
-			if (BIT_ISSET(peer->bitfield, i)) {
+			if (peer->bitfield != NULL
+			    && BIT_ISSET(peer->bitfield, i)) {
 				tpp = torrent_piece_find(peer->sc->tp, i);
 				/* do we already have this piece? */
 				if (tpp->flags & TORRENT_PIECE_CKSUMOK)
@@ -1998,7 +2000,8 @@ network_piece_gimme(struct peer *peer, int flags, int *hint)
 		pieces = xcalloc(peerpieces, sizeof(*pieces));
 		j = 0;
 		for (i = 0; i < peer->sc->tp->num_pieces; i++) {
-			if (BIT_ISSET(peer->bitfield, i)) {
+			if (peer->bitfield != NULL
+			    && BIT_ISSET(peer->bitfield, i)) {
 				tpp = torrent_piece_find(peer->sc->tp, i);
 				/* do we already have this piece? */
 				if (tpp->flags & TORRENT_PIECE_CKSUMOK)
