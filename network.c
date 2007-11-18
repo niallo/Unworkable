@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.178 2007-11-17 08:40:56 niallo Exp $ */
+/* $Id: network.c,v 1.179 2007-11-18 00:33:21 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -65,7 +65,7 @@
 #define PEER_MSG_ID_PIECE		7
 #define PEER_MSG_ID_CANCEL		8
 
-#define PEER_COMMS_THRESHOLD		60 /* 60 seconds */
+#define PEER_COMMS_THRESHOLD		120 /* 120 seconds */
 
 #define BLOCK_SIZE			16384 /* 16KB */
 #define MAX_BACKLOG			65536 /* 64KB */
@@ -1405,6 +1405,11 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				trace("PIECE offset out of bounds");
 				break;
 			}
+			pd = network_piece_dl_find(p->sc, p, idx, off);
+			if (p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)) != pd->len) {
+				trace("PIECE len incorrect, should be %u", pd->len);
+				break;
+			}
 			/* Only read if we don't already have it */
 			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
 				p->queue_len--;
@@ -2114,7 +2119,7 @@ network_scheduler(int fd, short type, void *arg)
 				p->state = 0;
 				p->state |= PEER_STATE_DEAD;
 				continue;
-			}
+	 		}
 			/* if peer is not choked, make sure it has enough requests in its queue */
 			if (!(p->state & PEER_STATE_CHOKED)
 			    && pieces_left > 0) {
