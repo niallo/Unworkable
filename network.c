@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.179 2007-11-18 00:33:21 niallo Exp $ */
+/* $Id: network.c,v 1.180 2007-11-20 04:44:07 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1406,7 +1406,8 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				break;
 			}
 			pd = network_piece_dl_find(p->sc, p, idx, off);
-			if (p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)) != pd->len) {
+			if (pd != NULL
+			    && p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)) != pd->len) {
 				trace("PIECE len incorrect, should be %u", pd->len);
 				break;
 			}
