@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.95 2007-11-15 21:24:01 niallo Exp $ */
+/* $Id: torrent.c,v 1.96 2007-11-25 20:36:26 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -726,7 +726,7 @@ torrent_piece_unmap(struct torrent_piece *tpp)
 			tmmp->tfp->fd = 0;
 		}
 		if (msync(tmmp->aligned_addr, tmmp->len, MS_SYNC) == -1)
-			err(1, "torrent_piece_unmape: msync");
+			err(1, "torrent_piece_unmap: msync");
 		if (munmap(tmmp->aligned_addr, tmmp->len) == -1)
 			err(1, "torrent_piece_unmap: munmap");
 	}
