@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.96 2007-11-25 20:36:26 niallo Exp $ */
+/* $Id: torrent.c,v 1.97 2007-11-26 21:54:20 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -607,6 +607,8 @@ torrent_piece_map(struct torrent_piece *tpp)
 			   and this piece is not yet full */
 			if (tfp->file_length < (off_t)len
 			    && tpp->len < len) {
+				if (tfp->file_length - off == 0)
+					continue;
 				tmmp = torrent_mmap_create(tpp->tp, tfp, off,
 				    tfp->file_length - off);
 				TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
@@ -620,6 +622,8 @@ torrent_piece_map(struct torrent_piece *tpp)
 					off = 0;
 					continue;
 				}
+				if (tfp->file_length - off == 0)
+					continue;
 				tmmp = torrent_mmap_create(tpp->tp, tfp, off,
 				    tfp->file_length - off);
 				tpp->len += tmmp->len;
@@ -628,6 +632,8 @@ torrent_piece_map(struct torrent_piece *tpp)
 				len -= tmmp->len;
 				off++;
 				if (nxttfp->file_length < (off_t)len) {
+					if (nxttfp->file_length == 0)
+						continue;
 					tmmp = torrent_mmap_create(tpp->tp, nxttfp,
 					    0, nxttfp->file_length);
 					tpp->len += tmmp->len;
@@ -639,6 +645,8 @@ torrent_piece_map(struct torrent_piece *tpp)
 					off = 0;
 					continue;
 				} else {
+					if (len == 0)
+						continue;
 					tmmp = torrent_mmap_create(tpp->tp, nxttfp,
 					    0, len);
 				}
@@ -648,6 +656,8 @@ torrent_piece_map(struct torrent_piece *tpp)
 				break;
 			} else if (off < tfp->file_length) {
 				/* piece lies within this file */
+				if (len == 0)
+					continue;
 				tmmp = torrent_mmap_create(tpp->tp, tfp, off, len);
 				off++;
 				TAILQ_INSERT_TAIL(&tpp->mmaps, tmmp, mmaps);
