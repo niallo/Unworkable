@@ -1,14 +1,15 @@
 # scons (http://www.scons.org) build for non-OpenBSD systems
 # on OpenBSD, just type 'make'.
-# $Id: SConstruct,v 1.5 2007-10-26 02:57:59 niallo Exp $
+# $Id: SConstruct,v 1.6 2007-11-28 21:52:46 niallo Exp $
 
 SRCS = ['bencode.c', 'buf.c', 'main.c', 'network.c', 'parse.y', 'progressmeter.c', \
         'torrent.c', 'trace.c', 'util.c', 'xmalloc.c']
-LIBS=  ['event', 'crypto']
-CPPPATH = []
+LIBS =  ['event', 'crypto']
+LIBPATH = [ '/usr/lib', '/usr/local/lib' ]
+CPPPATH = ['/usr/include', '/usr/local/include' ]
 CCFLAGS = ['-Wall', '-Wstrict-prototypes', '-Wmissing-prototypes', '-Wmissing-declarations', '-Wshadow', '-Wpointer-arith', '-Wcast-qual', '-Wsign-compare', '-g', '-ggdb']
 
-env = Environment()
+env = Environment(LIBPATH=LIBPATH)
 conf = Configure(env)
 
 if not conf.CheckLib('event'):
@@ -58,4 +59,4 @@ if not conf.CheckFunc('SHA1Update'):
 
 env = conf.Finish()
 
-Program('unworkable', SRCS, LIBS=LIBS, CPPPATH=CPPPATH, CCFLAGS=CCFLAGS)
+Program('unworkable', SRCS, LIBS=LIBS, LIBPATH=LIBPATH, CPPPATH=CPPPATH, CCFLAGS=CCFLAGS)
