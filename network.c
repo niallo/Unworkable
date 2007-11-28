@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.180 2007-11-20 04:44:07 niallo Exp $ */
+/* $Id: network.c,v 1.181 2007-11-28 02:21:04 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -508,6 +508,10 @@ network_handle_announce_error(struct bufferevent *bufev, short error, void *data
 		network_handle_announce_response(bufev, sc);
 	}
 	while (sc->res->rxread - l > 0);
+
+	/* XXX: this shouldn't happen - need to look into why it does */
+	if (sc->res->rxread == 0)
+		return;
 
 	tp = sc->tp;
 
