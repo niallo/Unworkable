@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.181 2007-11-28 02:21:04 niallo Exp $ */
+/* $Id: network.c,v 1.182 2007-11-29 18:03:07 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -208,10 +208,10 @@ struct session {
 	struct sockaddr_in sa;
 	struct torrent *tp;
 	struct http_response *res;
-	u_int8_t num_peers;
 	rlim_t maxfds;
 	int announce_underway;
 	u_int32_t tracker_num_peers;
+	u_int32_t num_peers;
 	time_t last_announce;
 	struct piececounter *rarity_array;
 	time_t last_rarity;
@@ -1832,7 +1832,7 @@ network_peer_speedrank(struct session *sc)
 {
 	struct peer *p;
 	struct peercounter *peers;
-	int i = 0;
+	u_int32_t i = 0;
 
 	peers = xcalloc(sc->num_peers, sizeof(*peers));
 	TAILQ_FOREACH(p, &sc->peers, peer_list) {
@@ -1847,7 +1847,7 @@ network_peer_speedrank(struct session *sc)
 		i++;
 	}
 	if (i != sc->num_peers)
-		errx(1, "network_peer_speedrank: peer number mismatch");
+		errx(1, "network_peer_speedrank: peer number mismatch (i: %u num_peers: %u)", i, sc->num_peers);
 
 	qsort(peers, sc->num_peers, sizeof(*peers), network_peer_cmp);
 
@@ -2085,7 +2085,7 @@ network_scheduler(int fd, short type, void *arg)
 	struct torrent_piece *tpp;
 	u_int32_t pieces_left, reqs_outstanding, reqs_completed, reqs_orphaned, j, k, off, len, queue_len;
 	u_int64_t peer_rate;
-	u_int8_t i, choked, unchoked;
+	u_int32_t i, choked, unchoked;
 	char tbuf[64];
 	time_t now;
 	int hint = 0, num_interested;
@@ -2124,7 +2124,7 @@ network_scheduler(int fd, short type, void *arg)
 				p->state = 0;
 				p->state |= PEER_STATE_DEAD;
 				continue;
-	 		}
+			}
 			/* if peer is not choked, make sure it has enough requests in its queue */
 			if (!(p->state & PEER_STATE_CHOKED)
 			    && pieces_left > 0) {
