@@ -1,4 +1,4 @@
-/* $OpenBSD: progressmeter.c,v 1.2 2007/11/06 19:24:55 niallo Exp $ */
+/* $OpenBSD: progressmeter.c,v 1.3 2007/11/16 06:17:16 niallo Exp $ */
 /*
  * Copyright (c) 2003 Nils Nordman.  All rights reserved.
  *
@@ -123,7 +123,7 @@ refresh_progress_meter(void)
 {
 	char buf[MAX_WINSIZE + 1];
 	time_t now;
-	off_t transferred, transferred_adj;
+	off_t transferred;
 	double elapsed;
 	int percent;
 	off_t bytes_left;
@@ -308,7 +308,7 @@ setscreensize(void)
 		win_size = DEFAULT_WINSIZE;
 	win_size += 1;					/* trailing \0 */
 }
-/* $OpenBSD: progressmeter.c,v 1.2 2007/11/06 19:24:55 niallo Exp $ */
+/* $OpenBSD: progressmeter.c,v 1.3 2007/11/16 06:17:16 niallo Exp $ */
 /*
  * Copyright (c) 2006 Damien Miller. All rights reserved.
  * Copyright (c) 2005 Anil Madhavapeddy. All rights reserved.
