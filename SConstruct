@@ -1,6 +1,6 @@
 # scons (http://www.scons.org) build for non-OpenBSD systems
 # on OpenBSD, just type 'make'.
-# $Id: SConstruct,v 1.7 2007-12-03 21:07:31 niallo Exp $
+# $Id: SConstruct,v 1.8 2007-12-03 21:33:39 niallo Exp $
 
 import os
 
@@ -33,6 +33,11 @@ if os.uname()[0] == 'SunOS':
 	CCFLAGS.append('-Du_int8_t=unsigned char')
 	CCFLAGS.append('-Du_int32_t=unsigned int')
 	CCFLAGS.append('-Du_int64_t=unsigned long long')
+
+# Assume this is Mac OS X with macports, so stuff is under /opt
+elif os.uname()[0] == 'Darwin':
+	LIBPATH.append('/opt/local/lib')
+	CPPPATH.append('/opt/local/include')
 
 env = Environment(LIBPATH=LIBPATH, CPPPATH=CPPPATH)
 conf = Configure(env)
