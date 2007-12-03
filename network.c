@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.183 2007-12-03 19:35:43 niallo Exp $ */
+/* $Id: network.c,v 1.184 2007-12-03 21:07:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,6 +20,10 @@
 #include <sys/socket.h>
 #include <sys/queue.h>
 #include <sys/param.h>
+/* solaris 10 */
+#if defined(__SVR4) && defined(__sun)
+#include <utility.h>
+#endif
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -29,17 +33,16 @@
 #include <openssl/engine.h>
 
 #include <ctype.h>
-#include <err.h>
 #include <errno.h>
 #include <event.h>
 #include <fcntl.h>
 #include <netdb.h>
-#include <sha1.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sha1.h>
 
 #include "includes.h"
 
@@ -87,11 +90,6 @@
 #define BT_PROTOCOL			"BitTorrent protocol"
 #define BT_PSTRLEN			19
 #define BT_INITIAL_LEN 			20
-
-#define BIT_SET(a,i)			((a)[(i)/8] |= 1<<(7-((i)%8)))
-#define BIT_CLR(a,i)			((a)[(i)/8] &= ~(1<<(7-((i)%8))))
-#define BIT_ISSET(a,i)			((a)[(i)/8] & (1<<(7-((i)%8))))
-#define BIT_ISCLR(a,i)			(((a)[(i)/8] & (1<<(7-((i)%8)))) == 0)
 
 /* try to keep this many peer connections at all times */
 #define PEERS_WANTED			10
@@ -1344,7 +1342,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				p->state &= ~PEER_STATE_BITFIELD;
 				p->state |= PEER_STATE_ESTABLISHED;
 			}
-			setbit(p->bitfield, idx);
+			BIT_SET(p->bitfield, idx);
 			/* does this peer have anything we want? */
 			network_piece_gimme(p, PIECE_GIMME_NOCREATE, &res);
 			if (res && !(p->state & PEER_STATE_AMINTERESTED))

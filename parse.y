@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.54 2007-10-25 04:52:19 niallo Exp $ */
+/* $Id: parse.y,v 1.55 2007-12-03 21:07:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -24,7 +24,6 @@
 %{
 
 #include <ctype.h>
-#include <err.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdarg.h>

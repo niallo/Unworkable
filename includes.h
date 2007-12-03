@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.25 2007-11-16 06:17:16 niallo Exp $ */
+/* $Id: includes.h,v 1.26 2007-12-03 21:07:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -257,3 +257,33 @@ size_t		strlcat(char *, const char *, size_t);
 #ifdef NO_STRTONUM
 long long	strtonum(const char *, long long, long long, const char **);
 #endif
+#ifdef NO_ERR
+void     err(int, const char *, ...);
+void     verr(int, const char *, __va_list);
+void     errx(int, const char *, ...);
+void     verrx(int, const char *, __va_list);
+void     warn(const char *, ...);
+void     vwarn(const char *, __va_list);
+void     warnx(const char *, ...);
+void     vwarnx(const char *, __va_list);
+#else
+#include <err.h>
+#endif
+
+#define BIT_SET(a,i)			((a)[(i)/8] |= 1<<(7-((i)%8)))
+#define BIT_CLR(a,i)			((a)[(i)/8] &= ~(1<<(7-((i)%8))))
+#define BIT_ISSET(a,i)			((a)[(i)/8] & (1<<(7-((i)%8))))
+#define BIT_ISCLR(a,i)			(((a)[(i)/8] & (1<<(7-((i)%8)))) == 0)
+
+/* solaris 10 specific */
+#if defined(__SVR4) && defined(__sun)
+char *__progname;
+#if defined(__cplusplus)
+#define	__BEGIN_DECLS	extern "C" {
+#define	__END_DECLS	}
+#else
+#define	__BEGIN_DECLS
+#define	__END_DECLS
+#endif
+#endif
+

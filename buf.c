@@ -1,4 +1,4 @@
-/* $Id: buf.c,v 1.7 2007-10-26 02:50:06 niallo Exp $ */
+/* $Id: buf.c,v 1.8 2007-12-03 21:07:31 niallo Exp $ */
 /*
  * Copyright (c) 2003 Jean-Francois Brousseau <jfb@openbsd.org>
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
@@ -27,7 +27,6 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>

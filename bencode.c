@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.36 2007-07-20 01:13:54 niallo Exp $ */
+/* $Id: bencode.c,v 1.37 2007-12-03 21:07:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -15,7 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

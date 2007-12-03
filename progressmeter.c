@@ -1,4 +1,4 @@
-/* $OpenBSD: progressmeter.c,v 1.3 2007/11/16 06:17:16 niallo Exp $ */
+/* $OpenBSD: progressmeter.c,v 1.4 2007/12/02 00:39:32 niallo Exp $ */
 /*
  * Copyright (c) 2003 Nils Nordman.  All rights reserved.
  *
@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/uio.h>
+#include <sys/termios.h>
 
 #include <errno.h>
 #include <signal.h>
@@ -308,7 +309,7 @@ setscreensize(void)
 		win_size = DEFAULT_WINSIZE;
 	win_size += 1;					/* trailing \0 */
 }
-/* $OpenBSD: progressmeter.c,v 1.3 2007/11/16 06:17:16 niallo Exp $ */
+/* $OpenBSD: progressmeter.c,v 1.4 2007/12/02 00:39:32 niallo Exp $ */
 /*
  * Copyright (c) 2006 Damien Miller. All rights reserved.
  * Copyright (c) 2005 Anil Madhavapeddy. All rights reserved.

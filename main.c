@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.49 2007-12-03 18:01:47 niallo Exp $ */
+/* $Id: main.c,v 1.50 2007-12-03 21:07:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,7 +20,6 @@
 
 #include <sys/time.h>
 
-#include <err.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,6 +63,9 @@ main(int argc, char **argv)
 	signal(SIGQUIT, sighandler);
 	/* don't die on sigpipe */
 	signal(SIGPIPE, SIG_IGN);
+	#if defined(__SVR4) && defined(__sun)
+	__progname = argv[0];
+	#endif
 
 	while ((ch = getopt(argc, argv, "st:p:")) != -1) {
 		switch (ch) {

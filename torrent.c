@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.97 2007-11-26 21:54:20 niallo Exp $ */
+/* $Id: torrent.c,v 1.98 2007-12-03 21:07:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -15,15 +15,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifdef __linux__
+#if defined(__linux__)
 #include <sys/file.h>
+#endif
+/* solaris 10 */
+#if defined(__SVR4) && defined(__sun)
+#include "/usr/ucbinclude/sys/file.h"
 #endif
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
@@ -760,7 +763,7 @@ torrent_bitfield_get(struct torrent *tp)
 	for (i = 0; i < tp->num_pieces; i++) {
 		tpp = torrent_piece_find(tp, i);
 		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
-			setbit(bitfield, i);
+			BIT_SET(bitfield, i);
 	}
 	return (bitfield);
 }

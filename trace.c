@@ -1,4 +1,4 @@
-/* $Id: trace.c,v 1.3 2007-07-17 22:17:20 niallo Exp $ */
+/* $Id: trace.c,v 1.4 2007-12-03 21:07:31 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -18,7 +18,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <err.h>
 
 #include "includes.h"
 
