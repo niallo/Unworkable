@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.48 2007-11-25 20:22:39 niallo Exp $ */
+/* $Id: main.c,v 1.49 2007-12-03 18:01:47 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -41,7 +41,7 @@ extern int  optind;
 void
 usage(void)
 {
-	fprintf(stderr, "unworkable: [-s] [-t tracefile] [-p port] torrent\n");
+	fprintf(stderr, "usage: unworkable [-s] [-p port] [-t tracefile] torrent\n");
 	exit(1);
 }
 
