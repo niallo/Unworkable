@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.26 2007-12-03 21:07:31 niallo Exp $ */
+/* $Id: includes.h,v 1.27 2007-12-03 21:27:20 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -22,6 +22,7 @@
 #include <sys/tree.h>
 #include <sys/resource.h>
 #include <sys/time.h>
+#include <sys/types.h>
 
 #include <signal.h>
 #include <stdarg.h>
