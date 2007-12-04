@@ -1,5 +1,6 @@
 /* $OpenBSD: progressmeter.c,v 1.5 2007/12/03 21:07:31 niallo Exp $ */
 /*
+ * Copyright (c) 2007 Niall O'Higgins.  All rights reserved.
  * Copyright (c) 2003 Nils Nordman.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
