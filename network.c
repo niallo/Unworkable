@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.184 2007-12-03 21:07:31 niallo Exp $ */
+/* $Id: network.c,v 1.185 2007-12-04 07:27:46 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1537,6 +1537,8 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t 
 	void *data;
 	int hint;
 
+	if (p == NULL)
+		errx(1, "network_peer_write_piece: NULL peer");
 	trace("network_peer_write_piece() at index %u offset %u length %u to peer %s:%d",
 	      idx, offset, len, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	if ((tpp = torrent_piece_find(p->sc->tp, idx)) == NULL) {
