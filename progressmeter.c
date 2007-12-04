@@ -161,7 +161,7 @@ refresh_progress_meter(void)
 
 	/* filename */
 	buf[0] = '\0';
-	file_len = win_size - 35;
+	file_len = win_size - 47;
 	if (file_len > 0) {
 		len = snprintf(buf, file_len + 1, "\r%s", file);
 		if (len < 0)
