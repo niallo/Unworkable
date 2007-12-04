@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.52 2007-12-04 07:07:28 niallo Exp $ */
+/* $Id: main.c,v 1.53 2007-12-04 07:09:11 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -34,7 +34,6 @@
 #endif
 
 #include "includes.h"
-#include "util.h"
 
 #define DEFAULT_WINSIZE 80
 #define MAX_WINSIZE 512
