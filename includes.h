@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.28 2007-12-04 03:53:59 niallo Exp $ */
+/* $Id: includes.h,v 1.29 2007-12-04 05:50:44 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -271,10 +271,10 @@ void     vwarnx(const char *, __va_list);
 #include <err.h>
 #endif
 
-#define BIT_SET(a,i)			((a)[(i)/8] |= 1<<(7-((i)%8)))
-#define BIT_CLR(a,i)			((a)[(i)/8] &= ~(1<<(7-((i)%8))))
-#define BIT_ISSET(a,i)			((a)[(i)/8] & (1<<(7-((i)%8))))
-#define BIT_ISCLR(a,i)			(((a)[(i)/8] & (1<<(7-((i)%8)))) == 0)
+#define BIT_SET(a,i)	((a)[(i)>>3] |= 1<<((i)&(8-1)))
+#define BIT_CLR(a,i)	((a)[(i)>>3] &= ~(1<<((i)&(8-1))))
+#define BIT_ISSET(a,i)	((a)[(i)>>3] & (1<<((i)&(8-1))))
+#define BIT_ISCLR(a,i)	(((a)[(i)>>3] & (1<<((i)&(8-1)))) == 0)
 
 /* solaris 10 specific */
 #if defined(__SVR4) && defined(__sun)
