@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.51 2007-12-04 07:05:15 niallo Exp $ */
+/* $Id: main.c,v 1.52 2007-12-04 07:07:28 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -138,7 +138,7 @@ main(int argc, char **argv)
 	}
 	/* do we already have everything? */
 	if (!seed && torrent->good_pieces == torrent->num_pieces) {
-		printf("download already complete!\n");
+		printf("\rdownload already complete!\n");
 		exit(0);
 	}
 
