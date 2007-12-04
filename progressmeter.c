@@ -1,4 +1,4 @@
-/* $OpenBSD: progressmeter.c,v 1.4 2007/12/02 00:39:32 niallo Exp $ */
+/* $OpenBSD: progressmeter.c,v 1.5 2007/12/03 21:07:31 niallo Exp $ */
 /*
  * Copyright (c) 2003 Nils Nordman.  All rights reserved.
  *
@@ -113,7 +113,7 @@ format_size(char *buf, int size, off_t bytes)
 
 	for (i = 0; bytes >= 10000 && unit[i] != 'T'; i++)
 		bytes = (bytes + 512) / 1024;
-	snprintf(buf, size, "%4lld%c%s",
+	snprintf(buf, size, "rx: %4lld%c%s",
 	    (long long) bytes,
 	    unit[i],
 	    i ? "B" : " ");
@@ -179,7 +179,7 @@ refresh_progress_meter(void)
 	else
 		percent = 100;
 	snprintf(buf + strlen(buf), win_size - strlen(buf),
-	    " %3d%% ", percent);
+	    "hash ok: %3d%% ", percent);
 
 	/* amount transferred */
 	format_size(buf + strlen(buf), win_size - strlen(buf),
@@ -309,7 +309,7 @@ setscreensize(void)
 		win_size = DEFAULT_WINSIZE;
 	win_size += 1;					/* trailing \0 */
 }
-/* $OpenBSD: progressmeter.c,v 1.4 2007/12/02 00:39:32 niallo Exp $ */
+/* $OpenBSD: progressmeter.c,v 1.5 2007/12/03 21:07:31 niallo Exp $ */
 /*
  * Copyright (c) 2006 Damien Miller. All rights reserved.
  * Copyright (c) 2005 Anil Madhavapeddy. All rights reserved.
