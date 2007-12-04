@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.27 2007-12-03 21:27:20 niallo Exp $ */
+/* $Id: includes.h,v 1.28 2007-12-04 03:53:59 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -279,12 +279,5 @@ void     vwarnx(const char *, __va_list);
 /* solaris 10 specific */
 #if defined(__SVR4) && defined(__sun)
 char *__progname;
-#if defined(__cplusplus)
-#define	__BEGIN_DECLS	extern "C" {
-#define	__END_DECLS	}
-#else
-#define	__BEGIN_DECLS
-#define	__END_DECLS
-#endif
 #endif
 

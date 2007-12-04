@@ -1,6 +1,6 @@
 # scons (http://www.scons.org) build for non-OpenBSD systems
 # on OpenBSD, just type 'make'.
-# $Id: SConstruct,v 1.8 2007-12-03 21:33:39 niallo Exp $
+# $Id: SConstruct,v 1.9 2007-12-04 03:53:59 niallo Exp $
 
 import os
 
@@ -21,7 +21,6 @@ if os.uname()[0] == 'SunOS':
 	SRCS.append('openbsd-compat/verrx.c')
 	SRCS.append('openbsd-compat/vwarnx.c')
 	SRCS.append('openbsd-compat/vwarn.c')
-	CPPPATH.append('/usr/ucbinclude')
 	CPPPATH.append('/usr/local/ssl/include')
 	CPPPATH.append('openbsd-compat/')
 	LIBPATH.append('/usr/local/ssl/lib')
