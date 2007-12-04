@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.50 2007-12-03 21:07:31 niallo Exp $ */
+/* $Id: main.c,v 1.51 2007-12-04 07:05:15 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -19,6 +19,9 @@
 #include <sys/resource.h>
 
 #include <sys/time.h>
+#include <sys/ioctl.h>
+#include <sys/uio.h>
+#include <sys/termios.h>
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -31,6 +34,12 @@
 #endif
 
 #include "includes.h"
+#include "util.h"
+
+#define DEFAULT_WINSIZE 80
+#define MAX_WINSIZE 512
+#define MESSAGE "hash check"
+#define METER "|/-\\"
 
 void usage(void);
 
@@ -50,8 +59,10 @@ main(int argc, char **argv)
 	struct torrent *torrent;
 	struct rlimit rlp;
 	struct torrent_piece *tpp;
+	struct winsize winsize;
 	u_int32_t i;
-	int ch, j;
+	int ch, j, win_size, percent;
+	char blurb[MAX_WINSIZE+1];
 
 	#if defined(USE_BOEHM_GC)
 	GC_INIT();
@@ -92,10 +103,22 @@ main(int argc, char **argv)
 
 	if (getrlimit(RLIMIT_NOFILE, &rlp) == -1)
 		err(1, "getrlimit");
+
+	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &winsize) != -1 &&
+	    winsize.ws_col != 0) {
+		if (winsize.ws_col > MAX_WINSIZE)
+			win_size = MAX_WINSIZE;
+		else
+			win_size = winsize.ws_col;
+	} else
+		win_size = DEFAULT_WINSIZE;
+	win_size += 1;					/* trailing \0 */
 	torrent = torrent_parse_file(argv[0]);
 	torrent_pieces_create(torrent);
 	/* a little extra info? torrent_print(torrent); */
-	printf("checking data, this could take a while\n");
+	memset(&blurb, '\0', sizeof(blurb));
+	snprintf(blurb, sizeof(blurb), "%s ", MESSAGE);
+	atomicio(vwrite, STDOUT_FILENO, blurb, win_size - 1);
 	for (i = 0; i < torrent->num_pieces; i++) {
 		tpp = torrent_piece_find(torrent, i);
 		if (tpp->index != i)
@@ -109,6 +132,9 @@ main(int argc, char **argv)
 			}
 		}
 		torrent_piece_unmap(tpp);
+		percent = (float)i / torrent->num_pieces * 100;
+		snprintf(blurb, sizeof(blurb), "\r%s [%3d%%] %c", MESSAGE, percent, METER[i % 3]);
+		atomicio(vwrite, STDOUT_FILENO, blurb, win_size - 1);
 	}
 	/* do we already have everything? */
 	if (!seed && torrent->good_pieces == torrent->num_pieces) {
