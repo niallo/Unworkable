@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.30 2007-12-04 05:59:13 niallo Exp $ */
+/* $Id: includes.h,v 1.31 2007-12-05 20:48:20 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -64,8 +64,8 @@ struct benc_node {
 enum type { MULTIFILE, SINGLEFILE };
 
 struct torrent_mmap {
-	void				*addr;
-	void				*aligned_addr;
+	u_int8_t			*addr;
+	u_int8_t			*aligned_addr;
 	u_int32_t			len;
 	struct torrent_file		*tfp;
 	TAILQ_ENTRY(torrent_mmap)	mmaps;
