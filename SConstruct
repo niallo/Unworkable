@@ -1,11 +1,11 @@
 # scons (http://www.scons.org) build for non-OpenBSD systems
 # on OpenBSD, just type 'make'.
-# $Id: SConstruct,v 1.9 2007-12-04 03:53:59 niallo Exp $
+# $Id: SConstruct,v 1.10 2007-12-05 23:40:45 niallo Exp $
 
 import os
 
-SRCS = ['bencode.c', 'buf.c', 'main.c', 'network.c', 'parse.y', 'progressmeter.c', \
-        'torrent.c', 'trace.c', 'util.c', 'xmalloc.c']
+SRCS = ['announce.c', 'bencode.c', 'buf.c', 'main.c', 'network.c', 'parse.y', 'progressmeter.c', \
+        'scheduler.c', 'torrent.c', 'trace.c', 'util.c', 'xmalloc.c']
 LIBS =  ['event', 'crypto']
 LIBPATH = ['/usr/lib', '/usr/local/lib']
 CPPPATH = ['/usr/include', '/usr/local/include']

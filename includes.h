@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.31 2007-12-05 20:48:20 niallo Exp $ */
+/* $Id: includes.h,v 1.32 2007-12-05 23:40:45 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -24,6 +24,14 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include <openssl/bn.h>
+#include <openssl/dh.h>
+#include <openssl/engine.h>
+
+#include <event.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -36,6 +44,74 @@
 #define BLIST		(1 << 3)
 #define BDICT_ENTRY	(1 << 4)
 
+#define PEER_STATE_HANDSHAKE1		(1<<0)
+#define PEER_STATE_BITFIELD		(1<<1)
+#define PEER_STATE_ESTABLISHED		(1<<2)
+#define PEER_STATE_AMCHOKING		(1<<3)
+#define PEER_STATE_CHOKED		(1<<4)
+#define PEER_STATE_AMINTERESTED		(1<<5)
+#define PEER_STATE_INTERESTED		(1<<6)
+#define PEER_STATE_DEAD			(1<<7)
+#define PEER_STATE_GOTLEN		(1<<8)
+#define PEER_STATE_CRYPTED		(1<<9)
+#define PEER_STATE_HANDSHAKE2		(1<<10)
+
+#define PEER_MSG_ID_CHOKE		0
+#define PEER_MSG_ID_UNCHOKE		1
+#define PEER_MSG_ID_INTERESTED		2
+#define PEER_MSG_ID_NOTINTERESTED	3
+#define PEER_MSG_ID_HAVE		4
+#define PEER_MSG_ID_BITFIELD		5
+#define PEER_MSG_ID_REQUEST		6
+#define PEER_MSG_ID_PIECE		7
+#define PEER_MSG_ID_CANCEL		8
+
+#define PEER_COMMS_THRESHOLD		120 /* 120 seconds */
+
+#define BLOCK_SIZE			16384 /* 16KB */
+#define MAX_BACKLOG			65536 /* 64KB */
+#define LENGTH_FIELD 			4 /* peer messages use a 4byte len field */
+#define MAX_MESSAGE_LEN 		0xffffff /* 16M */
+#define DEFAULT_ANNOUNCE_INTERVAL	1800/* */
+#define MAX_REQUESTS			100 /* max request queue length per peer */
+
+/* MSE defines
+ * see http://www.azureuswiki.com/index.php/Message_Stream_Encryption */
+#define CRYPTO_PRIME			0xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A63A36210000000000090563
+#define CRYPTO_GENERATOR		2
+#define CRYPTO_PLAINTEXT		0x01
+#define CRYPTO_RC4			0x02
+#define CRYPTO_INT_LEN			160
+#define CRYPTO_MAX_BYTES1		608
+#define CRYPTO_MIN_BYTES1		96
+
+#define BT_PROTOCOL			"BitTorrent protocol"
+#define BT_PSTRLEN			19
+#define BT_INITIAL_LEN 			20
+
+/* try to keep this many peer connections at all times */
+#define PEERS_WANTED			10
+
+/* when trying to fetch more peers, make sure we don't announce
+ * more often than this interval allows */
+#define MIN_ANNOUNCE_INTERVAL		60
+
+#define PEER_ID_LEN			20
+/* these are used in the HTTP client */
+#define GETSTRINGLEN			2048
+#define HTTPLEN				7
+#define RESBUFLEN			1024
+#define HTTP_1_0			"HTTP/1.0"
+#define HTTP_1_1			"HTTP/1.1"
+#define HTTP_OK				"200"
+#define HTTP_END			"\r\n\r\n"
+
+/* what percentage remaining to be considered endgame? */
+#define ENDGAME_PERCENTAGE		5
+
+#define DEFAULT_PORT			"6668"
+
+#define PIECE_GIMME_NOCREATE		(1<<0)
 
 struct benc_node {
 	/*
@@ -132,6 +208,105 @@ struct torrent {
 	short					isnew;
 	u_int32_t				complete;
 	u_int32_t				incomplete;
+};
+/* data for a http response */
+struct http_response {
+	/* response buffer */
+	u_int8_t *rxmsg;
+	/* size of buffer so far */
+	u_int32_t rxread, rxmsglen;
+};
+
+
+/* bittorrent peer */
+struct peer {
+	TAILQ_ENTRY(peer) peer_list;
+	RB_ENTRY(peer_idxnode) entry;
+	TAILQ_HEAD(peer_piece_dls, piece_dl) peer_piece_dls;
+	struct sockaddr_in sa;
+	int connfd;
+	int state;
+	u_int32_t rxpending;
+	u_int32_t txpending;
+	struct bufferevent *bufev;
+	u_int32_t rxmsglen;
+	u_int8_t *txmsg, *rxmsg;
+	u_int8_t *bitfield;
+	/* from peer's handshake message */
+	u_int8_t pstrlen;
+	u_int8_t id[PEER_ID_LEN];
+	u_int8_t info_hash[20];
+
+	struct session *sc;
+	/* last time we rx'd something from this peer */
+	time_t  lastrecv;
+	/* time we connected this peer (ie start of its life) */
+	time_t connected;
+	/* how many bytes have we rx'd from the peer since it was connected */
+	u_int64_t totalrx;
+	/* block request queue length*/
+	u_int32_t queue_len;
+};
+
+/* piece download transaction */
+struct piece_dl {
+	TAILQ_ENTRY(piece_dl) peer_piece_dl_list;
+	TAILQ_ENTRY(piece_dl) idxnode_piece_dl_list;
+	struct peer *pc; /* peer we're requesting from */
+	u_int32_t idx; /* piece index */
+	u_int32_t off; /* offset within this piece */
+	u_int32_t len; /* length of this request */
+	u_int32_t bytes; /* how many bytes have we read so far */
+};
+
+/* For the binary tree which does lookups based on piece dl index and offset,
+ * we do not guarantee that key to be unique - ie there may be multiple piece_dls
+ * in progress for the same block.  Instead, we have a list of piece_dls. */
+struct piece_dl_idxnode {
+	RB_ENTRY(piece_dl_idxnode) entry;
+	u_int32_t idx; /* piece index */
+	u_int32_t off; /* offset within this piece */
+	TAILQ_HEAD(idxnode_piece_dls, piece_dl) idxnode_piece_dls;
+};
+
+struct piececounter {
+	u_int32_t count;
+	u_int32_t idx;
+};
+
+struct peercounter {
+	u_int64_t rate;
+	struct peer *peer;
+};
+
+/* data associated with a bittorrent session */
+struct session {
+	/* don't expect to have huge numbers of peers, or be searching very often, so linked list
+	 * should be fine for storage */
+	TAILQ_HEAD(peers, peer) peers;
+	/* index piece_dls by block index / offset */
+	RB_HEAD(piece_dl_by_idxoff, piece_dl_idxnode) piece_dl_by_idxoff;
+	int connfd;
+	int servfd;
+	char *key;
+	char *ip;
+	char *numwant;
+	char *peerid;
+	char *port;
+	char *trackerid;
+	char *request;
+	struct event announce_event;
+	struct event scheduler_event;
+	struct sockaddr_in sa;
+	struct torrent *tp;
+	struct http_response *res;
+	rlim_t maxfds;
+	int announce_underway;
+	u_int32_t tracker_num_peers;
+	u_int32_t num_peers;
+	time_t last_announce;
+	struct piececounter *rarity_array;
+	time_t last_rarity;
 };
 
 void			 benc_node_add(struct benc_node *, struct benc_node *);
@@ -281,3 +456,44 @@ void     vwarnx(const char *, __va_list);
 char *__progname;
 #endif
 
+int	announce(struct session *, const char *);
+int	network_connect_tracker(const char *, const char *);
+int	network_listen(struct session *, char *, char *);
+void	network_handle_peer_connect(struct bufferevent *, short, void *);
+void	network_peerlist_connect(struct session *);
+void	network_peerlist_update(struct session *, struct benc_node *);
+struct piece_dl *network_piece_dl_find(struct session *, struct peer *, u_int32_t, u_int32_t);
+int	network_connect(int, int, int, const struct sockaddr *, socklen_t);
+int	network_connect_peer(struct peer *);
+void	network_peerlist_update_dict(struct session *, struct benc_node *);
+void	network_peerlist_update_string(struct session *, struct benc_node *);
+void	network_peer_handshake(struct session *, struct peer *);
+void	network_peer_write_piece(struct peer *, u_int32_t, off_t, u_int32_t);
+void	network_peer_read_piece(struct peer *, u_int32_t, off_t, u_int32_t, void *);
+void	network_peer_write_bitfield(struct peer *);
+void	network_peer_write_interested(struct peer *);
+void	network_peer_free(struct peer *);
+struct peer * network_peer_create(void);
+void	network_handle_peer_response(struct bufferevent *, void *);
+void	network_handle_peer_write(struct bufferevent *, void *);
+void	network_handle_peer_error(struct bufferevent *, short, void *);
+char	*network_peer_id_create(void);
+void	network_peer_request_block(struct peer *, u_int32_t, u_int32_t,
+    u_int32_t);
+void	network_peer_write_choke(struct peer *);
+void	network_peer_write_unchoke(struct peer *);
+void	network_peer_cancel_piece(struct piece_dl *);
+void	network_peer_write_have(struct peer *, u_int32_t);
+void	network_peer_process_message(u_int8_t, struct peer *);
+DH	*network_crypto_dh(void);
+long	network_peer_lastcomms(struct peer *);
+u_int64_t network_peer_rate(struct peer *);
+struct piece_dl * network_piece_dl_create(struct peer *, u_int32_t,
+    u_int32_t, u_int32_t);
+void	network_piece_dl_free(struct session *, struct piece_dl *);
+int	piece_dl_idxnode_cmp(struct piece_dl_idxnode *, struct piece_dl_idxnode *);
+/* index of piece dls by block index and offset */
+RB_PROTOTYPE(piece_dl_by_idxoff, piece_dl_idxnode, entry, piece_dl_idxnode_cmp)
+
+void	scheduler(int, short, void *);
+struct piece_dl * scheduler_piece_gimme(struct peer *, int, int *);
