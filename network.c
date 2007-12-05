@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.185 2007-12-04 07:27:46 niallo Exp $ */
+/* $Id: network.c,v 1.186 2007-12-05 01:11:56 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -1503,21 +1503,22 @@ static void
 network_peer_write_have(struct peer *p, u_int32_t idx)
 {
 	u_int32_t msglen, msglen2;
-	u_int8_t  *msg, id;
+	u_int8_t id;
 
 	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx);
-	msg = xmalloc(msglen);
+	if (p->txmsg != NULL)
+		xfree(p->txmsg);
+	p->txmsg = xmalloc(msglen);
 
 	msglen2 = htonl(msglen - sizeof(msglen));
 	id = PEER_MSG_ID_HAVE;
 	idx = htonl(idx);
 
-	memcpy(msg, &msglen2, sizeof(msglen2));
-	memcpy(msg+sizeof(msglen2), &id, sizeof(id));
-	memcpy(msg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
+	memcpy(p->txmsg, &msglen2, sizeof(msglen2));
+	memcpy(p->txmsg+sizeof(msglen2), &id, sizeof(id));
+	memcpy(p->txmsg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
 
-	p->txmsg = msg;
-	if (bufferevent_write(p->bufev, msg, msglen) != 0)
+	if (bufferevent_write(p->bufev, p->txmsg, msglen) != 0)
 		errx(1, "network_peer_write_have: bufferevent_write failure");
 
 }
@@ -1610,6 +1611,9 @@ network_peer_request_block(struct peer *p, u_int32_t idx, u_int32_t off, u_int32
 	trace("network_peer_request_block, index: %u offset: %u len: %u to peer %s:%d", idx, off, len,
 	    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx) + sizeof(off) + sizeof(blocklen);
+	/* we really want a per-peer message queue for this stuff */
+	if (p->txmsg != NULL)
+		xfree(p->txmsg);
 	p->txmsg = xmalloc(msglen);
 
 	msglen2 = htonl(msglen - sizeof(msglen));
