@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.187 2007-12-05 23:40:45 niallo Exp $ */
+/* $Id: network.c,v 1.188 2007-12-06 02:48:33 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -530,9 +530,9 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 	struct torrent_piece *tpp;
 	struct peer *tp;
 	struct piece_dl *pd, *nxtpd;
-	u_int32_t bitfieldlen, idx, blocklen, off;
 	int res = 0;
 	int found = 0;
+	u_int32_t bitfieldlen, idx, blocklen, off;
 
 	/* XXX: safety-check for correct message lengths */
 	switch (id) {
@@ -776,8 +776,7 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t 
 
 	if (p == NULL)
 		errx(1, "network_peer_write_piece: NULL peer");
-	trace("network_peer_write_piece() at index %u offset %u length %u to peer %s:%d",
-	      idx, offset, len, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+
 	if ((tpp = torrent_piece_find(p->sc->tp, idx)) == NULL) {
 		trace("network_peer_write_piece() piece %u - failed at torrent_piece_find(), returning",
 		    idx);
@@ -931,7 +930,7 @@ network_peer_write_interested(struct peer *p)
  *
  * Send a BITFIELD message to remote peer.
  */
- void
+void
 network_peer_write_bitfield(struct peer *p)
 {
 	u_int8_t *bitfield, id;
@@ -962,7 +961,7 @@ network_peer_write_bitfield(struct peer *p)
  *
  * Send an UNCHOKE message to remote peer.
  */
- void
+void
 network_peer_write_unchoke(struct peer *p)
 {
 	u_int8_t id;
@@ -986,7 +985,7 @@ network_peer_write_unchoke(struct peer *p)
  *
  * Send a CHOKE message to remote peer.
  */
- void
+void
 network_peer_write_choke(struct peer *p)
 {
 	u_int8_t id;
@@ -1010,7 +1009,7 @@ network_peer_write_choke(struct peer *p)
  *
  * Generate a DH key object.
  */
- DH *
+DH *
 network_crypto_dh()
 {
 	DH *dhp;
@@ -1032,7 +1031,7 @@ network_crypto_dh()
  *
  * Return how long in seconds since last communication on this peer.
  */
- long
+long
 network_peer_lastcomms(struct peer *p)
 {
 	return (time(NULL) - p->lastrecv);
@@ -1043,7 +1042,7 @@ network_peer_lastcomms(struct peer *p)
  *
  * Return the instantaneous transfer rate of a given peer.
  */
- u_int64_t
+u_int64_t
 network_peer_rate(struct peer *p)
 {
 	u_int64_t rate;
@@ -1062,7 +1061,7 @@ network_peer_rate(struct peer *p)
  * Create a piece dl, and also insert into the per-peer list and global
  * btree index.
  */
- struct piece_dl *
+struct piece_dl *
 network_piece_dl_create(struct peer *p, u_int32_t idx, u_int32_t off,
     u_int32_t len)
 {
@@ -1102,7 +1101,7 @@ network_piece_dl_create(struct peer *p, u_int32_t idx, u_int32_t off,
  *
  * Free piece dls in a clean manner.
  */
- void
+void
 network_piece_dl_free(struct session *sc, struct piece_dl *pd)
 {
 	struct piece_dl_idxnode find, *res;
@@ -1127,7 +1126,7 @@ network_piece_dl_free(struct session *sc, struct piece_dl *pd)
  *
  * Generate a random peer id string for us to use
  */
- char *
+char *
 network_peer_id_create()
 {
 	long r;
@@ -1355,6 +1354,7 @@ network_peerlist_connect(struct session *sc)
 		if (sc->num_peers >= sc->maxfds - 5) {
 				network_peer_free(ep);
 				sc->num_peers--;
+				TAILQ_REMOVE(&sc->peers, ep, peer_list);
 				continue;
 		}
 		trace("network_peerlist_update() we have a peer: %s:%d", inet_ntoa(ep->sa.sin_addr),
