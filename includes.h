@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.32 2007-12-05 23:40:45 niallo Exp $ */
+/* $Id: includes.h,v 1.33 2007-12-06 03:25:07 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -478,8 +478,7 @@ void	network_handle_peer_response(struct bufferevent *, void *);
 void	network_handle_peer_write(struct bufferevent *, void *);
 void	network_handle_peer_error(struct bufferevent *, short, void *);
 char	*network_peer_id_create(void);
-void	network_peer_request_block(struct peer *, u_int32_t, u_int32_t,
-    u_int32_t);
+void	network_peer_request_block(struct peer *, u_int32_t, u_int32_t, u_int32_t);
 void	network_peer_write_choke(struct peer *);
 void	network_peer_write_unchoke(struct peer *);
 void	network_peer_cancel_piece(struct piece_dl *);
