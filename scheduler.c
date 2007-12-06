@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.2 2007-12-06 02:39:18 niallo Exp $ */
+/* $Id: scheduler.c,v 1.3 2007-12-06 03:15:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,6 +20,10 @@
 #include <sys/tree.h>
 
 #include <string.h>
+/* solaris 10 */
+#if defined(__SVR4) && defined(__sun)
+#include <utility.h>
+#endif
 
 #include "includes.h"
 
