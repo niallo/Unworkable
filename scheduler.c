@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.1 2007-12-05 23:40:45 niallo Exp $ */
+/* $Id: scheduler.c,v 1.2 2007-12-06 02:39:18 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -15,6 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <sys/param.h>
 #include <sys/types.h>
 #include <sys/tree.h>
 
