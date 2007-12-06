@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.188 2007-12-06 02:48:33 niallo Exp $ */
+/* $Id: network.c,v 1.189 2007-12-06 03:16:30 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -20,10 +20,6 @@
 #include <sys/queue.h>
 #include <sys/param.h>
 #include <sys/socket.h>
-/* solaris 10 */
-#if defined(__SVR4) && defined(__sun)
-#include <utility.h>
-#endif
 
 #include <ctype.h>
 #include <errno.h>
