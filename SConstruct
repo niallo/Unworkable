@@ -1,8 +1,8 @@
 # scons (http://www.scons.org) build for non-OpenBSD systems
 # on OpenBSD, just type 'make'.
-# $Id: SConstruct,v 1.10 2007-12-05 23:40:45 niallo Exp $
+# $Id: SConstruct,v 1.11 2007-12-08 23:50:51 niallo Exp $
 
-import os
+import sys
 
 SRCS = ['announce.c', 'bencode.c', 'buf.c', 'main.c', 'network.c', 'parse.y', 'progressmeter.c', \
         'scheduler.c', 'torrent.c', 'trace.c', 'util.c', 'xmalloc.c']
@@ -12,7 +12,7 @@ CPPPATH = ['/usr/include', '/usr/local/include']
 CCFLAGS = ['-Wall', '-Wstrict-prototypes', '-Wmissing-prototypes', '-Wmissing-declarations', '-Wshadow', '-Wpointer-arith', '-Wcast-qual', '-Wsign-compare', '-g', '-ggdb']
 
 # Assume this is Solaris with packages from www.sunfreeware.com
-if os.uname()[0] == 'SunOS':
+if sys.platform.startswith('sunos'):
 	SRCS.append('openbsd-compat/err.c')
 	SRCS.append('openbsd-compat/errx.c')
 	SRCS.append('openbsd-compat/warn.c')
@@ -34,7 +34,7 @@ if os.uname()[0] == 'SunOS':
 	CCFLAGS.append('-Du_int64_t=unsigned long long')
 
 # Assume this is Mac OS X with macports, so stuff is under /opt
-elif os.uname()[0] == 'Darwin':
+elif sys.platform.startswith('darwin'):
 	LIBPATH.append('/opt/local/lib')
 	CPPPATH.append('/opt/local/include')
 
