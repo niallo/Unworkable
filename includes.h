@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.33 2007-12-06 03:25:07 niallo Exp $ */
+/* $Id: includes.h,v 1.34 2007-12-08 23:19:34 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -230,7 +230,7 @@ struct peer {
 	u_int32_t txpending;
 	struct bufferevent *bufev;
 	u_int32_t rxmsglen;
-	u_int8_t *txmsg, *rxmsg;
+	u_int8_t *rxmsg;
 	u_int8_t *bitfield;
 	/* from peer's handshake message */
 	u_int8_t pstrlen;

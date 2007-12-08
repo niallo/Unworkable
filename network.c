@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.189 2007-12-06 03:16:30 niallo Exp $ */
+/* $Id: network.c,v 1.190 2007-12-08 23:19:34 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -39,6 +39,7 @@
 char *user_port = NULL;
 int   seed = 0;
 
+static void network_peer_write(struct peer *, u_int8_t *, u_int32_t);
 /* index of piece dls by block index and offset */
 RB_PROTOTYPE(piece_dl_by_idxoff, piece_dl_idxnode, entry, piece_dl_idxnode_cmp)
 RB_GENERATE(piece_dl_by_idxoff, piece_dl_idxnode, entry, piece_dl_idxnode_cmp)
@@ -55,6 +56,19 @@ piece_dl_idxnode_cmp(struct piece_dl_idxnode *p1, struct piece_dl_idxnode *p2)
 	} else {
 		return (idxdiff);
 	}
+}
+
+/*
+ * network_peer_write()
+ *
+ * Write data to a peer.
+ */
+static void
+network_peer_write(struct peer *p, u_int8_t *msg, u_int32_t len)
+{
+	if (bufferevent_write(p->bufev, msg, len) != 0)
+		errx(1, "network_peer_write() failure");
+	xfree(msg);
 }
 
 /*
@@ -287,8 +301,6 @@ network_peer_free(struct peer *p)
 	}
 	if (p->rxmsg != NULL)
 		xfree(p->rxmsg);
-	if (p->txmsg != NULL)
-		xfree(p->txmsg);
 	if (p->bitfield != NULL)
 		xfree(p->bitfield);
 	if (p->connfd != 0) {
@@ -308,6 +320,7 @@ network_peer_free(struct peer *p)
 void
 network_peer_handshake(struct session *sc, struct peer *p)
 {
+	u_int8_t *msg;
 	/*
 	* handshake: <pstrlen><pstr><reserved><info_hash><peer_id>
 	* pstrlen: string length of <pstr>, as a single raw byte
@@ -325,15 +338,14 @@ network_peer_handshake(struct session *sc, struct peer *p)
 	*/
 	p->connected = time(NULL);
 	#define HANDSHAKELEN (1 + 19 + 8 + 20 + 20)
-	p->txmsg = xmalloc(HANDSHAKELEN);
-	memset(p->txmsg, 0, HANDSHAKELEN);
-	p->txmsg[0] = 19;
-	memcpy(p->txmsg + 1, "BitTorrent protocol", 19);
-	memcpy(p->txmsg + 28, sc->tp->info_hash, 20);
-	memcpy(p->txmsg + 48, sc->peerid, 20);
+	msg = xmalloc(HANDSHAKELEN);
+	memset(msg, 0, HANDSHAKELEN);
+	msg[0] = 19;
+	memcpy(msg + 1, "BitTorrent protocol", 19);
+	memcpy(msg + 28, sc->tp->info_hash, 20);
+	memcpy(msg + 48, sc->peerid, 20);
 
-	if (bufferevent_write(p->bufev, p->txmsg, HANDSHAKELEN) != 0)
-		errx(1, "network_peer_handshake() failure");
+	network_peer_write(p, msg, HANDSHAKELEN);
 }
 
 
@@ -374,14 +386,7 @@ network_handle_peer_error(struct bufferevent *bufev, short error, void *data)
 void
 network_handle_peer_write(struct bufferevent *bufev, void *data)
 {
-	struct peer *p = data;
-	/* XXX: may be insufficient to prevent leaks, as
-	 * what if the peer write event never fires? do we need to keep a list of writes for each peer?
-	 * */
-	if (p->txmsg != NULL) {
-		xfree(p->txmsg);
-		p->txmsg = NULL;
-	}
+	/* do nothing */
 }
 
 /*
@@ -398,9 +403,6 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 	size_t len;
 	u_int32_t msglen;
 	u_int8_t *base, id = 0;
-
-	if (p == NULL)
-		errx(1, "network_handle_peer_response() NULL peer!");
 
 	/* the complicated thing here is the non-blocking IO, which
 	 * means we have to be prepared to come back later and add more
@@ -735,24 +737,20 @@ void
 network_peer_write_have(struct peer *p, u_int32_t idx)
 {
 	u_int32_t msglen, msglen2;
-	u_int8_t id;
+	u_int8_t *msg, id;
 
 	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx);
-	if (p->txmsg != NULL)
-		xfree(p->txmsg);
-	p->txmsg = xmalloc(msglen);
+	msg = xmalloc(msglen);
 
 	msglen2 = htonl(msglen - sizeof(msglen));
 	id = PEER_MSG_ID_HAVE;
 	idx = htonl(idx);
 
-	memcpy(p->txmsg, &msglen2, sizeof(msglen2));
-	memcpy(p->txmsg+sizeof(msglen2), &id, sizeof(id));
-	memcpy(p->txmsg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
+	memcpy(msg, &msglen2, sizeof(msglen2));
+	memcpy(msg+sizeof(msglen2), &id, sizeof(id));
+	memcpy(msg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
 
-	if (bufferevent_write(p->bufev, p->txmsg, msglen) != 0)
-		errx(1, "network_peer_write_have: bufferevent_write failure");
-
+	network_peer_write(p, msg, msglen);
 }
 
 /*
@@ -797,9 +795,8 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t 
 	memcpy(msg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
 	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx), &offset, sizeof(offset));
 	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(offset), data, sizeof(len));
-	p->txmsg = msg;
-	if (bufferevent_write(p->bufev, msg, msglen) != 0)
-		errx(1, "network_peer_write_piece: bufferevent_write failure");
+
+	network_peer_write(p, msg, msglen);
 }
 
 /*
@@ -837,15 +834,12 @@ void
 network_peer_request_block(struct peer *p, u_int32_t idx, u_int32_t off, u_int32_t len)
 {
 	u_int32_t msglen, msglen2, blocklen;
-	u_int8_t  id;
+	u_int8_t  *msg, id;
 
 	trace("network_peer_request_block, index: %u offset: %u len: %u to peer %s:%d", idx, off, len,
 	    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx) + sizeof(off) + sizeof(blocklen);
-	/* we really want a per-peer message queue for this stuff */
-	if (p->txmsg != NULL)
-		xfree(p->txmsg);
-	p->txmsg = xmalloc(msglen);
+	msg = xmalloc(msglen);
 
 	msglen2 = htonl(msglen - sizeof(msglen));
 	id = PEER_MSG_ID_REQUEST;
@@ -853,14 +847,13 @@ network_peer_request_block(struct peer *p, u_int32_t idx, u_int32_t off, u_int32
 	off = htonl(off);
 	blocklen = htonl(len);
 
-	memcpy(p->txmsg, &msglen2, sizeof(msglen2));
-	memcpy(p->txmsg+sizeof(msglen2), &id, sizeof(id));
-	memcpy(p->txmsg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
-	memcpy(p->txmsg+sizeof(msglen2)+sizeof(id)+sizeof(idx), &off, sizeof(off));
-	memcpy(p->txmsg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(off), &blocklen, sizeof(blocklen));
+	memcpy(msg, &msglen2, sizeof(msglen2));
+	memcpy(msg+sizeof(msglen2), &id, sizeof(id));
+	memcpy(msg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
+	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx), &off, sizeof(off));
+	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(off), &blocklen, sizeof(blocklen));
 
-	if (bufferevent_write(p->bufev, p->txmsg, msglen) != 0)
-		errx(1, "network_peer_request_block: bufferevent_write failure");
+	network_peer_write(p, msg, msglen);
 }
 
 /*
@@ -891,9 +884,7 @@ network_peer_cancel_piece(struct piece_dl *pd)
 	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx), &off, sizeof(off));
 	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(off), &blocklen, sizeof(blocklen));
 
-	pd->pc->txmsg = msg;
-	if (bufferevent_write(pd->pc->bufev, msg, msglen) != 0)
-		errx(1, "network_peer_request_piece: bufferevent_write failure");
+	network_peer_write(pd->pc, msg, msglen);
 }
 
 /*
@@ -904,21 +895,20 @@ network_peer_cancel_piece(struct piece_dl *pd)
 void
 network_peer_write_interested(struct peer *p)
 {
-	u_int8_t id;
 	u_int32_t len;
+	u_int8_t *msg, id;
 
 	trace("network_peer_write_interested() to peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	len = htonl(sizeof(id));
 	id = PEER_MSG_ID_INTERESTED;
 
-	p->txmsg = xmalloc(sizeof(len) + sizeof(id));
-	memcpy(p->txmsg, &len, sizeof(len));
-	memcpy(p->txmsg+sizeof(len), &id, sizeof(id));
+	msg = xmalloc(sizeof(len) + sizeof(id));
+	memcpy(msg, &len, sizeof(len));
+	memcpy(msg+sizeof(len), &id, sizeof(id));
 
-	if (bufferevent_write(p->bufev, p->txmsg, sizeof(len) + sizeof(id)) != 0)
-		errx(1, "network_peer_write_interested: bufferevent_write failure");
 	p->state |= PEER_STATE_AMINTERESTED;
 
+	network_peer_write(p, msg, sizeof(len) + sizeof(id));
 }
 
 /*
@@ -929,8 +919,8 @@ network_peer_write_interested(struct peer *p)
 void
 network_peer_write_bitfield(struct peer *p)
 {
-	u_int8_t *bitfield, id;
 	u_int32_t bitfieldlen, msglen, msglen2;
+	u_int8_t *bitfield, *msg, id;
 
 	bitfieldlen = (p->sc->tp->num_pieces + 7) / 8;
 
@@ -939,16 +929,13 @@ network_peer_write_bitfield(struct peer *p)
 	bitfield = torrent_bitfield_get(p->sc->tp);
 
 	msglen = sizeof(id) + bitfieldlen;
-	p->txmsg = xmalloc(msglen);
+	msg = xmalloc(msglen);
 	msglen2 = htonl(msglen);
-	memcpy(p->txmsg, &msglen2, sizeof(msglen2));
-	memcpy(p->txmsg+sizeof(msglen), &id, sizeof(id));
-	memcpy(p->txmsg+sizeof(msglen)+sizeof(id), bitfield, bitfieldlen);
+	memcpy(msg, &msglen2, sizeof(msglen2));
+	memcpy(msg+sizeof(msglen), &id, sizeof(id));
+	memcpy(msg+sizeof(msglen)+sizeof(id), bitfield, bitfieldlen);
 
-	if (bufferevent_write(p->bufev, p->txmsg, msglen) != 0)
-		errx(1, "network_peer_write_bitfield: bufferevent_write failure");
-
-	trace("network_peer_write_bitfield() freeing bitfield");
+	network_peer_write(p, msg, msglen);
 	xfree(bitfield);
 }
 
@@ -960,20 +947,20 @@ network_peer_write_bitfield(struct peer *p)
 void
 network_peer_write_unchoke(struct peer *p)
 {
-	u_int8_t id;
 	u_int32_t len;
+	u_int8_t *msg, id;
 
 	trace("network_peer_write_unchoke() to peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	len = htonl(sizeof(id));
 	id = PEER_MSG_ID_UNCHOKE;
 
-	p->txmsg = xmalloc(sizeof(len) + sizeof(id));
-	memcpy(p->txmsg, &len, sizeof(len));
-	memcpy(p->txmsg+sizeof(len), &id, sizeof(id));
+	msg = xmalloc(sizeof(len) + sizeof(id));
+	memcpy(msg, &len, sizeof(len));
+	memcpy(msg+sizeof(len), &id, sizeof(id));
 
-	if (bufferevent_write(p->bufev, p->txmsg, sizeof(len) + sizeof(id)) != 0)
-		errx(1, "network_peer_write_unchoke: bufferevent_write failure");
 	p->state &= ~PEER_STATE_AMCHOKING;
+
+	network_peer_write(p, msg, sizeof(len) + sizeof(id));
 }
 
 /*
@@ -984,20 +971,19 @@ network_peer_write_unchoke(struct peer *p)
 void
 network_peer_write_choke(struct peer *p)
 {
-	u_int8_t id;
 	u_int32_t len;
+	u_int8_t *msg, id;
 
 	trace("network_peer_write_choke() to peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 	len = htonl(sizeof(id));
 	id = PEER_MSG_ID_CHOKE;
 
-	p->txmsg = xmalloc(sizeof(len) + sizeof(id));
-	memcpy(p->txmsg, &len, sizeof(len));
-	memcpy(p->txmsg+sizeof(len), &id, sizeof(id));
+	msg = xmalloc(sizeof(len) + sizeof(id));
+	memcpy(msg, &len, sizeof(len));
+	memcpy(msg+sizeof(len), &id, sizeof(id));
 
-	if (bufferevent_write(p->bufev, p->txmsg, sizeof(len) + sizeof(id)) != 0)
-		errx(1, "network_peer_write_choke: bufferevent_write failure");
 	p->state |= PEER_STATE_AMCHOKING;
+	network_peer_write(p, msg, sizeof(len) + sizeof(id));
 }
 
 /*
