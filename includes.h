@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.34 2007-12-08 23:19:34 niallo Exp $ */
+/* $Id: includes.h,v 1.35 2007-12-09 02:39:00 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -297,7 +297,6 @@ struct session {
 	char *request;
 	struct event announce_event;
 	struct event scheduler_event;
-	struct sockaddr_in sa;
 	struct torrent *tp;
 	struct http_response *res;
 	rlim_t maxfds;
@@ -458,7 +457,7 @@ char *__progname;
 
 int	announce(struct session *, const char *);
 int	network_connect_tracker(const char *, const char *);
-int	network_listen(struct session *, char *, char *);
+int	network_listen(char *, char *);
 void	network_handle_peer_connect(struct bufferevent *, short, void *);
 void	network_peerlist_connect(struct session *);
 void	network_peerlist_update(struct session *, struct benc_node *);

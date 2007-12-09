@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.192 2007-12-09 00:07:22 niallo Exp $ */
+/* $Id: network.c,v 1.193 2007-12-09 02:39:00 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -150,12 +150,6 @@ network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 			p->sa.sin_family = AF_INET;
 			memcpy(&p->sa.sin_addr, peerlist + i, 4);
 			memcpy(&p->sa.sin_port, peerlist + i + 4, 2);
-			/* Check if this peer is us */
-			if (memcmp(&p->sa.sin_addr, &sc->sa.sin_addr, sizeof(ep->sa.sin_addr)) == 0
-			    && memcmp(&p->sa.sin_port, &sc->sa.sin_port, sizeof(ep->sa.sin_port)) == 0) {
-				trace("network_peerlist_update() peer is ourselves");
-				continue;
-			}
 			/* Is this peer already in the list? */
 			found = 0;
 			TAILQ_FOREACH(ep, &sc->peers, peer_list) {
@@ -1146,7 +1140,7 @@ network_init()
  * Create a listening server socket.
  */
 int
-network_listen(struct session *sc, char *host, char *port)
+network_listen(char *host, char *port)
 {
 	int error = 0;
 	int fd;
@@ -1175,7 +1169,6 @@ network_listen(struct session *sc, char *host, char *port)
 	if (bind(fd, res->ai_addr, res->ai_addrlen) == -1)
 		err(1, "could not bind to port %s", port);
 	trace("network_listen() listening on socket");
-	memcpy(&sc->sa, res->ai_addr, res->ai_addrlen);
 	if (listen(fd, MAX_BACKLOG) == -1)
 		err(1, "could not listen on server socket");
 	freeaddrinfo(res);

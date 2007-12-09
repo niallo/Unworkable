@@ -1,4 +1,4 @@
-/* $Id: announce.c,v 1.1 2007-12-05 23:40:45 niallo Exp $ */
+/* $Id: announce.c,v 1.2 2007-12-09 02:39:00 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -340,7 +340,7 @@ handle_announce_error(struct bufferevent *bufev, short error, void *data)
 	if (sc->servfd == 0) {
 		trace("handle_announce_error() setting up server socket");
 		/* time to set up the server socket */
-		sc->servfd = network_listen(sc, "0.0.0.0", sc->port);
+		sc->servfd = network_listen("0.0.0.0", sc->port);
 		bev = bufferevent_new(sc->servfd, NULL,
 		    NULL, network_handle_peer_connect, sc);
 		if (bufev == NULL)
