@@ -1,6 +1,6 @@
 # scons (http://www.scons.org) build for non-OpenBSD systems
 # on OpenBSD, just type 'make'.
-# $Id: SConstruct,v 1.11 2007-12-08 23:50:51 niallo Exp $
+# $Id: SConstruct,v 1.12 2007-12-09 00:05:01 niallo Exp $
 
 import sys
 
@@ -37,6 +37,7 @@ if sys.platform.startswith('sunos'):
 elif sys.platform.startswith('darwin'):
 	LIBPATH.append('/opt/local/lib')
 	CPPPATH.append('/opt/local/include')
+
 
 env = Environment(LIBPATH=LIBPATH, CPPPATH=CPPPATH)
 conf = Configure(env)
@@ -77,6 +78,11 @@ if not conf.CheckFunc('strtonum'):
 if not conf.CheckFunc('SHA1Update'):
 	print "No system SHA1Update found.  Using bundled version"
 	SRCS.append('openbsd-compat/sha1.c')
+
+if not conf.CheckFunc('getaddrinfo'):
+	print "No system getaddrinfo() found.  Using bundled version"
+	SRCS.append('openbsd-compat/getaddrinfo.c')
+	CCFLAGS.append('-DNO_GETADDRINFO')
 
 if not conf.CheckLib('crypto'):
 	print "OpenSSL crypto library not found on your system.  You can get it at http://www.openssl.org"

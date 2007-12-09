@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.98 2007-12-03 21:07:31 niallo Exp $ */
+/* $Id: torrent.c,v 1.99 2007-12-09 00:05:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -15,13 +15,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__CYGWIN__)
 #include <sys/file.h>
 #endif
+
 /* solaris 10 */
 #if defined(__SVR4) && defined(__sun)
 #include "/usr/ucbinclude/sys/file.h"
 #endif
+
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/param.h>
@@ -513,8 +515,11 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	tmmp->aligned_addr = mmap(0, len, PROT_READ|PROT_WRITE, MAP_SHARED, tfp->fd, page_off);
 	if (tmmp->aligned_addr == MAP_FAILED)
 		err(1, "torrent_mmap_create: mmap");
+/* cygwin doesn't provide madvise() */
+#if !defined(__CYGWIN__)
 	if (madvise(tmmp->aligned_addr, len, MADV_SEQUENTIAL|MADV_WILLNEED) == -1)
 		err(1, "torrent_mmap_create: madvise");
+#endif
 	nearest_page = tmmp->aligned_addr + (off - page_off);
 	tmmp->addr = nearest_page;
 

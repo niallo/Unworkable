@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.190 2007-12-08 23:19:34 niallo Exp $ */
+/* $Id: network.c,v 1.191 2007-12-09 00:05:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -19,7 +19,10 @@
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <sys/param.h>
-#include <sys/socket.h>
+/* cygwin */
+#if defined(NO_GETADDRINFO)
+#include "openbsd-compat/getaddrinfo.h"
+#endif
 
 #include <ctype.h>
 #include <errno.h>
