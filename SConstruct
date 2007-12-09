@@ -1,6 +1,6 @@
 # scons (http://www.scons.org) build for non-OpenBSD systems
 # on OpenBSD, just type 'make'.
-# $Id: SConstruct,v 1.12 2007-12-09 00:05:01 niallo Exp $
+# $Id: SConstruct,v 1.13 2007-12-09 05:19:16 niallo Exp $
 
 import sys
 
@@ -29,18 +29,26 @@ if sys.platform.startswith('sunos'):
 	LIBS.append('nsl')
 	LIBS.append('ucb')
 	CCFLAGS.append('-DNO_ERR')
-	CCFLAGS.append('-Du_int8_t=unsigned char')
-	CCFLAGS.append('-Du_int32_t=unsigned int')
-	CCFLAGS.append('-Du_int64_t=unsigned long long')
 
 # Assume this is Mac OS X with macports, so stuff is under /opt
 elif sys.platform.startswith('darwin'):
 	LIBPATH.append('/opt/local/lib')
 	CPPPATH.append('/opt/local/include')
 
-
 env = Environment(LIBPATH=LIBPATH, CPPPATH=CPPPATH)
 conf = Configure(env)
+
+if not conf.CheckType('u_int8_t'):
+	CCFLAGS.append('-Du_int8_t=unsigned char')
+
+if not conf.CheckType('u_int32_t'):
+	CCFLAGS.append('-Du_int32_t=unsigned int')
+
+if not conf.CheckType('u_int64_t'):
+	CCFLAGS.append('-Du_int64_t=unsigned long long')
+
+if not conf.CheckType('int64_t'):
+	CCFLAGS.append('-Dint64_t=long long')
 
 if not conf.CheckCHeader('openssl/bn.h'):
 	print "No openssl/bn.h found.  Do you have the OpenSSL headers correctly installed?"
