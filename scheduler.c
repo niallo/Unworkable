@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.3 2007-12-06 03:15:53 niallo Exp $ */
+/* $Id: scheduler.c,v 1.4 2007-12-09 04:48:50 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -290,6 +290,7 @@ scheduler_piece_gimme(struct peer *peer, int flags, int *hint)
 		/* select piece randomly */
 		idx = pieces[random() % peerpieces];
 		xfree(pieces);
+		tpp = torrent_piece_find(peer->sc->tp, idx);
 	} else {
 		/* find the rarest piece that does not have all its blocks already in the download queue */
 		idx = scheduler_piece_find_rarest(peer, FIND_RAREST_IGNORE_ASSIGNED, &res);
@@ -327,7 +328,7 @@ get_block:
 	}
 	pd = network_piece_dl_create(peer, idx, off, len);
 
-	trace("choosing next dl (tpp->len %u) len %u idx %u off %u", tpp->len, len, idx, off);
+	trace("choosing next dl (tpp->len %u) len %u (tpp->idx %u) idx %u off %u", tpp->len, len, tpp->index, idx, off);
 	return (pd);
 }
 
