@@ -1,6 +1,6 @@
 # scons (http://www.scons.org) build for non-OpenBSD systems
 # on OpenBSD, just type 'make'.
-# $Id: SConstruct,v 1.14 2007-12-10 03:58:06 niallo Exp $
+# $Id: SConstruct,v 1.15 2007-12-10 04:01:03 niallo Exp $
 
 import sys
 
@@ -38,16 +38,16 @@ elif sys.platform.startswith('darwin'):
 env = Environment(LIBPATH=LIBPATH, CPPPATH=CPPPATH)
 conf = Configure(env)
 
-if not conf.CheckType('u_int8_t'):
+if not conf.CheckType('u_int8_t', '#include <sys/types.h>\n'):
 	CCFLAGS.append('-Du_int8_t=unsigned char')
 
-if not conf.CheckType('u_int32_t'):
+if not conf.CheckType('u_int32_t', '#include <sys/types.h>\n'):
 	CCFLAGS.append('-Du_int32_t=unsigned int')
 
-if not conf.CheckType('u_int64_t'):
+if not conf.CheckType('u_int64_t', '#include <sys/types.h>\n'):
 	CCFLAGS.append('-Du_int64_t=unsigned long long')
 
-if not conf.CheckType('int64_t'):
+if not conf.CheckType('int64_t', '#include <sys/types.h>\n'):
 	CCFLAGS.append('-Dint64_t=long long')
 
 if not conf.CheckCHeader('openssl/bn.h'):
