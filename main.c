@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.53 2007-12-04 07:09:11 niallo Exp $ */
+/* $Id: main.c,v 1.54 2007-12-10 03:58:06 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -48,7 +48,7 @@ extern int  optind;
 void
 usage(void)
 {
-	fprintf(stderr, "usage: unworkable [-s] [-p port] [-t tracefile] torrent\n");
+	fprintf(stderr, "usage: unworkable [-s] [-g port] [-p port] [-t tracefile] torrent\n");
 	exit(1);
 }
 
@@ -77,10 +77,13 @@ main(int argc, char **argv)
 	__progname = argv[0];
 	#endif
 
-	while ((ch = getopt(argc, argv, "st:p:")) != -1) {
+	while ((ch = getopt(argc, argv, "sg:t:p:")) != -1) {
 		switch (ch) {
 		case 't':
 			unworkable_trace = xstrdup(optarg);
+			break;
+		case 'g':
+			gui_port = xstrdup(optarg);
 			break;
 		case 'p':
 			user_port = xstrdup(optarg);

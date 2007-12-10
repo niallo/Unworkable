@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: BSDmakefile,v 1.3 2007-12-05 23:40:45 niallo Exp $
+# $Id: BSDmakefile,v 1.4 2007-12-10 03:58:06 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
@@ -32,7 +32,7 @@ CFLAGS+= -Wsign-compare -g -ggdb
 
 PROG= unworkable
 
-SRCS= announce.c bencode.c buf.c main.c network.c parse.y progressmeter.c scheduler.c torrent.c trace.c util.c xmalloc.c
+SRCS= announce.c bencode.c buf.c ctl_server.c main.c network.c parse.y progressmeter.c scheduler.c torrent.c trace.c util.c xmalloc.c
 OBJS= ${SRCS:N*.h:N*.sh:R:S/$/.o/g}
 MAN= unworkable.1
 

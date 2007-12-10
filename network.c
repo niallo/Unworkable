@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.193 2007-12-09 02:39:00 niallo Exp $ */
+/* $Id: network.c,v 1.194 2007-12-10 03:58:06 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -684,6 +684,8 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 						/* send HAVE messages to all peers */
 						TAILQ_FOREACH(tp, &p->sc->peers, peer_list)
 							network_peer_write_have(tp, idx);
+						/* notify control server */
+						ctl_server_notify_pieces(p->sc);
 						/* clean up all the piece dls for this now that its done */
 						for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
 							if ((pd = network_piece_dl_find(p->sc, NULL, idx, off)) != NULL) {
@@ -822,6 +824,7 @@ network_peer_read_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t l
 	/* XXX not really accurate measure of progress since the data could be bad */
 	p->sc->tp->downloaded += len;
 	p->totalrx += len;
+	ctl_server_notify_bytes(p->sc, p->sc->tp->downloaded);
 }
 
 /* network_peer_request_block()
@@ -1207,6 +1210,8 @@ network_start_torrent(struct torrent *tp, rlim_t maxfds)
 	/* an ugly way to find out how much data we started with. */
 	started = tp->downloaded;
 	tp->downloaded = 0;
+	if (gui_port != NULL)
+		ctl_server_start(sc, gui_port, started);
 
 	if (tp->type == SINGLEFILE) {
 		len = tp->body.singlefile.tfp.file_length;
@@ -1237,6 +1242,7 @@ network_peerlist_update(struct session *sc, struct benc_node *peers)
 	} else {
 		network_peerlist_update_dict(sc, peers);
 	}
+	ctl_server_notify_peers(sc);
 }
 
 /*

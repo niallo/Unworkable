@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.35 2007-12-09 02:39:00 niallo Exp $ */
+/* $Id: includes.h,v 1.36 2007-12-10 03:58:06 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -113,6 +113,8 @@
 
 #define PIECE_GIMME_NOCREATE		(1<<0)
 
+#define CTL_MESSAGE_LEN			64
+
 struct benc_node {
 	/*
 	 *  Having this HEAD in every node is slightly wasteful of memory,
@@ -209,6 +211,25 @@ struct torrent {
 	u_int32_t				complete;
 	u_int32_t				incomplete;
 };
+
+/* Control server */
+struct ctl_server {
+	struct session *sc;
+	struct bufferevent *bev;
+	off_t started;
+	int fd;
+	TAILQ_HEAD(ctl_server_conns, ctl_server_conn) conns;
+};
+
+/* Connections to control server */
+struct ctl_server_conn {
+	struct bufferevent *bev;
+	struct sockaddr_in sa;
+	struct ctl_server *cs;
+	int fd;
+	TAILQ_ENTRY(ctl_server_conn) conn_list;
+};
+
 /* data for a http response */
 struct http_response {
 	/* response buffer */
@@ -306,6 +327,7 @@ struct session {
 	time_t last_announce;
 	struct piececounter *rarity_array;
 	time_t last_rarity;
+	struct ctl_server *ctl_server;
 };
 
 void			 benc_node_add(struct benc_node *, struct benc_node *);
@@ -407,6 +429,7 @@ void	print_len(void *, size_t);
 
 extern char *unworkable_trace;
 extern char *user_port;
+extern char *gui_port;
 extern int seed;
 
 
@@ -495,3 +518,8 @@ RB_PROTOTYPE(piece_dl_by_idxoff, piece_dl_idxnode, entry, piece_dl_idxnode_cmp)
 
 void	scheduler(int, short, void *);
 struct piece_dl * scheduler_piece_gimme(struct peer *, int, int *);
+
+void ctl_server_start(struct session *, char *, off_t);
+void ctl_server_notify_bytes(struct session *, off_t);
+void ctl_server_notify_pieces(struct session *);
+void ctl_server_notify_peers(struct session *);
