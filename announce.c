@@ -1,4 +1,4 @@
-/* $Id: announce.c,v 1.2 2007-12-09 02:39:00 niallo Exp $ */
+/* $Id: announce.c,v 1.3 2007-12-11 07:17:59 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -40,6 +40,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <time.h>
 #include <unistd.h>
 #include <sha1.h>
@@ -125,9 +126,9 @@ announce(struct session *sc, const char *event)
 	    "?info_hash=%s"
 	    "&peer_id=%s"
 	    "&port=%s"
-	    "&uploaded=%llu"
-	    "&downloaded=%llu"
-	    "&left=%llu"
+	    "&uploaded=%jd"
+	    "&downloaded=%jd"
+	    "&left=%jd"
 	    "&compact=1",
 	    tbuf,
 	    pbuf,
