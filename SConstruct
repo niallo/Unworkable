@@ -1,6 +1,6 @@
 # scons (http://www.scons.org) build for non-OpenBSD systems
 # on OpenBSD, just type 'make'.
-# $Id: SConstruct,v 1.15 2007-12-10 04:01:03 niallo Exp $
+# $Id: SConstruct,v 1.16 2007-12-12 05:28:09 niallo Exp $
 
 import sys
 
@@ -87,7 +87,7 @@ if not conf.CheckFunc('SHA1Update'):
 	print "No system SHA1Update found.  Using bundled version"
 	SRCS.append('openbsd-compat/sha1.c')
 
-if not conf.CheckFunc('getaddrinfo'):
+if not conf.CheckFunc('getaddrinfo') and not sys.platform.startswith('sunos'):
 	print "No system getaddrinfo() found.  Using bundled version"
 	SRCS.append('openbsd-compat/getaddrinfo.c')
 	CCFLAGS.append('-DNO_GETADDRINFO')
