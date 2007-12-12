@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.99 2007-12-09 00:05:01 niallo Exp $ */
+/* $Id: torrent.c,v 1.100 2007-12-12 05:38:04 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -34,6 +34,7 @@
 #include <libgen.h>
 #include <limits.h>
 #include <sha1.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -267,7 +268,7 @@ torrent_print(struct torrent *torrent)
 	else
 		printf("%s\n", torrent->created_by);
 	printf("creation date:\t");
-	if (torrent->creation_date == NULL)
+	if (torrent->creation_date == 0)
 		printf("NONE\n");
 	else
 		printf("%s", ctime(&torrent->creation_date));
@@ -285,7 +286,7 @@ torrent_print(struct torrent *torrent)
 	if (torrent->type == SINGLEFILE) {
 		tfile = &torrent->body.singlefile.tfp;
 		printf("single file\n");
-		printf("length:\t\t%lld bytes\n", tfile->file_length);
+		printf("length:\t\t%jd bytes\n", (intmax_t)tfile->file_length);
 		printf("file name:\t%s\n", tfile->path);
 		printf("piece length:\t%u bytes\n",
 		    torrent->piece_length);
@@ -303,7 +304,7 @@ torrent_print(struct torrent *torrent)
 		printf("--files--\n");
 		TAILQ_FOREACH(tfile, &torrent->body.multifile.files, files) {
 			printf("file name:\t%s\n", tfile->path);
-			printf("length:\t\t%lld bytes\n", tfile->file_length);
+			printf("length:\t\t%jd bytes\n", (intmax_t)tfile->file_length);
 			printf("md5sum:\t\t");
 			if (tfile->md5sum == NULL)
 				printf("NONE\n");
