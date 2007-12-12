@@ -1,4 +1,4 @@
-/* $Id: ctl_server.c,v 1.3 2007-12-11 07:16:35 niallo Exp $ */
+/* $Id: ctl_server.c,v 1.4 2007-12-12 05:36:49 niallo Exp $ */
 /*
  * Copyright (c) 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -89,7 +89,7 @@ ctl_server_notify_bytes(struct session *sc, off_t bytes)
 	msg = xmalloc(CTL_MESSAGE_LEN);
 	memset(msg, '\0', CTL_MESSAGE_LEN);
 
-	l = snprintf(msg, CTL_MESSAGE_LEN, "bytes:%jd\r\n", bytes);
+	l = snprintf(msg, CTL_MESSAGE_LEN, "bytes:%jd\r\n", (intmax_t)bytes);
 	if (l == -1 || l >= (int)CTL_MESSAGE_LEN)
 		errx(1, "ctl_server_notify_bytes() string truncation");
 	ctl_server_broadcast_message(sc->ctl_server, msg);
@@ -224,7 +224,7 @@ ctl_server_conn_bootstrap(struct ctl_server_conn *csc)
 	msg = xmalloc(BOOTSTRAP_LEN);
 	memset(msg, '\0', BOOTSTRAP_LEN);
 	l = snprintf(msg, BOOTSTRAP_LEN, "num_peers:%u\r\nnum_pieces:%u\r\ntorrent_size:%jd\r\ntorrent_bytes:%jd\r\n",
-	     csc->cs->sc->num_peers, csc->cs->sc->tp->num_pieces, len, csc->cs->started);
+	     csc->cs->sc->num_peers, csc->cs->sc->tp->num_pieces, (intmax_t)len, (intmax_t)csc->cs->started);
 	if (l == -1 || l >= (int)BOOTSTRAP_LEN)
 		errx(1, "ctl_server_conn_bootstrap() string truncation");
 	ctl_server_write_message(csc, msg);

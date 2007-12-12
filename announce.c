@@ -1,4 +1,4 @@
-/* $Id: announce.c,v 1.3 2007-12-11 07:17:59 niallo Exp $ */
+/* $Id: announce.c,v 1.4 2007-12-12 05:36:49 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -133,9 +133,9 @@ announce(struct session *sc, const char *event)
 	    tbuf,
 	    pbuf,
 	    sc->port,
-	    sc->tp->uploaded,
-	    sc->tp->downloaded,
-	    sc->tp->left);
+	    (intmax_t)sc->tp->uploaded,
+	    (intmax_t)sc->tp->downloaded,
+	    (intmax_t)sc->tp->left);
 	if (l == -1 || l >= GETSTRINGLEN)
 		goto trunc;
 	/* these parts are optional */
