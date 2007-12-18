@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.36 2007-12-10 03:58:06 niallo Exp $ */
+/* $Id: includes.h,v 1.37 2007-12-18 06:10:35 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -479,33 +479,24 @@ char *__progname;
 #endif
 
 int	announce(struct session *, const char *);
-int	network_connect_tracker(const char *, const char *);
 int	network_listen(char *, char *);
-void	network_handle_peer_connect(struct bufferevent *, short, void *);
-void	network_peerlist_connect(struct session *);
 void	network_peerlist_update(struct session *, struct benc_node *);
 struct piece_dl *network_piece_dl_find(struct session *, struct peer *, u_int32_t, u_int32_t);
-int	network_connect(int, int, int, const struct sockaddr *, socklen_t);
-int	network_connect_peer(struct peer *);
-void	network_peerlist_update_dict(struct session *, struct benc_node *);
-void	network_peerlist_update_string(struct session *, struct benc_node *);
-void	network_peer_handshake(struct session *, struct peer *);
+int	network_connect_tracker(const char *, const char *);
 void	network_peer_write_piece(struct peer *, u_int32_t, off_t, u_int32_t);
 void	network_peer_read_piece(struct peer *, u_int32_t, off_t, u_int32_t, void *);
 void	network_peer_write_bitfield(struct peer *);
 void	network_peer_write_interested(struct peer *);
 void	network_peer_free(struct peer *);
 struct peer * network_peer_create(void);
-void	network_handle_peer_response(struct bufferevent *, void *);
 void	network_handle_peer_write(struct bufferevent *, void *);
 void	network_handle_peer_error(struct bufferevent *, short, void *);
-char	*network_peer_id_create(void);
+void	network_handle_peer_connect(struct bufferevent *, short, void *);
 void	network_peer_request_block(struct peer *, u_int32_t, u_int32_t, u_int32_t);
 void	network_peer_write_choke(struct peer *);
 void	network_peer_write_unchoke(struct peer *);
 void	network_peer_cancel_piece(struct piece_dl *);
 void	network_peer_write_have(struct peer *, u_int32_t);
-void	network_peer_process_message(u_int8_t, struct peer *);
 DH	*network_crypto_dh(void);
 long	network_peer_lastcomms(struct peer *);
 u_int64_t network_peer_rate(struct peer *);

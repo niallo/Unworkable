@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.194 2007-12-10 03:58:06 niallo Exp $ */
+/* $Id: network.c,v 1.195 2007-12-18 06:10:35 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -44,6 +44,16 @@ char *user_port = NULL;
 int   seed = 0;
 
 static void network_peer_write(struct peer *, u_int8_t *, u_int32_t);
+static void network_peerlist_connect(struct session *);
+static void network_peerlist_update_dict(struct session *, struct benc_node *);
+static void network_peerlist_update_string(struct session *, struct benc_node *);
+static char *network_peer_id_create(void);
+static int network_connect(int, int, int, const struct sockaddr *, socklen_t);
+static int network_connect_peer(struct peer *);
+static void network_handle_peer_response(struct bufferevent *, void *);
+static void network_peer_process_message(u_int8_t, struct peer *);
+static void network_peer_handshake(struct session *, struct peer *);
+
 /* index of piece dls by block index and offset */
 RB_PROTOTYPE(piece_dl_by_idxoff, piece_dl_idxnode, entry, piece_dl_idxnode_cmp)
 RB_GENERATE(piece_dl_by_idxoff, piece_dl_idxnode, entry, piece_dl_idxnode_cmp)
@@ -60,6 +70,26 @@ piece_dl_idxnode_cmp(struct piece_dl_idxnode *p1, struct piece_dl_idxnode *p2)
 	} else {
 		return (idxdiff);
 	}
+}
+
+/*
+ * network_peer_id_create()
+ *
+ * Generate a random peer id string for us to use
+ */
+static char *
+network_peer_id_create()
+{
+	long r;
+	char *id;
+
+	r = random();
+	id = xmalloc(PEER_ID_LEN+1);
+	memset(id, 1, PEER_ID_LEN+1);
+	/* we don't care about truncation  here */
+	(void) snprintf(id, PEER_ID_LEN+1, "-UL-0001-0%-ld", r);
+
+	return (id);
 }
 
 /*
@@ -80,7 +110,7 @@ network_peer_write(struct peer *p, u_int8_t *msg, u_int32_t len)
  *
  * Generic TCP/IP socket connection routine, used by other functions.
  */
-int
+static int
 network_connect(int domain, int type, int protocol, const struct sockaddr *name, socklen_t namelen)
 {
 	int sockfd;
@@ -113,7 +143,7 @@ network_connect(int domain, int type, int protocol, const struct sockaddr *name,
  *
  * Connects socket to a peer.
  */
-int
+static int
 network_connect_peer(struct peer *p)
 {
 	p->state |= PEER_STATE_HANDSHAKE1;
@@ -122,12 +152,60 @@ network_connect_peer(struct peer *p)
 }
 
 /*
+ * network_peerlist_connect()
+ *
+ * Connect any new peers in our peer list.
+ */
+static void
+network_peerlist_connect(struct session *sc)
+{
+	struct peer *ep, *nxt;
+
+	for (ep = TAILQ_FIRST(&sc->peers); ep != TAILQ_END(&sc->peers) ; ep = nxt) {
+		nxt = TAILQ_NEXT(ep, peer_list);
+		/* stay within our limits */
+		if (sc->num_peers >= sc->maxfds - 5) {
+				network_peer_free(ep);
+				sc->num_peers--;
+				TAILQ_REMOVE(&sc->peers, ep, peer_list);
+				continue;
+		}
+		trace("network_peerlist_update() we have a peer: %s:%d", inet_ntoa(ep->sa.sin_addr),
+		    ntohs(ep->sa.sin_port));
+		if (ep->connfd != 0) {
+			/* XXX */
+		} else {
+			trace("network_peerlist_update() connecting to peer: %s:%d",
+			    inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
+			/* XXX does this failure case do anything worthwhile? */
+			if ((ep->connfd = network_connect_peer(ep)) == -1) {
+				trace("network_peerlist_update() failure connecting to peer: %s:%d - removing",
+				    inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
+				TAILQ_REMOVE(&sc->peers, ep, peer_list);
+				network_peer_free(ep);
+				sc->num_peers--;
+				continue;
+			}
+			trace("network_peerlist_update() connected fd %d to peer: %s:%d",
+			    ep->connfd, inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
+			ep->bufev = bufferevent_new(ep->connfd, network_handle_peer_response,
+			    network_handle_peer_write, network_handle_peer_error, ep);
+			if (ep->bufev == NULL)
+				errx(1, "network_peerlist_update: bufferevent_new failure");
+			bufferevent_enable(ep->bufev, EV_READ|EV_WRITE);
+			trace("network_peerlist_update() initiating handshake");
+			network_peer_handshake(sc, ep);
+		}
+	}
+}
+
+/*
  * network_peerlist_update_string()
  *
  * Handle string format peerlist parsing.
  */
 
-void
+static void
 network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 {
 	char *peerlist;
@@ -178,7 +256,7 @@ network_peerlist_update_string(struct session *sc, struct benc_node *peers)
  *
  * Handle dictionary format peerlist parsing.
  */
-void
+static void
 network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
 {
 
@@ -253,69 +331,11 @@ network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
 
 
 /*
- * network_peer_create()
- *
- * Creates a fresh peer object, initialising state and
- * data structures.
- */
-struct peer *
-network_peer_create(void)
-{
-	struct peer *p;
-	p = xmalloc(sizeof(*p));
-	memset(p, 0, sizeof(*p));
-	TAILQ_INIT(&p->peer_piece_dls);
-	/* peers start in choked state */
-	p->state |= PEER_STATE_CHOKED;
-	p->state |= PEER_STATE_AMCHOKING;
-
-	return (p);
-}
-
-/*
- * network_peer_free()
- *
- * Single function to free a peer correctly.  Includes walking
- * its piece dl list and marking any entries as 'orphaned'.
- */
-
-void
-network_peer_free(struct peer *p)
-{
-	struct piece_dl *pd, *nxtpd;
-	/* search the piece dl list for any dls associated with this peer */
-	for (pd = TAILQ_FIRST(&p->peer_piece_dls); pd; pd = nxtpd) {
-		nxtpd = TAILQ_NEXT(pd, peer_piece_dl_list);
-		pd->pc = NULL;
-		TAILQ_REMOVE(&p->peer_piece_dls, pd, peer_piece_dl_list);
-		/* unless this is completed, remove it from the btree */
-		if (pd->len != pd->bytes)
-			network_piece_dl_free(p->sc, pd);
-	}
-	if (p->bufev != NULL && p->bufev->enabled & EV_WRITE) {
-		bufferevent_disable(p->bufev, EV_WRITE|EV_READ);
-		bufferevent_free(p->bufev);
-		p->bufev = NULL;
-	}
-	if (p->rxmsg != NULL)
-		xfree(p->rxmsg);
-	if (p->bitfield != NULL)
-		xfree(p->bitfield);
-	if (p->connfd != 0) {
-		(void)  close(p->connfd);
-		p->connfd = 0;
-	}
-
-	xfree(p);
-	p = NULL;
-}
-
-/*
  * network_peer_handshake()
  *
  * Build and write a handshake message to remote peer.
  */
-void
+static void
 network_peer_handshake(struct session *sc, struct peer *p)
 {
 	u_int8_t *msg;
@@ -346,47 +366,6 @@ network_peer_handshake(struct session *sc, struct peer *p)
 	network_peer_write(p, msg, HANDSHAKELEN);
 }
 
-
-/*
- * network_handle_peer_error()
- *
- * Handle errors on peer sockets.  Typically we mark things as dead
- * and let the scheduler handle cleanup.
- */
-void
-network_handle_peer_error(struct bufferevent *bufev, short error, void *data)
-{
-	struct peer *p;
-
-	p = data;
-	if (error & EVBUFFER_TIMEOUT) {
-		trace("network_handle_peer_error() TIMEOUT for peer %s:%d",
-		    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-	}
-	if (error & EVBUFFER_EOF) {
-		p->state = 0;
-		p->state |= PEER_STATE_DEAD;
-		trace("network_handle_peer_error() EOF for peer %s:%d",
-		    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-	} else {
-		trace("network_handle_peer_error() error for peer %s:%d",
-		    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-		p->state = 0;
-		p->state |= PEER_STATE_DEAD;
-	}
-}
-
-/*
- * network_handle_peer_write()
- *
- * Handle write events.  Mostly involves cleanup.
- */
-void
-network_handle_peer_write(struct bufferevent *bufev, void *data)
-{
-	/* do nothing */
-}
-
 /*
  * network_handle_peer_response()
  *
@@ -394,7 +373,7 @@ network_handle_peer_write(struct bufferevent *bufev, void *data)
  * encryption requests and so on.  Also handle ensuring the message is
  * complete before passing it to the message processor.
  */
-void
+static void
 network_handle_peer_response(struct bufferevent *bufev, void *data)
 {
 	struct peer *p = data;
@@ -520,7 +499,7 @@ out:
  * Now that we actually have the full message in our
  * buffers, process it.
  */
-void
+static void
 network_peer_process_message(u_int8_t id, struct peer *p)
 {
 	struct torrent_piece *tpp;
@@ -726,6 +705,46 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			break;
 	}
+}
+
+/*
+ * network_handle_peer_error()
+ *
+ * Handle errors on peer sockets.  Typically we mark things as dead
+ * and let the scheduler handle cleanup.
+ */
+void
+network_handle_peer_error(struct bufferevent *bufev, short error, void *data)
+{
+	struct peer *p;
+
+	p = data;
+	if (error & EVBUFFER_TIMEOUT) {
+		trace("network_handle_peer_error() TIMEOUT for peer %s:%d",
+		    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+	}
+	if (error & EVBUFFER_EOF) {
+		p->state = 0;
+		p->state |= PEER_STATE_DEAD;
+		trace("network_handle_peer_error() EOF for peer %s:%d",
+		    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+	} else {
+		trace("network_handle_peer_error() error for peer %s:%d",
+		    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+		p->state = 0;
+		p->state |= PEER_STATE_DEAD;
+	}
+}
+
+/*
+ * network_handle_peer_write()
+ *
+ * Handle write events.  Mostly involves cleanup.
+ */
+void
+network_handle_peer_write(struct bufferevent *bufev, void *data)
+{
+	/* do nothing */
 }
 
 /*
@@ -1104,26 +1123,6 @@ network_piece_dl_free(struct session *sc, struct piece_dl *pd)
 	pd = NULL;
 }
 
-/*
- * network_peer_id_create()
- *
- * Generate a random peer id string for us to use
- */
-char *
-network_peer_id_create()
-{
-	long r;
-	char *id;
-
-	r = random();
-	id = xmalloc(PEER_ID_LEN+1);
-	memset(id, 1, PEER_ID_LEN+1);
-	/* we don't care about truncation  here */
-	(void) snprintf(id, PEER_ID_LEN+1, "-UL-0001-0%-ld", r);
-
-	return (id);
-}
-
 /* public functions */
 
 /*
@@ -1324,53 +1323,6 @@ network_connect_tracker(const char *host, const char *port)
 }
 
 /*
- * network_peerlist_connect()
- *
- * Connect any new peers in our peer list.
- */
-void
-network_peerlist_connect(struct session *sc)
-{
-	struct peer *ep, *nxt;
-
-	for (ep = TAILQ_FIRST(&sc->peers); ep != TAILQ_END(&sc->peers) ; ep = nxt) {
-		nxt = TAILQ_NEXT(ep, peer_list);
-		/* stay within our limits */
-		if (sc->num_peers >= sc->maxfds - 5) {
-				network_peer_free(ep);
-				sc->num_peers--;
-				TAILQ_REMOVE(&sc->peers, ep, peer_list);
-				continue;
-		}
-		trace("network_peerlist_update() we have a peer: %s:%d", inet_ntoa(ep->sa.sin_addr),
-		    ntohs(ep->sa.sin_port));
-		if (ep->connfd != 0) {
-			/* XXX */
-		} else {
-			trace("network_peerlist_update() connecting to peer: %s:%d",
-			    inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
-			/* XXX does this failure case do anything worthwhile? */
-			if ((ep->connfd = network_connect_peer(ep)) == -1) {
-				trace("network_peerlist_update() failure connecting to peer: %s:%d - removing",
-				    inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
-				TAILQ_REMOVE(&sc->peers, ep, peer_list);
-				network_peer_free(ep);
-				sc->num_peers--;
-				continue;
-			}
-			trace("network_peerlist_update() connected fd %d to peer: %s:%d",
-			    ep->connfd, inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
-			ep->bufev = bufferevent_new(ep->connfd, network_handle_peer_response,
-			    network_handle_peer_write, network_handle_peer_error, ep);
-			if (ep->bufev == NULL)
-				errx(1, "network_peerlist_update: bufferevent_new failure");
-			bufferevent_enable(ep->bufev, EV_READ|EV_WRITE);
-			trace("network_peerlist_update() initiating handshake");
-			network_peer_handshake(sc, ep);
-		}
-	}
-}
-/*
  * network_piece_dl_find()
  *
  * Search our binary tree for the correct index and offset of the piece dl,
@@ -1403,5 +1355,62 @@ network_piece_dl_find(struct session *sc, struct peer *p, u_int32_t idx, u_int32
 	 * later, uniqueness of piece_dl by their index and offset will not be
 	 * assumed and we will have to mroe properly handle this */
 	return (TAILQ_FIRST(&res->idxnode_piece_dls));
+}
+
+/*
+ * network_peer_create()
+ *
+ * Creates a fresh peer object, initialising state and
+ * data structures.
+ */
+struct peer *
+network_peer_create(void)
+{
+	struct peer *p;
+	p = xmalloc(sizeof(*p));
+	memset(p, 0, sizeof(*p));
+	TAILQ_INIT(&p->peer_piece_dls);
+	/* peers start in choked state */
+	p->state |= PEER_STATE_CHOKED;
+	p->state |= PEER_STATE_AMCHOKING;
+
+	return (p);
+}
+
+/*
+ * network_peer_free()
+ *
+ * Single function to free a peer correctly.  Includes walking
+ * its piece dl list and marking any entries as 'orphaned'.
+ */
+void
+network_peer_free(struct peer *p)
+{
+	struct piece_dl *pd, *nxtpd;
+	/* search the piece dl list for any dls associated with this peer */
+	for (pd = TAILQ_FIRST(&p->peer_piece_dls); pd; pd = nxtpd) {
+		nxtpd = TAILQ_NEXT(pd, peer_piece_dl_list);
+		pd->pc = NULL;
+		TAILQ_REMOVE(&p->peer_piece_dls, pd, peer_piece_dl_list);
+		/* unless this is completed, remove it from the btree */
+		if (pd->len != pd->bytes)
+			network_piece_dl_free(p->sc, pd);
+	}
+	if (p->bufev != NULL && p->bufev->enabled & EV_WRITE) {
+		bufferevent_disable(p->bufev, EV_WRITE|EV_READ);
+		bufferevent_free(p->bufev);
+		p->bufev = NULL;
+	}
+	if (p->rxmsg != NULL)
+		xfree(p->rxmsg);
+	if (p->bitfield != NULL)
+		xfree(p->bitfield);
+	if (p->connfd != 0) {
+		(void)  close(p->connfd);
+		p->connfd = 0;
+	}
+
+	xfree(p);
+	p = NULL;
 }
 
