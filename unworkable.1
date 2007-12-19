@@ -1,4 +1,4 @@
-.\"	$Id: unworkable.1,v 1.3 2007-12-03 18:01:47 niallo Exp $
+.\"	$Id: unworkable.1,v 1.4 2007-12-19 19:46:24 niallo Exp $
 .\"
 .\" Copyright (c) 2007 Niall O'Higgins <niallo@unworkable.org>
 .\" All rights reserved.
@@ -14,7 +14,7 @@
 .\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-.Dd $Mdocdate: November 15 2007 $
+.Dd $Mdocdate: December 3 2007 $
 .Dt UNWORKABLE 1
 .Os
 .Sh NAME
@@ -24,6 +24,7 @@
 .Nm
 .Bk -words
 .Op Fl s
+.Op Fl g Ar port
 .Op Fl p Ar port
 .Op Fl t Ar tracefile
 .Ar torrent
@@ -40,6 +41,8 @@ to announce to the tracker, connect to peers and download the data.
 Upon completion of the download, the program will exit, unless seed-mode
 is enabled.
 .Bl -tag -width Ds
+.It Fl g Ar port
+Specify a port for the GUI control server to listen on.
 .It Fl p Ar port
 Specify a port to listen on.
 .It Fl s
