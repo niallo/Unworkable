@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.195 2007-12-18 06:10:35 niallo Exp $ */
+/* $Id: network.c,v 1.196 2007-12-23 23:38:10 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -679,8 +679,6 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 							}
 						}
 					}
-				} else {
-					trace("we don't think we have all the blocks of idx %u", idx);
 				}
 			} else {
 				/* this code is wrong */
