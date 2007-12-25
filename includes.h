@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.38 2007-12-22 11:52:12 niallo Exp $ */
+/* $Id: includes.h,v 1.39 2007-12-25 15:12:20 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -353,8 +353,6 @@ void		*buf_release(BUF *);
 int		 buf_getc(BUF *);
 void		 buf_empty(BUF *);
 ssize_t		 buf_set(BUF *, const void *, size_t, size_t);
-ssize_t		 buf_append(BUF *, const void *, size_t);
-void		 buf_putc(BUF *, int);
 size_t		 buf_len(BUF *);
 int		 buf_write_fd(BUF *, int);
 int		 buf_write(BUF *, const char *, mode_t);

@@ -1,4 +1,4 @@
-/* $Id: buf.c,v 1.8 2007-12-03 21:07:31 niallo Exp $ */
+/* $Id: buf.c,v 1.9 2007-12-25 15:12:20 niallo Exp $ */
 /*
  * Copyright (c) 2003 Jean-Francois Brousseau <jfb@openbsd.org>
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
@@ -206,31 +206,6 @@ buf_set(BUF *b, const void *src, size_t len, size_t off)
 }
 
 /*
- * buf_putc()
- *
- * Append a single character <c> to the end of the buffer <b>.
- */
-void
-buf_putc(BUF *b, int c)
-{
-	u_char *bp;
-
-	bp = b->cb_cur + b->cb_len;
-	if (bp == (b->cb_buf + b->cb_size)) {
-		/* extend */
-		if (b->cb_flags & BUF_AUTOEXT)
-			buf_grow(b, (size_t)BUF_INCR);
-		else
-			errx(1, "buf_putc failed");
-
-		/* the buffer might have been moved */
-		bp = b->cb_cur + b->cb_len;
-	}
-	*bp = (u_char)c;
-	b->cb_len++;
-}
-
-/*
  * buf_getc()
  *
  * Return u_char at buffer position <pos>.
@@ -254,40 +229,6 @@ buf_ungetc(BUF *b)
 {
 	if (b->cb_len > 0)
 		b->cb_pos--;
-}
-
-/*
- * buf_append()
- *
- * Append <len> bytes of data pointed to by <data> to the buffer <b>.  If the
- * buffer is too small to accept all data, it will attempt to append as much
- * data as possible, or if the BUF_AUTOEXT flag is set for the buffer, it
- * will get resized to an appropriate size to accept all data.
- * Returns the number of bytes successfully appended to the buffer.
- */
-ssize_t
-buf_append(BUF *b, const void *data, size_t len)
-{
-	size_t left, rlen;
-	u_char *bp, *bep;
-
-	bp = b->cb_cur + b->cb_len;
-	bep = b->cb_buf + b->cb_size;
-	left = bep - bp;
-	rlen = len;
-
-	if (left < len) {
-		if (b->cb_flags & BUF_AUTOEXT) {
-			buf_grow(b, len - left);
-			bp = b->cb_cur + b->cb_len;
-		} else
-			rlen = bep - bp;
-	}
-
-	memcpy(bp, data, rlen);
-	b->cb_len += rlen;
-
-	return (rlen);
 }
 
 /*
