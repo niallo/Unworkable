@@ -1,4 +1,4 @@
-/* $Id: announce.c,v 1.5 2007-12-25 10:09:38 niallo Exp $ */
+/* $Id: announce.c,v 1.6 2007-12-25 14:52:12 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -255,7 +255,8 @@ handle_announce_error(struct bufferevent *bufev, short error, void *data)
 	struct timeval tv;
 	BUF *buf = NULL;
 	u_int32_t l;
-	u_int8_t *c;
+	size_t len;
+	u_int8_t *c, *dump;
 
 	trace("handle_announce_error() called");
 	/* shouldn't have to worry about this case */
@@ -298,13 +299,25 @@ handle_announce_error(struct bufferevent *bufev, short error, void *data)
 
 	if ((buf = buf_alloc(128, BUF_AUTOEXT)) == NULL)
 		errx(1,"handle_announce_error: could not allocate buffer");
-	buf_set(buf, c, sc->res->rxread - (c - sc->res->rxmsg), 0);
+	len = sc->res->rxread - (c - sc->res->rxmsg);
+	buf_set(buf, c, len, 0);
+	dump = xmalloc(len + 1);
+	memcpy(dump, c, len);
+	dump[len] = '\0';
+	trace("announce response: %s", dump);
+	xfree(dump);
 
 	trace("handle_announce_error() bencode parsing buffer");
 	troot = benc_root_create();
 	if ((troot = benc_parse_buf(buf, troot)) == NULL)
 		errx(1,"handle_announce_error: HTTP response parsing failed (no peers?)");
 
+	/* check for a b-encoded failure response */
+	if ((node = benc_node_find(troot, "failure reason")) != NULL) {
+		if (!(node->flags & BSTRING))
+			errx(1, "unspecified tracker failure");
+		errx(1, "tracker failure: %s", node->body.string.value);
+	}
 	if ((node = benc_node_find(troot, "interval")) == NULL) {
 		tp->interval = DEFAULT_ANNOUNCE_INTERVAL;
 	} else {
