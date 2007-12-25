@@ -1,4 +1,4 @@
-/* $Id: announce.c,v 1.4 2007-12-12 05:36:49 niallo Exp $ */
+/* $Id: announce.c,v 1.5 2007-12-25 10:09:38 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -187,7 +187,7 @@ announce(struct session *sc, const char *event)
 	trace("announce() request: %s", request);
 	/* non blocking connect ? */
 	if ((sc->connfd = network_connect_tracker(host, port)) == -1)
-		exit(1);
+		err(1, "tracker announce");
 
 	sc->request = request;
 	sc->res = xmalloc(sizeof *sc->res);
