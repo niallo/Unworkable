@@ -1,4 +1,4 @@
-/* $Id: buf.c,v 1.9 2007-12-25 15:12:20 niallo Exp $ */
+/* $Id: buf.c,v 1.10 2007-12-25 15:13:41 niallo Exp $ */
 /*
  * Copyright (c) 2003 Jean-Francois Brousseau <jfb@openbsd.org>
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
@@ -156,19 +156,6 @@ buf_release(BUF *b)
 	tmp = b->cb_buf;
 	xfree(b);
 	return (tmp);
-}
-
-/*
- * buf_empty()
- *
- * Empty the contents of the buffer <b> and reset pointers.
- */
-void
-buf_empty(BUF *b)
-{
-	memset(b->cb_buf, 0, b->cb_size);
-	b->cb_cur = b->cb_buf;
-	b->cb_len = 0;
 }
 
 /*
