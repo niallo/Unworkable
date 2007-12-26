@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.4 2007-12-09 04:48:50 niallo Exp $ */
+/* $Id: scheduler.c,v 1.5 2007-12-26 17:17:11 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -29,6 +29,36 @@
 
 static int	scheduler_piece_assigned(struct session *, struct torrent_piece *);
 static u_int32_t scheduler_piece_find_rarest(struct peer *, int, int *);
+static int	scheduler_is_endgame(struct session *);
+
+/*
+ * scheduler_is_endgame()
+ *
+ * Are we in the end game?
+ * Returns 1 if true, zero if false.
+ */
+static int
+scheduler_is_endgame(struct session *sc)
+{
+	struct torrent_piece *tpp;
+	u_int32_t i;
+	int not_queued = 0;
+
+	for (i = 0; i < sc->tp->num_pieces; i++) {
+		if ((tpp = torrent_piece_find(sc->tp, i)) == NULL)
+			errx(1, "scheduler_is_endgame(): torrent_piece_find");
+		if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
+			/* are all the blocks in the queue? */
+			if (!scheduler_piece_assigned(sc, tpp)) {
+				not_queued = 1;
+				break;
+			}
+		}
+	}
+
+	return (!not_queued);
+}
+
 /*
  * scheduler_piece_assigned()
  *
@@ -479,8 +509,8 @@ scheduler(int fd, short type, void *arg)
 		xfree(pc);
 	}
 	/* endgame handling */
-	if (pieces_left > 0
-	    && ((float) pieces_left / (float) sc->tp->num_pieces) * 100  <= ENDGAME_PERCENTAGE) {
+	/* are all pieces already requested? */
+	if (scheduler_is_endgame(sc)) {
 		/* find incomplete pieces */
 		for (j = 0; j < sc->tp->num_pieces; j++) {
 			if ((tpp = torrent_piece_find(sc->tp, j)) == NULL)

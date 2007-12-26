@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.40 2007-12-25 15:13:41 niallo Exp $ */
+/* $Id: includes.h,v 1.41 2007-12-26 17:17:11 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -105,9 +105,6 @@
 #define HTTP_1_1			"HTTP/1.1"
 #define HTTP_OK				"200"
 #define HTTP_END			"\r\n\r\n"
-
-/* what percentage remaining to be considered endgame? */
-#define ENDGAME_PERCENTAGE		5
 
 #define DEFAULT_PORT			"6668"
 
