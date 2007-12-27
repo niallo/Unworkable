@@ -1,4 +1,4 @@
-/* $Id: trace.c,v 1.4 2007-12-03 21:07:31 niallo Exp $ */
+/* $Id: trace.c,v 1.5 2007-12-27 11:57:12 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -18,6 +18,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "includes.h"
 
@@ -39,6 +40,9 @@ trace(const char *fmt, ...)
 static void
 vtrace(const char *fmt, va_list vap)
 {
+	time_t t;
+	char tbuf[32];
+
 	if (unworkable_trace == NULL)
 		return;
 
@@ -46,7 +50,10 @@ vtrace(const char *fmt, va_list vap)
 		if ((out = fopen(unworkable_trace, "w")) == NULL)
 			err(1, "vtrace: fopen failure");
 
+	t = time(NULL);
 
+	strftime(tbuf, sizeof(tbuf), "[%Y-%m-%d %T] ", gmtime(&t));
+	(void)fputs(tbuf, out);
 	(void)fputs("-> ", out);
 	(void)vfprintf(out, fmt, vap);
 	fputc('\n', out);
