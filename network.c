@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.196 2007-12-23 23:38:10 niallo Exp $ */
+/* $Id: network.c,v 1.197 2007-12-27 18:16:24 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -87,7 +87,7 @@ network_peer_id_create()
 	id = xmalloc(PEER_ID_LEN+1);
 	memset(id, 1, PEER_ID_LEN+1);
 	/* we don't care about truncation  here */
-	(void) snprintf(id, PEER_ID_LEN+1, "-UL-0001-0%-ld", r);
+	(void) snprintf(id, PEER_ID_LEN+1, "-UL-0001-0%010ld", r);
 
 	return (id);
 }
