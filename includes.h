@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.42 2007-12-27 12:12:23 niallo Exp $ */
+/* $Id: includes.h,v 1.43 2007-12-27 12:23:38 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -207,6 +207,7 @@ struct torrent {
 	short					isnew;
 	u_int32_t				complete;
 	u_int32_t				incomplete;
+	struct torrent_piece			*piece_array;
 };
 
 /* Control server */

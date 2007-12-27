@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.102 2007-12-27 12:12:23 niallo Exp $ */
+/* $Id: torrent.c,v 1.103 2007-12-27 12:23:38 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -43,7 +43,6 @@
 
 #include "includes.h"
 
-static struct torrent_piece *piece_array = NULL;
 
 /*
  * torrent_parse_infohash()
@@ -462,7 +461,7 @@ torrent_piece_find(struct torrent *tp, u_int32_t idx)
 	struct torrent_piece *tpp;
 	if (idx > tp->num_pieces - 1)
 		errx(1, "torrent_piece_find: index %u out of bounds", idx);
-	tpp = piece_array + idx;
+	tpp = tp->piece_array + idx;
 
 	return (tpp);
 }
@@ -602,7 +601,7 @@ torrent_pieces_create(struct torrent *tp)
 		}
 	}
 
-	piece_array = tpp;
+	tp->piece_array = tpp;
 	return (tpp);
 }
 
