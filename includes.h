@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.41 2007-12-26 17:17:11 niallo Exp $ */
+/* $Id: includes.h,v 1.42 2007-12-27 12:12:23 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -380,8 +380,6 @@ struct torrent_piece	*torrent_pieces_create(struct torrent *);
 int			 torrent_piece_map(struct torrent_piece *);
 void			 torrent_piece_unmap(struct torrent_piece *);
 void			 torrent_print(struct torrent *);
-int			 torrent_intcmp(struct torrent_piece *,
-			    struct torrent_piece *);
 u_int8_t		*torrent_bitfield_get(struct torrent *);
 int			 torrent_empty(struct torrent *);
 void			 torrent_piece_sync(struct torrent *, u_int32_t);

@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.101 2007-12-25 15:19:16 niallo Exp $ */
+/* $Id: torrent.c,v 1.102 2007-12-27 12:12:23 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -45,7 +45,11 @@
 
 static struct torrent_piece *piece_array = NULL;
 
-/* dedicated function which computes the torrent info hash */
+/*
+ * torrent_parse_infohash()
+ *
+ * Compute torrent file infohash, returning a 20 byte array.
+ */
 u_int8_t *
 torrent_parse_infohash(const char *file, size_t infoend)
 {
@@ -79,6 +83,11 @@ torrent_parse_infohash(const char *file, size_t infoend)
 	return (ret);
 }
 
+/*
+ * torrent_parse_file()
+ *
+ * Parse a .torrent data file, returning a discrete torrent structure.
+ */
 struct torrent *
 torrent_parse_file(const char *file)
 {
@@ -255,6 +264,11 @@ torrent_parse_file(const char *file)
 	return (torrent);
 }
 
+/*
+ * torrent_print()
+ *
+ * Util function to print various details about the parsed torrent.
+ */
 void
 torrent_print(struct torrent *torrent)
 {
@@ -314,12 +328,11 @@ torrent_print(struct torrent *torrent)
 	}
 }
 
-int
-torrent_intcmp(struct torrent_piece *p1, struct torrent_piece *p2)
-{
-	return (p1->index - p2->index);
-}
-
+/*
+ * torrent_block_write()
+ *
+ * Write arbitrary binary data to given piece at supplied offset.
+ */
 void
 torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d)
 {
@@ -367,7 +380,14 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d
 	}
 }
 
-/* hint will be set to 1 if the return value needs to be freed */
+/*
+ * torrent_block_read()
+ *
+ * Read a given block of a piece.  This handles pieces which overlap
+ * multiple files.  Data copies may be necessary under certain circumstances.
+ * For this reason, caller should check the value of "hint".  If it is 1,
+ * caller must free the data returned when done with it.
+ */
 void *
 torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hint)
 {
@@ -431,6 +451,11 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hin
 	return (NULL);
 }
 
+/*
+ * torrent_piece_find()
+ *
+ * Look up the torrent piece at a given index.
+ */
 struct torrent_piece *
 torrent_piece_find(struct torrent *tp, u_int32_t idx)
 {
@@ -442,6 +467,12 @@ torrent_piece_find(struct torrent *tp, u_int32_t idx)
 	return (tpp);
 }
 
+/*
+ * torrent_mmap_create()
+ *
+ * Create the mmap corresponding to a given offset and length of a supplied
+ * torrent file.  Also handles zero'ing the file if necessary.
+ */
 struct torrent_mmap *
 torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
     u_int32_t len)
@@ -528,7 +559,13 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	return (tmmp);
 }
 
-/* create a persistent piece descriptor */
+/*
+ * torrent_pieces_create()
+ *
+ * Initialize the flat array of piece descriptors, one for each
+ * piece in the torrent.  This facilitates extremely fast
+ * random access for piece metadata.
+ */
 struct torrent_piece *
 torrent_pieces_create(struct torrent *tp)
 {
@@ -569,7 +606,14 @@ torrent_pieces_create(struct torrent *tp)
 	return (tpp);
 }
 
-/* create the mmaps for this piece, if necessary */
+/*
+ * torrent_piece_map()
+ *
+ * Creates the mmap region(s) corresponding to this piece.  For multi-file
+ * torrents, this can be quite complicated.
+ *
+ * Returns 1 on success, 0 on failure.
+ */
 int
 torrent_piece_map(struct torrent_piece *tpp)
 {
@@ -680,6 +724,12 @@ torrent_piece_map(struct torrent_piece *tpp)
 	return (1);
 }
 
+/*
+ * torrent_piece_checkhash()
+ *
+ * Checksum the supplied piece.  Set the piece's checksum bit to true
+ * if it is good, and also return 1.  Returns 0 if the hash check fails.
+ */
 int
 torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 {
@@ -715,6 +765,11 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 	return (res);
 }
 
+/*
+ * torrent_piece_sync()
+ *
+ * Sync given piece to disk.
+ */
 void
 torrent_piece_sync(struct torrent *tp, u_int32_t idx)
 {
@@ -732,6 +787,12 @@ torrent_piece_sync(struct torrent *tp, u_int32_t idx)
 
 }
 
+/*
+ * torrent_piece_unmap()
+ *
+ * Unmap the supplied piece, flushing it to disk and
+ * closing the file descriptor if necessary.
+ */
 void
 torrent_piece_unmap(struct torrent_piece *tpp)
 {
@@ -756,6 +817,13 @@ torrent_piece_unmap(struct torrent_piece *tpp)
 	tpp->flags &= ~TORRENT_PIECE_MAPPED;
 }
 
+/*
+ * torrent_bitfield_get()
+ *
+ * Allocate and return a byte-array corresponding to our bitmap representation
+ * of the data we have in the torrent.  Caller is responsible for freeing
+ * the memory, and must figure out itself how long the buffer is.
+ */
 u_int8_t *
 torrent_bitfield_get(struct torrent *tp)
 {
@@ -774,6 +842,12 @@ torrent_bitfield_get(struct torrent *tp)
 	return (bitfield);
 }
 
+/*
+ * torrent_empty()
+ *
+ * Returns 1 if the torrent is empty, that is, contains no checksummed
+ * pieces.  Returns 0 if there is at least 1 good piece.
+ */
 int
 torrent_empty(struct torrent *tp)
 {
