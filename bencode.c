@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.37 2007-12-03 21:07:31 niallo Exp $ */
+/* $Id: bencode.c,v 1.38 2007-12-27 16:43:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -26,21 +26,33 @@
 
 struct benc_node *root;
 
-/* add new node to tail of node's child queue */
+/*
+ * benc_node_add()
+ *
+ * Add new node to tail of node's child queue.
+ */
 void
 benc_node_add(struct benc_node *node, struct benc_node *new)
 {
 	TAILQ_INSERT_TAIL(&node->children, new, benc_nodes);
 }
 
-/* add new node to head of node's child queue */
+/*
+ * benc_node_add_head()
+ *
+ * Add new node to head of node's child queue
+ */
 void
 benc_node_add_head(struct benc_node *node, struct benc_node *new)
 {
 	TAILQ_INSERT_HEAD(&node->children, new, benc_nodes);
 }
 
-/* create and initialise a benc_node */
+/*
+ * benc_node_create()
+ *
+ * Create and initialise a benc_node
+ */
 struct benc_node *
 benc_node_create(void)
 {
@@ -55,7 +67,11 @@ benc_node_create(void)
 	return (node);
 }
 
-/* find BDICT_ENTRY node with specified key */
+/*
+ * benc_node_find()
+ *
+ * Find BDICT_ENTRY node with specified key.
+ */
 struct benc_node *
 benc_node_find(struct benc_node *node, char *key)
 {
@@ -80,6 +96,11 @@ benc_node_find(struct benc_node *node, char *key)
 	return (NULL);
 }
 
+/*
+ * benc_node_print()
+ *
+ * Pretty-print a node tree.
+ */
 void
 benc_node_print(struct benc_node *node, int level)
 {
@@ -110,6 +131,11 @@ benc_node_print(struct benc_node *node, int level)
 	}
 }
 
+/*
+ * benc_node_freeall()
+ *
+ * Walk the tree from this node down, freeing everything.
+ */
 void
 benc_node_freeall(struct benc_node *node)
 {
@@ -133,7 +159,11 @@ benc_node_freeall(struct benc_node *node)
 		xfree(node);
 }
 
-/* create a root node, which parser needs to be passed during init */
+/*
+ * benc_root_create()
+ *
+ * Create a root node, which parser needs to be passed during init
+ */
 struct benc_node *
 benc_root_create(void)
 {
