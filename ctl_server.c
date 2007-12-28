@@ -1,4 +1,4 @@
-/* $Id: ctl_server.c,v 1.4 2007-12-12 05:36:49 niallo Exp $ */
+/* $Id: ctl_server.c,v 1.5 2007-12-28 08:11:12 niallo Exp $ */
 /*
  * Copyright (c) 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -66,7 +66,8 @@ ctl_server_start(struct session *sc, char *port, off_t started)
 	cs->started = started;
 	cs->sc = sc;
 	cs->fd = network_listen("0.0.0.0", port);
-	cs->bev = bufferevent_new(cs->fd, NULL, NULL, ctl_server_handle_connect, cs);
+	cs->bev = bufferevent_new(cs->fd, NULL, NULL,
+	    ctl_server_handle_connect, cs);
 	if (cs->bev == NULL)
 		errx(1, "ctl_server_start: bufferevent_new failure");
 	bufferevent_enable(cs->bev, EV_PERSIST|EV_READ);
@@ -165,7 +166,8 @@ ctl_server_handle_connect(struct bufferevent *bufev, short error, void *data)
 	if (csc->bev == NULL)
 		errx(1, "ctl_server_handle_connect(): bufferevent_new failure");
 	bufferevent_enable(csc->bev, EV_READ|EV_WRITE);
-	cs->bev = bufferevent_new(cs->fd, NULL, NULL, ctl_server_handle_connect, cs);
+	cs->bev = bufferevent_new(cs->fd, NULL, NULL,
+	    ctl_server_handle_connect, cs);
 	if (cs->bev == NULL)
 		errx(1, "ctl_server_start: bufferevent_new failure");
 	bufferevent_enable(cs->bev, EV_PERSIST|EV_READ);
@@ -223,7 +225,8 @@ ctl_server_conn_bootstrap(struct ctl_server_conn *csc)
 	}
 	msg = xmalloc(BOOTSTRAP_LEN);
 	memset(msg, '\0', BOOTSTRAP_LEN);
-	l = snprintf(msg, BOOTSTRAP_LEN, "num_peers:%u\r\nnum_pieces:%u\r\ntorrent_size:%jd\r\ntorrent_bytes:%jd\r\n",
+	l = snprintf(msg, BOOTSTRAP_LEN,
+	    "num_peers:%u\r\nnum_pieces:%u\r\ntorrent_size:%jd\r\ntorrent_bytes:%jd\r\n",
 	     csc->cs->sc->num_peers, csc->cs->sc->tp->num_pieces, (intmax_t)len, (intmax_t)csc->cs->started);
 	if (l == -1 || l >= (int)BOOTSTRAP_LEN)
 		errx(1, "ctl_server_conn_bootstrap() string truncation");
@@ -321,7 +324,8 @@ ctl_server_pieces(struct session *sc)
 				snprintf(piece, sizeof(piece), "%u,", i);
 			}
 			if (strlcat(msg, piece, msglen) >= msglen)
-				errx(1, "ctl_server_pieces() string truncation");
+				errx(1,
+				    "ctl_server_pieces() string truncation");
 		}
 	}
 
@@ -351,10 +355,12 @@ ctl_server_peers(struct session *sc)
 			count++;
 			if (count == sc->num_peers) {
 				snprintf(peer, sizeof(peer), "%s:%d\r\n",
-				    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+				    inet_ntoa(p->sa.sin_addr),
+				    ntohs(p->sa.sin_port));
 			} else {
 				snprintf(peer, sizeof(peer), "%s:%d,",
-				    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+				    inet_ntoa(p->sa.sin_addr),
+				    ntohs(p->sa.sin_port));
 			}
 			if (strlcat(msg, peer, msglen) >= msglen)
 				errx(1, "ctl_server_peers() string truncation");
