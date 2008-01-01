@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.5 2007-12-26 17:17:11 niallo Exp $ */
+/* $Id: scheduler.c,v 1.6 2008-01-01 21:48:17 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -184,8 +184,7 @@ scheduler_piece_rarityarray(struct session *sc)
 		pos++;
 	}
 	/* sort the rarity array */
-	qsort(pieces, len, sizeof(*pieces),
-	    scheduler_piece_cmp);
+	qsort(pieces, len, sizeof(*pieces), scheduler_piece_cmp);
 
 	/* set the session timestamp */
 	sc->last_rarity = time(NULL);
