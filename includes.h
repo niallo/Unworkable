@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.43 2007-12-27 12:23:38 niallo Exp $ */
+/* $Id: includes.h,v 1.44 2008-01-02 00:48:02 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -55,6 +55,7 @@
 #define PEER_STATE_GOTLEN		(1<<8)
 #define PEER_STATE_CRYPTED		(1<<9)
 #define PEER_STATE_HANDSHAKE2		(1<<10)
+#define PEER_STATE_SENDBITFIELD		(1<<11)
 
 #define PEER_MSG_ID_CHOKE		0
 #define PEER_MSG_ID_UNCHOKE		1
@@ -66,7 +67,9 @@
 #define PEER_MSG_ID_PIECE		7
 #define PEER_MSG_ID_CANCEL		8
 
-#define PEER_COMMS_THRESHOLD		120 /* 120 seconds */
+#define PEER_COMMS_THRESHOLD		300 /* five minutes */
+
+#define PEER_KEEPALIVE_SECONDS		115
 
 #define BLOCK_SIZE			16384 /* 16KB */
 #define MAX_BACKLOG			65536 /* 64KB */
@@ -261,10 +264,14 @@ struct peer {
 	time_t  lastrecv;
 	/* time we connected this peer (ie start of its life) */
 	time_t connected;
+	/* last time we sent something to this peer */
+	time_t lastsend;
 	/* how many bytes have we rx'd from the peer since it was connected */
 	u_int64_t totalrx;
 	/* block request queue length*/
 	u_int32_t queue_len;
+	/* keep alive timer event */
+	struct event keepalive_event;
 };
 
 /* piece download transaction */
@@ -490,6 +497,7 @@ void	network_peer_write_choke(struct peer *);
 void	network_peer_write_unchoke(struct peer *);
 void	network_peer_cancel_piece(struct piece_dl *);
 void	network_peer_write_have(struct peer *, u_int32_t);
+void	network_peer_write_keepalive(struct peer *);
 DH	*network_crypto_dh(void);
 long	network_peer_lastcomms(struct peer *);
 u_int64_t network_peer_rate(struct peer *);

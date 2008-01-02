@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.197 2007-12-27 18:16:24 niallo Exp $ */
+/* $Id: network.c,v 1.198 2008-01-02 00:48:02 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -53,6 +53,7 @@ static int network_connect_peer(struct peer *);
 static void network_handle_peer_response(struct bufferevent *, void *);
 static void network_peer_process_message(u_int8_t, struct peer *);
 static void network_peer_handshake(struct session *, struct peer *);
+static void network_peer_keepalive(int, short, void *);
 
 /* index of piece dls by block index and offset */
 RB_PROTOTYPE(piece_dl_by_idxoff, piece_dl_idxnode, entry, piece_dl_idxnode_cmp)
@@ -103,6 +104,7 @@ network_peer_write(struct peer *p, u_int8_t *msg, u_int32_t len)
 	if (bufferevent_write(p->bufev, msg, len) != 0)
 		errx(1, "network_peer_write() failure");
 	xfree(msg);
+	p->lastsend = time(NULL);
 }
 
 /*
@@ -160,6 +162,7 @@ static void
 network_peerlist_connect(struct session *sc)
 {
 	struct peer *ep, *nxt;
+	struct timeval tv;
 
 	for (ep = TAILQ_FIRST(&sc->peers); ep != TAILQ_END(&sc->peers) ; ep = nxt) {
 		nxt = TAILQ_NEXT(ep, peer_list);
@@ -193,6 +196,11 @@ network_peerlist_connect(struct session *sc)
 			if (ep->bufev == NULL)
 				errx(1, "network_peerlist_update: bufferevent_new failure");
 			bufferevent_enable(ep->bufev, EV_READ|EV_WRITE);
+			/* set up keep-alive timer */
+			timerclear(&tv);
+			tv.tv_sec = 1;
+			evtimer_set(&ep->keepalive_event, network_peer_keepalive, ep);
+			evtimer_add(&ep->keepalive_event, &tv);
 			trace("network_peerlist_update() initiating handshake");
 			network_peer_handshake(sc, ep);
 		}
@@ -448,6 +456,7 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				xfree(p->rxmsg);
 				p->rxmsg = NULL;
 				p->state |= PEER_STATE_BITFIELD;
+				p->state |= PEER_STATE_SENDBITFIELD;
 				p->state &= ~PEER_STATE_HANDSHAKE2;
 				p->rxpending = 0;
 				goto out;
@@ -488,9 +497,15 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 out:
 	if (EVBUFFER_LENGTH(EVBUFFER_INPUT(bufev)))
 		bufev->readcb(bufev, data);
-	if (p->state & PEER_STATE_BITFIELD)
+	/*
+	 * if its time to send the bitfield, and we actually have some pieces,
+	 * send the bitfield.
+	 */
+	if (p->state & PEER_STATE_SENDBITFIELD) {
 		if (!torrent_empty(p->sc->tp))
 			network_peer_write_bitfield(p);
+		p->state &= ~PEER_STATE_SENDBITFIELD;
+	}
 }
 
 /*
@@ -732,6 +747,27 @@ network_handle_peer_error(struct bufferevent *bufev, short error, void *data)
 		p->state = 0;
 		p->state |= PEER_STATE_DEAD;
 	}
+}
+
+/*
+ * network_peer_keepalive()
+ *
+ * Periodically send keep-alive messages to peers if necessary.
+ */
+static void
+network_peer_keepalive(int fd, short type, void *arg)
+{
+	struct peer *p;
+	struct timeval tv;
+
+	p = arg;
+
+	if (time(NULL) - p->lastsend >= PEER_KEEPALIVE_SECONDS)
+		network_peer_write_keepalive(p);
+	timerclear(&tv);
+	tv.tv_sec = 1;
+	evtimer_set(&p->keepalive_event, network_peer_keepalive, p);
+	evtimer_add(&p->keepalive_event, &tv);
 }
 
 /*
@@ -1005,6 +1041,25 @@ network_peer_write_choke(struct peer *p)
 }
 
 /*
+ * network_peer_write_keepalive()
+ *
+ * Send a keep-alive message to remote peer.
+ */
+void
+network_peer_write_keepalive(struct peer *p)
+{
+	u_int32_t len;
+	u_int8_t *msg;
+
+	trace("network_peer_write_keepalive() to peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+
+	msg = xmalloc(sizeof(len));
+	memset(msg, 0, sizeof(len));
+
+	network_peer_write(p, msg, sizeof(len));
+}
+
+/*
  * network_crypto_dh()
  *
  * Generate a DH key object.
@@ -1252,6 +1307,7 @@ network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
 {
 	struct session *sc;
 	struct peer *p;
+	struct timeval tv;
 	socklen_t addrlen;
 
 	trace("network_handle_peer_connect() called");
@@ -1279,6 +1335,11 @@ network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
 	if (p->bufev == NULL)
 		errx(1, "network_announce: bufferevent_new failure");
 	bufferevent_enable(p->bufev, EV_READ|EV_WRITE);
+	/* set up keep-alive timer */
+	timerclear(&tv);
+	tv.tv_sec = 1;
+	evtimer_set(&p->keepalive_event, network_peer_keepalive, p);
+	evtimer_add(&p->keepalive_event, &tv);
 	trace("network_handle_peer_connect() initiating handshake");
 	TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
 	sc->num_peers++;
@@ -1408,6 +1469,7 @@ network_peer_free(struct peer *p)
 		p->connfd = 0;
 	}
 
+	evtimer_del(&p->keepalive_event);
 	xfree(p);
 	p = NULL;
 }
