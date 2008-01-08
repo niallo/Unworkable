@@ -25,7 +25,6 @@ Unworkable currently lacks support for the following:
     * HTTP/1.1 client. Many trackers do not correctly support HTTP/1.0 so
       downloads will not work.
     * Encryption.
-    * Seed mode.
     * Trackerless (DHT) operation.
     * Probably lots of other stuff.
 
