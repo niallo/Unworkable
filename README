@@ -40,5 +40,5 @@ On other platforms, you must use the SCons (http://www.scons.org) build tool.
 After installing scons, type 'scons' to compile. Make sure you have libevent
 and OpenSSL installed.  If you get it working on other platforms, please let me
 know and send along any portability diffs.  It is known to work on at least
-FreeBSD 6.2, Ubuntu Linux 7.10, Centos 5, Fedora 7 (on EC 2), Gentoo Linux, Mac
-OS X, Solaris 10 and Windows XP (cygwin).
+FreeBSD 6.2, Ubuntu Linux 7.10, Centos 5, Fedora 7 (on EC 2), Gentoo Linux,
+Arch Linux, Mac OS X, Solaris 10 and Windows XP (cygwin).
