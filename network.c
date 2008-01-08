@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.199 2008-01-02 01:28:33 niallo Exp $ */
+/* $Id: network.c,v 1.200 2008-01-08 06:16:19 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -246,7 +246,8 @@ network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 				}
 			}
 			if (found == 0) {
-				trace("network_peerlist_update() adding peer to list");
+				trace("network_peerlist_update_string() adding peer to list: %s:%d",
+				    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
 				sc->num_peers++;
 			} else {
@@ -325,10 +326,13 @@ network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
 			}
 		}
 		if (found == 0) {
-			trace("network_peerlist_update_dict() adding peer to list");
+			trace("network_peerlist_update_dict() adding peer to list: %s:%d", inet_ntoa(p->sa.sin_addr),
+			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
 			sc->num_peers++;
 		} else {
+			trace("network_peerlist_update_dict() we already have a peer: %s:%d",
+			    inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
 			network_peer_free(p);
 		}
 	}
@@ -495,17 +499,19 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 		}
 	}
 out:
-	if (EVBUFFER_LENGTH(EVBUFFER_INPUT(bufev)))
-		bufev->readcb(bufev, data);
 	/*
 	 * if its time to send the bitfield, and we actually have some pieces,
 	 * send the bitfield.
 	 */
+#if 1
 	if (p->state & PEER_STATE_SENDBITFIELD) {
 		if (!torrent_empty(p->sc->tp))
 			network_peer_write_bitfield(p);
 		p->state &= ~PEER_STATE_SENDBITFIELD;
 	}
+#endif
+	if (EVBUFFER_LENGTH(EVBUFFER_INPUT(bufev)))
+		bufev->readcb(bufev, data);
 }
 
 /*

@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.44 2008-01-02 00:48:02 niallo Exp $ */
+/* $Id: includes.h,v 1.45 2008-01-08 06:16:19 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -69,7 +69,7 @@
 
 #define PEER_COMMS_THRESHOLD		300 /* five minutes */
 
-#define PEER_KEEPALIVE_SECONDS		115
+#define PEER_KEEPALIVE_SECONDS		60
 
 #define BLOCK_SIZE			16384 /* 16KB */
 #define MAX_BACKLOG			65536 /* 64KB */

@@ -1,4 +1,4 @@
-/* $Id: announce.c,v 1.6 2007-12-25 14:52:12 niallo Exp $ */
+/* $Id: announce.c,v 1.7 2008-01-08 06:16:19 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -315,8 +315,9 @@ handle_announce_error(struct bufferevent *bufev, short error, void *data)
 	/* check for a b-encoded failure response */
 	if ((node = benc_node_find(troot, "failure reason")) != NULL) {
 		if (!(node->flags & BSTRING))
-			errx(1, "unspecified tracker failure");
-		errx(1, "tracker failure: %s", node->body.string.value);
+			trace("unspecified tracker failure");
+		trace("tracker failure: %s", node->body.string.value);
+		goto err;
 	}
 	if ((node = benc_node_find(troot, "interval")) == NULL) {
 		tp->interval = DEFAULT_ANNOUNCE_INTERVAL;
@@ -338,8 +339,10 @@ handle_announce_error(struct bufferevent *bufev, short error, void *data)
 		tp->incomplete = node->body.number;
 	}
 
-	if ((node = benc_node_find(troot, "peers")) == NULL)
-		errx(1, "no peers field");
+	if ((node = benc_node_find(troot, "peers")) == NULL) {
+		trace("no peers field");
+		goto err;
+	}
 	trace("handle_announce_error() updating peerlist");
 	network_peerlist_update(sc, node);
 	benc_node_freeall(troot);
@@ -397,6 +400,8 @@ announce_update(int fd, short type, void *arg)
 	trace("announce_update() called");
 	if (!sc->announce_underway)
 		announce(sc, NULL);
+	else
+		trace("announce_update() announce already underway");
 	timerclear(&tv);
 	tv.tv_sec = sc->tp->interval;
 	evtimer_set(&sc->announce_event, announce_update, sc);
