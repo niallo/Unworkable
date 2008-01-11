@@ -1,4 +1,4 @@
-/* $Id: announce.c,v 1.7 2008-01-08 06:16:19 niallo Exp $ */
+/* $Id: announce.c,v 1.8 2008-01-11 22:52:22 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -204,6 +204,7 @@ announce(struct session *sc, const char *event)
 	if (bufferevent_write(bufev, request, strlen(request) + 1) != 0)
 		errx(1, "announce: bufferevent_write failure");
 	xfree(params);
+	xfree(request);
 	trace("announce() done");
 	return (0);
 
@@ -260,8 +261,10 @@ handle_announce_error(struct bufferevent *bufev, short error, void *data)
 
 	trace("handle_announce_error() called");
 	/* shouldn't have to worry about this case */
-	if (sc->res == NULL)
+	if (sc->res == NULL) {
+		sc->announce_underway = 0;
 		return;
+	}
 	/* still could be data left for reading */
 	do {
 		l = sc->res->rxread;
@@ -270,8 +273,10 @@ handle_announce_error(struct bufferevent *bufev, short error, void *data)
 	while (sc->res->rxread - l > 0);
 
 	/* XXX: this shouldn't happen - need to look into why it does */
-	if (sc->res->rxread == 0)
+	if (sc->res->rxread == 0) {
+		sc->announce_underway = 0;
 		return;
+	}
 
 	tp = sc->tp;
 
@@ -416,10 +421,7 @@ announce_update(int fd, short type, void *arg)
 static void
 handle_announce_write(struct bufferevent *bufev, void *data)
 {
-	struct session *sc = data;
-
 	trace("handle_announce_write() called");
-	xfree(sc->request);
 }
 
 
