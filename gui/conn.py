@@ -1,6 +1,6 @@
 #!/usr/local/bin/python
 
-# $Id: conn.py,v 1.2 2007-12-11 07:29:44 niallo Exp $
+# $Id: conn.py,v 1.3 2008-03-09 14:33:00 slander Exp $
 # Copyright (c) 2007 Niall O'Higgins <niallo@unworkable.org>
 #
 # Permission to use, copy, modify, and distribute this software for any
@@ -49,51 +49,57 @@ class CTLconnection(threading.Thread):
 		threading.Thread.__init__(self)
 	def stop(self):
 		self._f.close()
-		self._s.close()
 		self._done = True
 	def run(self):
-		self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self._socket.connect((self.host, self.port))
-		self._f = self._socket.makefile()
-
-		for l in self._f:
-			try:
-				d = l.strip().split(':', 1)
-			except:
-				# ignore malformed line
-				continue
-			if d[0] == 'num_peers':
-				if not isinstance(d[1], int):
-					continue
-				self.num_peers = int(d[1])
-			elif d[0] == 'num_pieces':
-				self.num_pieces = int(d[1])
-			elif d[0] == 'torrent_size':
-				self.torrent_size = int(d[1])
-			elif d[0] == 'torrent_bytes':
-				self.torrent_bytes = int(d[1])
-			elif d[0] == 'pieces':
+		try:
+			self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			self._socket.connect_ex((self.host, self.port))
+			self._f = self._socket.makefile()
+		except socket.error, e:
+			#ignore all socket errors
+			pass
+		try:
+			for l in self._f:
 				try:
-					new_pieces = d[1].split(',')
-					new_pieces.sort()
-					self.pieces = new_pieces
+					d = l.strip().split(':', 1)
 				except:
-					# no pieces yet
+					# ignore malformed line
 					continue
-			elif d[0] == 'bytes':
-				self.bytes = int(d[1])
-			elif d[0] == 'peers':
-				try:
-					new_peers = d[1].split(',')
-					new_peers.sort()
-					self.peers = new_peers
-				except:
-					# no peers yet
-					continue
-			else:
-				print "unkown message: %s" %(l)
+				if d[0] == 'num_peers':
+					if not isinstance(d[1], int):
+						continue
+					self.num_peers = int(d[1])
+				elif d[0] == 'num_pieces':
+					self.num_pieces = int(d[1])
+				elif d[0] == 'torrent_size':
+					self.torrent_size = int(d[1])
+				elif d[0] == 'torrent_bytes':
+					self.torrent_bytes = int(d[1])
+				elif d[0] == 'pieces':
+					try:
+						new_pieces = d[1].split(',')
+						new_pieces.sort()
+						self.pieces = new_pieces
+					except:
+						# no pieces yet
+						continue
+				elif d[0] == 'bytes':
+					self.bytes = int(d[1])
+				elif d[0] == 'peers':
+					try:
+						new_peers = d[1].split(',')
+						new_peers.sort()
+						self.peers = new_peers
+					except:
+						# no peers yet
+						continue
+				else:
+					print "unkown message: %s" %(l)
+		except socket.error, e:
+			#ignore all socket errors sleep for 5 seconds and run again
+			time.sleep(5)
+			self.run()
 		self._f.close()
-		self._s.close()
 		self.done = True
 
 
@@ -113,3 +119,4 @@ ctl.start()
 while not ctl.done:
 	status(ctl)
 	time.sleep(5)
+
