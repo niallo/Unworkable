@@ -20,6 +20,8 @@
 # unworkable to the gui. Included with this file is code to run an instance of unworkable.exe
 # as a seperate thread. This is currently disabled.
 #------------------------------------------------------------------------
+#	April 13
+#	+unworkable.exe to listener communication inconsistant and barely usable.
 #	March 31 TODO (ordered by priority):
 #	+Delete torrent button:
 #		*Add a check box to grid.
@@ -35,16 +37,17 @@
 #
 #
 import  wx.grid as  gridlib
-import wx
-import wx.lib.newevent
-import os
-import getopt
-import socket
+import  wx
+import  wx.lib.newevent
+import  os
+import subprocess
+import  getopt
+import  socket
 import  thread
-import threading
-import Queue
-import time
-import random
+import  threading
+import  Queue
+import  time
+import  random
 
 #---------------------------------------------------------------------------
 # This is how you pre-establish a file filter so that the dialog
@@ -61,11 +64,10 @@ exeWildcard = "exe files (*.exe)|*.exe|"    \
 # Usage: An unworkable listener thread sends out an EVT_UPDATE_GRID
 # message every time new information is received from the unworkable
 # client processing a given torrent.
-#(UpdateGridEvent, EVT_UPDATE_GRID) = wx.lib.newevent.NewEvent()
+
 (UpdateGridEvent, EVT_UPDATE_GRID) = wx.lib.newevent.NewEvent()
 
 #This emulates an instance of unworkable, it waits for connections on a given port
-#What I need to do in this example is use file object functions to create a file for unworkable and write it over the socket.
 class torrent(threading.Thread):
 	'''Send message to conn.py simulating unworkable'''
 	def __init__(self, host, port):
@@ -80,7 +82,6 @@ class torrent(threading.Thread):
 		self.bytes = 0
 		self._done = False
 		self.quit = False
-		#self._socket = None
 		self._f = None
 		self.counter = 0
 		self.running = False
@@ -131,6 +132,40 @@ class torrent(threading.Thread):
 			print e
 			self.stop()
 
+#This creates an instance of unworkable.exe
+class unworkable():
+	''''Run an instance of unworkable.exe as a sepetate thread'''
+	def __init__(self, host, port, torrent, path, log, handler=None): 
+		#Adress of host (currently not used)
+		self.host = host
+		#Tell unworkable.exe to speak to unworkablelistener class on this port
+		self.port = port
+		#Name of the torrent we are downloading 
+		self.torrent = torrent
+		#Path to unworkable.exe
+		self.path = path
+		#Trace file where log output from unworkable.exe gets dumped.
+		self.log = log
+		#Variable which will eventually be used to kill the subprocess (currently not used)
+		self.keepGoing = False
+		#subprocess
+		self.process = None
+		#Set up function to be run in background thread
+		self.t = threading.Thread(target=self.Run)
+		#This setting might not do anything
+		self.t.setDaemon(True)
+		#The actual command that gets executed
+		self.cmd = ('%s -t %s -g %i %s' % (self.path, self.log, self.port, self.torrent))
+	def Stop(self):
+		#Change this to kill a process.
+		self.keepGoing = False
+	def Start(self):
+		#start the thread
+		self.keepGoing = True
+		self.t.start()
+	def Run(self):
+		self.process = subprocess.Popen(self.cmd)
+
 #----------------------------------------------------------------------
 # UnworkableListener listens for information from instances of unworkable.exe
 # and passes output back to mainwindow.
@@ -150,19 +185,18 @@ class UnworkableListener:
 		self.pieces = []
 		self.peers = []
 		self.bytes = 0
-		self.done = False
 		self._socket = None
 		self._f = None
 		self.keepGoing = False
 		self.running = False
 	def Start(self):
+		print "listener started \n"
 		self.keepGoing = self.running = True
 		thread.start_new_thread(self.Run, ())
 
 	def Stop(self):
 		self.keepGoing = False
 		#self._f.close()
-		self._done = True
 
 	def IsRunning(self):
 		return self.running
@@ -177,6 +211,7 @@ class UnworkableListener:
 		try:
 			#keep polling for information from uworkable.exe
 			while self.keepGoing:
+				print "listener still looping \n"
 				for l in self._f:
 					try:
 						d = l.strip().split(':', 1)
@@ -214,10 +249,14 @@ class UnworkableListener:
 					else:
 						print "unkown message: %s" %(l)
 					#Create an update grid event with all messages received from unworkable.exe
-					evt = UpdateGridEvent(barNum = self.barNum, num_peers = int(self.num_peers),
-							num_pieces = int(self.num_pieces), 
-							torrent_size = int(self.torrent_size),
-							torrent_bytes = int(self.torrent_bytes))
+					evt = UpdateGridEvent(self.barNum) 
+							#self.num_peers)
+							#self.num_pieces, 
+							#self.torrent_size,
+							#self.torrent_bytes)
+							#self.pieces,
+							#self.bytes,
+							#self.peers)
 					#post event for mainwindow to process
 					wx.PostEvent(self.win, evt)
 					
@@ -227,7 +266,6 @@ class UnworkableListener:
 			self.run()
 		self.running = False
 
-
 #----------------------------------------------------------------------
 # This is where all the information from unworkablelistener threads gets 
 # stored/updated.
@@ -235,6 +273,7 @@ class UnworkableListener:
 class CustomDataTable(gridlib.PyGridTableBase):
 	def __init__(self):
 		gridlib.PyGridTableBase.__init__(self)
+		self.numCols = 13
 		self.colLabels = ['#', 'Name', 'Size', 'Done', 'Seeds',
 				'Peers', 'Down Speed', 'Up Speed', 'ETA', 'Uploaded', 'Ratio','Port', 'Avail']
 		self.dataTypes = [gridlib.GRID_VALUE_NUMBER,
@@ -250,8 +289,10 @@ class CustomDataTable(gridlib.PyGridTableBase):
 					gridlib.GRID_VALUE_NUMBER,
 					gridlib.GRID_VALUE_NUMBER,
 					gridlib.GRID_VALUE_NUMBER]
-
-		self.data = [[0, "", "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+		#Blank entry
+		self.data = []
+		for i in range(1,2):
+			self.data.append([0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
 	def GetNumberRows(self):
 		return len(self.data) + 1
@@ -271,6 +312,16 @@ class CustomDataTable(gridlib.PyGridTableBase):
 			return self.data[row][col]
 		except IndexError:
 			return ''
+	#Update row from passed entry
+	def UpdateEntry(self, row, entry):
+		#for col in range(1, self.numCols):
+		col = 0
+		for value in entry:
+				self.SetValue(row, col, value)
+				col = col + 1
+		#self.GetView().ProcessTableMessage(msg)
+		#self.ForceRefresh()
+
 
 	#Add another entry to the grid.
 	def appendEntry(self, entry):
@@ -315,7 +366,7 @@ class CustTableGrid(gridlib.Grid):
 		self.SetTable(table, True)
 		self.SetRowLabelSize(0)
 		self.SetMargins(0,0)
-		self.AutoSizeColumns(False)
+		self.AutoSizeColumns(False) # Maybe set this to true
 		gridlib.EVT_GRID_CELL_LEFT_DCLICK(self, self.OnLeftDClick)
 	def OnLeftDClick(self, evt):
 		if self.CanEnableCellControl():
@@ -323,7 +374,7 @@ class CustTableGrid(gridlib.Grid):
 	def appendEntry(self):
 		self.table.appendEntry()
 
-# Problem, program crashes, maybe need to think about forking unworkable processes off to another thread
+#Main window/frame
 class mainwindow(wx.Frame):
 	def __init__(self, parent):
 		#Path to unworkable.exe
@@ -337,111 +388,67 @@ class mainwindow(wx.Frame):
 		#map a port to each listener thread. Displayed under port in gui
 		self.ThreadPort = 5000
 		#Initialize the frame
-		wx.Frame.__init__(self, parent, -1, "unworkable", size=(590,480))
+		wx.Frame.__init__(self, parent, -1, "unworkable", size=(590,490))
 		#setup the panel where all widgets will live
-		p = wx.Panel(self, -1, style=0)
+		self.p = wx.Panel(self, -1, style=0)
 		#create instance of custom grid
-		grid = CustTableGrid(p)
+		grid = CustTableGrid(self.p)
 		self.grid = grid
+		#Number of rows, cols in customdatatable
+		self.numRow  = self.grid.table.GetNumberRows()
+		self.numCols = 13
 		#A simple sizer to control the layout of the widgets
 		#Within the frame
-		bs = wx.BoxSizer(wx.VERTICAL)
-		bs.Add(grid, 1, wx.GROW|wx.ALL, 5)
+		self.bs = wx.BoxSizer(wx.VERTICAL)
+		self.bs.Add(grid, 1, wx.GROW|wx.ALL, 5)
 		#Add Delete, path and open buttons + bind them to functions 
 		#+ add them to the sizer bs.
-		#Button to delete a torrent
-		DelButton = wx.Button(p, -1, "Delete")
-		DelButton.SetDefault()
-		self.Bind(wx.EVT_BUTTON, self.DelButton, DelButton)
-		bs.Add(DelButton)
-		#Button to set path to unworkable.exe
-		PathButton = wx.Button(p, -1, "Path")
-		PathButton.SetDefault()
-		self.Bind(wx.EVT_BUTTON, self.PathButton, PathButton)
-		bs.Add(PathButton)
-		#Button to open/add a torrent
-		OpenButton = wx.Button(p, -1, "Open")
-		OpenButton.SetDefault()
-		self.Bind(wx.EVT_BUTTON, self.OpenButton, OpenButton)
-		bs.Add( OpenButton)
-		p.SetSizer(bs)
+		self.createButtons(self.p)
+		self.p.SetSizer(self.bs)
 		#This event checks for a update event posted by a thread
 		self.Bind(EVT_UPDATE_GRID, self.OnUpdate)
 		#This event checks for a close screen event, 
 		#i.e to kill all  active threads
 		self.Bind(wx.EVT_CLOSE, self.OnCloseWindow)
-
-		#self.process
-		#where the output of the prcoess is going to live
-		self.text = "blah"
-		#path to unworkable
-		# This needs a little more work
-		#self.cmd = './unworkable.exe -g 5166 test4.torrent'
-		self.cmd = self.unworkable + ' ' + self.unworkableOptionPort + ' 5166' 
-		# We can either derive from wx.Process and override OnTerminate
-		# or we can let wx.Process send this window an event that is
-		# caught in the normal way...
-		self.Bind(wx.EVT_END_PROCESS, self.OnProcessEnded)
-		self.Bind(wx.EVT_IDLE, self.OnIdle)
-		#self.Start()
-		#print output of process
-		#if self.process is not None:
-			#self.process.GetOutputStream().write(self.text + '\n')
-			#print self.text
-		#	Moved threading stuff in here
-		#This starts off by apending a test listener thread and torrent simulator to the list of 
-		#threads/Data grid.		
-		#Set up the various worker threads
+		#Set up a list of unworkable torrent listener/unworkable.exe threads
 		self.threads = []
-		#Setup unworkable torrent emulator, simulates unworkable.exe feeding data to listener
-		self.threads.append(torrent("localhost", self.ThreadPort))
+		#Setup unworkable.exe thread to feed data to listener with host,port,torrent,path, log handler (default=None)
+		#self.threads.append(unworkable("localhost", self.ThreadPort, "fiore_thesis_final.pdf.torrent", self.unworkable, "5000.log"))
 		#Setup listener
-		self.threads.append(UnworkableListener(self, self.NumThreads, self.NumThreads, "localhost", self.ThreadPort))
-		#Append data to grid
+		#self.threads.append(UnworkableListener(self, self.NumThreads, self.NumThreads, "localhost", self.ThreadPort))
+
+		#Example of how to append data to grid
 		#entry = [self.NumThreads, 'Testtorrent', "critical", 0, 'all', 0, 0, 0, self.ThreadPort, 0.0]
-		self.grid.table.SetValue(self.NumThreads, 0, self.NumThreads)
-		self.grid.table.SetValue( self.NumThreads, 1, "testtorrent")
-		self.grid.table.SetValue( self.NumThreads, 11, self.ThreadPort)
-		self.Refresh(False)
+		#self.grid.table.SetValue(self.NumThreads, 0, self.NumThreads)
+		#self.grid.table.SetValue( self.NumThreads, 1, "testtorrent")
+		#self.grid.table.SetValue( self.NumThreads, 11, self.ThreadPort)
+		#self.Refresh(False)
 
 		#self.grid.table.appendEntry(entry)
-		self.NumThreads += 1
-		self.ThreadPort += 1
+		#self.NumThreads += 1
+		#self.ThreadPort += 1
 		#start all threads
-		for t in self.threads:
-			t.Start()
+		#for t in self.threads:
+		#	t.Start()
 
-	def Start(self):
-		self.keepGoing = self.running = True
-	        self.process = wx.Process(self)
-        	self.process.Redirect();
-	        pid = wx.Execute(self.cmd, True)#wx.Execute(self.cmd, wx.EXEC_ASYNC, self.process)
-		#thread.start_new_thread(self.Run, ())
-	def OnIdle(self, evt):
-		hello = 1
-		#print "Still Running \n"
-		#if self.process is not None:
-		#	stream = self.process.GetInputStream()
-		#	if stream.CanRead():
-		#		text = stream.read()
-		#		#self.out.AppendText(text)
-		#		print (text + '\n')
-	def Stop(self):
-		self.process.CloseOutput()
-		self.OnProcessEnded
-		self.keepGoing = False
-	def IsRunning(self):
-		return self.running
-	def OnProcessEnded(self, evt):
-		stream = self.process.GetInputStream()
-		if stream.CanRead():
-			text = stream.read()
-			self.out.AppendText(text)
+	#Add all buttons to GUI
+	def buttonData(self):
+		return (("Delete", self.DelButton),
+			("Path", self.PathButton),
+			("Open", self.OpenButton))
 
-		self.process.Destroy()
-		self.process
+	#Iterate through the entries returned by buttonData and populate the
+	#screen
+	def createButtons(self, panel):
+		for eachLabel, eachHandler in self.buttonData():
+			button = wx.Button(self.p, -1, eachLabel)
+			button.SetDefault()
+			self.Bind(wx.EVT_BUTTON, eachHandler, button)
+			self.bs.Add(button)
+
 #----End of process stuff
-
+	#def buttonData(self):
+	#	return
 	def AddButton(self, evt):
 		print "ADD button selected"
 		self.grid.table.TestUpdateGrid()
@@ -452,9 +459,16 @@ class mainwindow(wx.Frame):
 	#When update message received post value and refresh the screen
 	def OnUpdate(self, evt):
 		#self.grid.table.SetValue(evt.barNum, 2, evt.torrent_size)
+		#formula for how much is done
+		#percent = ((float)*good_pieces / num_pieces) * 100;
 		self.grid.table.SetValue(evt.barNum, 3, evt.num_pieces)
+		print "Bar number"
+		print evt.barNum
+		print evt.num_pieces
 		self.grid.table.SetValue(evt.barNum, 5, evt.num_peers)
+		print evt.num_peers
 		self.grid.table.SetValue(evt.barNum, 6, evt.torrent_bytes)
+		print evt.torrent_bytes
 		#Tell the gui to refresh screen
 		self.Refresh(False)
 #	1)Open torrent button:
@@ -480,16 +494,39 @@ class mainwindow(wx.Frame):
 				folders, fileName = os.path.split(path)
 				#Split the file extension from the filename
 				(fileBaseName, fileExtension)=os.path.splitext(fileName)
+				#Make sure that each entry in the custom table, corresponds with a thread
+				entryNumber = len(self.threads)
 				entry = [self.NumThreads, fileBaseName, 0, 0, 0, 0, 0, 0, 0, 0, 0, self.ThreadPort, 0.0]
-				self.grid.table.appendEntry(entry)
+				#Setup unworkable.exe thread to feed data to listener with host,port,torrent,path, 
+				#log handler (default=None)
+				unworkableBinary = unworkable("localhost", self.ThreadPort, fileName, 
+				self.unworkable, "5000.log")
+				#Setup listener
+				listener = UnworkableListener(self, self.NumThreads, self.NumThreads, "localhost", 
+				self.ThreadPort)
+				if(entryNumber < self.numRow):
+					print entryNumber
+					#Update entry corresponding to new thread added
+					self.grid.table.UpdateEntry(entryNumber, entry)
+					#place holder till I get the threads consolidated
+					self.threads.append([entryNumber, unworkableBinary, listener])
+					#Tell the gui to refresh screen
+					self.Refresh(False)
+				else:
+					self.grid.table.appendEntry(entry)
+					self.threads.append([entryNumber, unworkableBinary, listener])
+					#unworkable.Start()
+					#listener.Start()
+				listener.Start()
+				unworkableBinary.Start()
 				#Start torrent simulator
-				self.threads.append(torrent("localhost", self.ThreadPort))
-				self.threads[(len(self.threads) -1)].Start()
+				#self.threads.append(torrent("localhost", self.ThreadPort))
+				#self.threads[(len(self.threads) -1)].Start()
 				#Start unworkablelistener thread
-				self.threads.append(UnworkableListener(self, self.NumThreads, self.NumThreads, "localhost", self.ThreadPort))
-				self.threads[(len(self.threads) -1)].Start()
+				#self.threads.append(UnworkableListener(self, self.NumThreads, self.NumThreads, "localhost", self.ThreadPort))
+				#self.threads[(len(self.threads) -1)].Start()
 				#Increment counters
-				self.NumThreads += 1
+				#self.NumThreads += 1
 				self.ThreadPort += 1
 		dlg.Destroy()
 	def PathButton(self, evt):
