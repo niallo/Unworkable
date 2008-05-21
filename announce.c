@@ -1,4 +1,4 @@
-/* $Id: announce.c,v 1.8 2008-01-11 22:52:22 niallo Exp $ */
+/* $Id: announce.c,v 1.9 2008-05-21 21:35:16 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -362,12 +362,15 @@ handle_announce_error(struct bufferevent *bufev, short error, void *data)
 	if (sc->servfd == 0) {
 		trace("handle_announce_error() setting up server socket");
 		/* time to set up the server socket */
-		sc->servfd = network_listen("0.0.0.0", sc->port);
-		bev = bufferevent_new(sc->servfd, NULL,
-		    NULL, network_handle_peer_connect, sc);
-		if (bufev == NULL)
-			errx(1, "handle_announce_error: bufferevent_new failure");
-		bufferevent_enable(bev, EV_PERSIST|EV_READ);
+		if (sc->port != NULL) {
+			sc->servfd = network_listen("0.0.0.0", sc->port);
+			bev = bufferevent_new(sc->servfd, NULL,
+			    NULL, network_handle_peer_connect, sc);
+			if (bufev == NULL)
+				errx(1,
+				     "handle_announce_error: bufferevent_new failure");
+			bufferevent_enable(bev, EV_PERSIST|EV_READ);
+		}
 		/* now that we've announced, kick off the scheduler */
 		trace("handle_announce_error() setting up scheduler");
 		timerclear(&tv);
