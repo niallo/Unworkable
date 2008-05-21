@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: BSDmakefile,v 1.4 2007-12-10 03:58:06 niallo Exp $
+# $Id: BSDmakefile,v 1.5 2008-05-21 00:27:59 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
@@ -36,12 +36,12 @@ SRCS= announce.c bencode.c buf.c ctl_server.c main.c network.c parse.y progressm
 OBJS= ${SRCS:N*.h:N*.sh:R:S/$/.o/g}
 MAN= unworkable.1
 
-all: ${PROG} man
+all: ${PROG} unworkable.cat1
 
 ${PROG}: ${OBJS}
 	${CC} -o ${.TARGET} ${LDFLAGS} -levent -lcrypto ${OBJS}
 
-man:
+unworkable.cat1: ${MAN}
 	nroff -Tascii -mandoc $(MAN) > unworkable.cat1
 
 clean:
