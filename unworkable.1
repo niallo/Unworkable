@@ -1,4 +1,4 @@
-.\"	$Id: unworkable.1,v 1.4 2007-12-19 19:46:24 niallo Exp $
+.\"	$Id: unworkable.1,v 1.5 2008-05-21 21:35:34 niallo Exp $
 .\"
 .\" Copyright (c) 2007 Niall O'Higgins <niallo@unworkable.org>
 .\" All rights reserved.
@@ -14,7 +14,7 @@
 .\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-.Dd $Mdocdate: December 3 2007 $
+.Dd $Mdocdate: December 19 2007 $
 .Dt UNWORKABLE 1
 .Os
 .Sh NAME
@@ -42,9 +42,15 @@ Upon completion of the download, the program will exit, unless seed-mode
 is enabled.
 .Bl -tag -width Ds
 .It Fl g Ar port
-Specify a port for the GUI control server to listen on.
+If specified, run the GUI control server on port
+.Ar port .
+By default, no GUI control server will run.
 .It Fl p Ar port
-Specify a port to listen on.
+If specified, listen for incoming BitTorrent peer connections on
+.Ar port .
+By default,
+.Nm
+does not accept incoming connections.
 .It Fl s
 Enable seed-mode, that is, keep running and seed after download is complete.
 .It Fl t Ar tracefile
