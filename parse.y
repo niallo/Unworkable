@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.55 2007-12-03 21:07:31 niallo Exp $ */
+/* $Id: parse.y,v 1.56 2008-06-25 16:48:47 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -103,7 +103,7 @@ bencode		: /* empty */
 number		: STRING					{
 			long long lval;
 			const char *errstr;
-			lval = strtonum($1, LONG_MIN, LONG_MAX, &errstr);
+			lval = strtonum($1, LLONG_MIN, LLONG_MAX, &errstr);
 			if (errstr) {
 				yyerror("%s is %s", $1, errstr);
 				xfree($1);
@@ -127,7 +127,7 @@ bstrflag	:						{
 
 bstring		: bstrflag number COLON STRING			{
 			struct benc_node *node;
-			
+
 			node = benc_node_create();
 			node->body.string.len = $2;
 			node->body.string.value = $4;
@@ -259,7 +259,7 @@ bdict		: DICT_START					{
 
 			node = benc_node_create();
 			node->flags = BDICT;
-			
+
 			benc_stack_push(node);
 		}
 		bdict_entries END				{
