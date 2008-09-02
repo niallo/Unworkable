@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.201 2008-09-02 17:48:49 niallo Exp $ */
+/* $Id: network.c,v 1.202 2008-09-02 17:49:52 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -990,7 +990,7 @@ network_peer_write_bitfield(struct peer *p)
 
 	msglen = sizeof(msglen) + sizeof(id) + bitfieldlen;
 	msg = xmalloc(msglen);
-	msglen2 = htonl(msglen);
+	msglen2 = htonl(msglen - sizeof(msglen));
 	memcpy(msg, &msglen2, sizeof(msglen2));
 	memcpy(msg+sizeof(msglen), &id, sizeof(id));
 	memcpy(msg+sizeof(msglen)+sizeof(id), bitfield, bitfieldlen);
