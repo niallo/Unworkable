@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.200 2008-01-08 06:16:19 niallo Exp $ */
+/* $Id: network.c,v 1.201 2008-09-02 17:48:49 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -326,7 +326,7 @@ network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
 			}
 		}
 		if (found == 0) {
-			trace("network_peerlist_update_dict() adding peer to list: %s:%d", inet_ntoa(p->sa.sin_addr),
+			trace("network_peerlist_update_dict() adding peer to list: %s:%d",
 			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
 			sc->num_peers++;
