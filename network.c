@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.202 2008-09-02 17:49:52 niallo Exp $ */
+/* $Id: network.c,v 1.203 2008-09-02 18:02:18 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -819,7 +819,7 @@ network_peer_write_have(struct peer *p, u_int32_t idx)
  * filling the buffer from our local torrent data store.
  */
 void
-network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t len)
+network_peer_write_piece(struct peer *p, u_int32_t idx, u_int32_t offset, u_int32_t len)
 {
 	struct torrent_piece *tpp;
 	u_int32_t msglen, msglen2;
@@ -843,7 +843,7 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t 
 		return;
 	}
 	/* construct PIECE message response */
-	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx) + sizeof(offset) + sizeof(len);
+	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx) + sizeof(offset) + len;
 	msglen2 = htonl((msglen - sizeof(msglen)));
 	msg = xmalloc(msglen);
 	id = PEER_MSG_ID_PIECE;
@@ -853,7 +853,7 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, off_t offset, u_int32_t 
 	memcpy(msg+sizeof(msglen2), &id, sizeof(id));
 	memcpy(msg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
 	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx), &offset, sizeof(offset));
-	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(offset), data, sizeof(len));
+	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(offset), data, len);
 
 	network_peer_write(p, msg, msglen);
 }
