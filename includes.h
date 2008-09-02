@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.46 2008-01-08 06:21:05 niallo Exp $ */
+/* $Id: includes.h,v 1.47 2008-09-02 18:03:08 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -483,7 +483,7 @@ int	network_listen(char *, char *);
 void	network_peerlist_update(struct session *, struct benc_node *);
 struct piece_dl *network_piece_dl_find(struct session *, struct peer *, u_int32_t, u_int32_t);
 int	network_connect_tracker(const char *, const char *);
-void	network_peer_write_piece(struct peer *, u_int32_t, off_t, u_int32_t);
+void	network_peer_write_piece(struct peer *, u_int32_t, u_int32_t, u_int32_t);
 void	network_peer_read_piece(struct peer *, u_int32_t, off_t, u_int32_t, void *);
 void	network_peer_write_bitfield(struct peer *);
 void	network_peer_write_interested(struct peer *);
