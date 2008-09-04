@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.203 2008-09-02 18:02:18 niallo Exp $ */
+/* $Id: network.c,v 1.204 2008-09-04 18:46:13 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -605,7 +605,6 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				network_peer_write_interested(p);
 			break;
 		case PEER_MSG_ID_REQUEST:
-			trace("REQUEST message from peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
 			idx = ntohl(idx);
 			if (idx > p->sc->tp->num_pieces - 1) {
@@ -619,8 +618,13 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				trace("REQUEST offset out of bounds (%u)"), off;
 				break;
 			}
+			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
+				trace("REQUEST for data we don't have from peer %s:%d idx=%u off=%u len=%u", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx, off, blocklen);
+				break;
+			}
 			memcpy(&blocklen, p->rxmsg+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
 			blocklen = ntohl(blocklen);
+			trace("REQUEST message from peer %s:%d idx=%u off=%u len=%u", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx, off, blocklen);
 			network_peer_write_piece(p, idx, off, blocklen);
 			break;
 		case PEER_MSG_ID_PIECE:
@@ -823,9 +827,8 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, u_int32_t offset, u_int3
 {
 	struct torrent_piece *tpp;
 	u_int32_t msglen, msglen2;
-	u_int8_t  *msg, id;
-	void *data;
-	int hint;
+	u_int8_t *data, *msg, id;
+	int hint = 0;
 
 	if (p == NULL)
 		errx(1, "network_peer_write_piece: NULL peer");
@@ -856,6 +859,8 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, u_int32_t offset, u_int3
 	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(offset), data, len);
 
 	network_peer_write(p, msg, msglen);
+	if (hint == 1)
+		xfree(data);
 }
 
 /*
