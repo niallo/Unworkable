@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.206 2008-09-05 20:03:08 niallo Exp $ */
+/* $Id: network.c,v 1.207 2008-09-05 20:04:01 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -523,7 +523,7 @@ out:
 			} else {
 				network_peer_write_bitfield(p);
 			}
-		} else {
+		} else if (!torrent_empty(p->sc->tp)) {
 			network_peer_write_bitfield(p);
 		}
 		p->state &= ~PEER_STATE_SENDBITFIELD;
