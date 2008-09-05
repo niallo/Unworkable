@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.207 2008-09-05 20:04:01 niallo Exp $ */
+/* $Id: network.c,v 1.208 2008-09-05 21:50:50 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -554,11 +554,13 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			trace("CHOKE message from peer %s:%d",
 			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			p->state |= PEER_STATE_CHOKED;
-			for (pd = TAILQ_FIRST(&p->peer_piece_dls); pd; pd = nxtpd) {
-				nxtpd = TAILQ_NEXT(pd, peer_piece_dl_list);
-				pd->pc = NULL;
-				TAILQ_REMOVE(&p->peer_piece_dls, pd, peer_piece_dl_list);
-				p->queue_len--;
+			if (!(p->state & PEER_STATE_FAST)) {
+				for (pd = TAILQ_FIRST(&p->peer_piece_dls); pd; pd = nxtpd) {
+					nxtpd = TAILQ_NEXT(pd, peer_piece_dl_list);
+					pd->pc = NULL;
+					TAILQ_REMOVE(&p->peer_piece_dls, pd, peer_piece_dl_list);
+					p->queue_len--;
+				}
 			}
 			break;
 		case PEER_MSG_ID_UNCHOKE:
@@ -667,6 +669,12 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				trace("PIECE len incorrect, should be %u", pd->len);
 				break;
 			}
+			if (pd == NULL) {
+				trace("PIECE message for data we didn't request - killing peer");
+				p->state = 0;
+				p->state |= PEER_STATE_DEAD;
+				break;
+			}
 			/* Only read if we don't already have it */
 			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
 				p->queue_len--;
@@ -769,6 +777,56 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			network_piece_dl_free(p->sc, pd);
 			p->queue_len--;
 			break;
+		case PEER_MSG_ID_HAVENONE:
+			trace("HAVENONE message from peer %s:%d",
+			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			if (!(p->state & PEER_STATE_BITFIELD)) {
+				trace("not expecting HAVENONE!");
+				break;
+			}
+			bitfieldlen = (p->sc->tp->num_pieces + 7) / 8;
+			p->bitfield = xmalloc(bitfieldlen);
+			memset(p->bitfield, 0, bitfieldlen);
+			p->state &= ~PEER_STATE_BITFIELD;
+			p->state |= PEER_STATE_ESTABLISHED;
+			/* does this peer have anything we want? */
+			scheduler_piece_gimme(p, PIECE_GIMME_NOCREATE, &res);
+			if (res && !(p->state & PEER_STATE_AMINTERESTED))
+				network_peer_write_interested(p);
+			break;
+		case PEER_MSG_ID_HAVEALL:
+			trace("HAVEALL message from peer %s:%d",
+			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			if (!(p->state & PEER_STATE_BITFIELD)) {
+				trace("not expecting HAVEALL");
+				break;
+			}
+			bitfieldlen = (p->sc->tp->num_pieces + 7) / 8;
+			p->bitfield = xmalloc(bitfieldlen);
+			memset(p->bitfield, 0xFF, bitfieldlen);
+			p->state &= ~PEER_STATE_BITFIELD;
+			p->state |= PEER_STATE_ESTABLISHED;
+			/* does this peer have anything we want? */
+			scheduler_piece_gimme(p, PIECE_GIMME_NOCREATE, &res);
+			if (res && !(p->state & PEER_STATE_AMINTERESTED))
+				network_peer_write_interested(p);
+			break;
+		case PEER_MSG_ID_ALLOWEDFAST:
+			memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
+			idx = ntohl(idx);
+			trace("ALLOWEDFAST message (idx=%u) from peer %s:%d", idx,
+			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			if (idx > p->sc->tp->num_pieces - 1) {
+				trace("ALLOWEDFAST index out of bounds");
+				break;
+			}
+			pd = network_piece_dl_find(p->sc, p, idx, off);
+			if (pd != NULL
+			    && p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)) != pd->len) {
+				trace("PIECE len incorrect, should be %u", pd->len);
+				break;
+			}
+
 		default:
 			trace("Unknown message from peer %s:%d",
 			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
