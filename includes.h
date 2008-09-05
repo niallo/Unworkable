@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.47 2008-09-02 18:03:08 niallo Exp $ */
+/* $Id: includes.h,v 1.48 2008-09-05 18:26:38 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -56,16 +56,23 @@
 #define PEER_STATE_CRYPTED		(1<<9)
 #define PEER_STATE_HANDSHAKE2		(1<<10)
 #define PEER_STATE_SENDBITFIELD		(1<<11)
+#define PEER_STATE_FAST			(1<<12)
 
-#define PEER_MSG_ID_CHOKE		0
-#define PEER_MSG_ID_UNCHOKE		1
-#define PEER_MSG_ID_INTERESTED		2
-#define PEER_MSG_ID_NOTINTERESTED	3
-#define PEER_MSG_ID_HAVE		4
-#define PEER_MSG_ID_BITFIELD		5
-#define PEER_MSG_ID_REQUEST		6
-#define PEER_MSG_ID_PIECE		7
-#define PEER_MSG_ID_CANCEL		8
+#define PEER_MSG_ID_CHOKE		0x00
+#define PEER_MSG_ID_UNCHOKE		0x01
+#define PEER_MSG_ID_INTERESTED		0x02
+#define PEER_MSG_ID_NOTINTERESTED	0x03
+#define PEER_MSG_ID_HAVE		0x04
+#define PEER_MSG_ID_BITFIELD		0x05
+#define PEER_MSG_ID_REQUEST		0x06
+#define PEER_MSG_ID_PIECE		0x07
+#define PEER_MSG_ID_CANCEL		0x08
+#define PEER_MSG_ID_PORT		0x09
+#define PEER_MSG_ID_REJECT		0x10
+#define PEER_MSG_ID_ALLOWEDFAST		0x11
+#define PEER_MSG_ID_SUGGEST		0x0D
+#define PEER_MSG_ID_HAVEALL		0x0E
+#define PEER_MSG_ID_HAVENONE		0x0F
 
 #define PEER_COMMS_THRESHOLD		300 /* five minutes */
 
