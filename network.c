@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.205 2008-09-05 19:53:54 niallo Exp $ */
+/* $Id: network.c,v 1.206 2008-09-05 20:03:08 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -513,13 +513,21 @@ out:
 	 * if its time to send the bitfield, and we actually have some pieces,
 	 * send the bitfield.
 	 */
-#if 1
 	if (p->state & PEER_STATE_SENDBITFIELD) {
-		if (!torrent_empty(p->sc->tp))
+		/* fast extension gives us a couple more options */
+		if (p->state & PEER_STATE_FAST) {
+			if (torrent_empty(p->sc->tp)) {
+				network_peer_write_havenone(p);
+			} else if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
+				network_peer_write_haveall(p);
+			} else {
+				network_peer_write_bitfield(p);
+			}
+		} else {
 			network_peer_write_bitfield(p);
+		}
 		p->state &= ~PEER_STATE_SENDBITFIELD;
 	}
-#endif
 	if (EVBUFFER_LENGTH(EVBUFFER_INPUT(bufev)))
 		bufev->readcb(bufev, data);
 }
