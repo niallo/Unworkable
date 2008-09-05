@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.49 2008-09-05 18:27:36 niallo Exp $ */
+/* $Id: includes.h,v 1.50 2008-09-05 19:53:30 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -506,6 +506,8 @@ void	network_peer_write_unchoke(struct peer *);
 void	network_peer_cancel_piece(struct piece_dl *);
 void	network_peer_write_have(struct peer *, u_int32_t);
 void	network_peer_write_keepalive(struct peer *);
+void	network_peer_write_havenone(struct peer *);
+void	network_peer_write_haveall(struct peer *);
 DH	*network_crypto_dh(void);
 long	network_peer_lastcomms(struct peer *);
 u_int64_t network_peer_rate(struct peer *);
