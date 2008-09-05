@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.204 2008-09-04 18:46:13 niallo Exp $ */
+/* $Id: network.c,v 1.205 2008-09-05 19:53:54 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -372,6 +372,8 @@ network_peer_handshake(struct session *sc, struct peer *p)
 	memset(msg, 0, HANDSHAKELEN);
 	msg[0] = 19;
 	memcpy(msg + 1, "BitTorrent protocol", 19);
+	/* set reserved bit to indicate we support the fast extension */
+	msg[27] |= 0x04;
 	memcpy(msg + 28, sc->tp->info_hash, 20);
 	memcpy(msg + 48, sc->peerid, 20);
 
@@ -450,6 +452,14 @@ network_handle_peer_response(struct bufferevent *bufev, void *data)
 				/* see comment above network_peer_handshake() for explanation of these numbers */
 				memcpy(&p->info_hash, p->rxmsg + 8, 20);
 				memcpy(&p->id, p->rxmsg + 8 + 20, 20);
+				/* does this peer support fast extension? */
+				if (p->rxmsg[27] & 0x04) {
+					p->state |= PEER_STATE_FAST;
+					trace("network_handle_peer_response() fast peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+				} else {
+					trace("network_handle_peer_response() slow peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+				}
+
 				if (memcmp(p->info_hash, p->sc->tp->info_hash, 20) != 0) {
 					trace("network_handle_peer_response() info hash mismatch for peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 					p->state = 0;
@@ -722,6 +732,34 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			/* XXX: not sure how to cancel a write */
 			trace("CANCEL message from peer %s:%d",
 			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			break;
+		case PEER_MSG_ID_REJECT:
+			trace("REJECT message from peer %s:%d",
+			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			if (!(p->state & PEER_STATE_FAST)) {
+				trace("peer %s:%d does not support fast extension, closing %s:%d",
+				    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+				p->state = 0;
+				p->state |= PEER_STATE_DEAD;
+				break;
+			}
+			memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
+			idx = ntohl(idx);
+			if (idx > p->sc->tp->num_pieces - 1) {
+				trace("REJECT index out of bounds (%u)", idx);
+				break;
+			}
+			memcpy(&off, p->rxmsg+sizeof(id)+sizeof(idx), sizeof(off));
+			off = ntohl(off);
+			memcpy(&blocklen, p->rxmsg+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
+			blocklen = ntohl(blocklen);
+			trace("REJECT message from peer %s:%d idx=%u off=%u len=%u", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx, off, blocklen);
+			if ((pd = network_piece_dl_find(p->sc, p, idx, off)) == NULL) {
+				trace("could not find piece dl for reject from peer %s:%d idx=%u off=%u len=%u", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx, off, blocklen);
+				break;
+			}
+			network_piece_dl_free(p->sc, pd);
+			p->queue_len--;
 			break;
 		default:
 			trace("Unknown message from peer %s:%d",
@@ -1068,6 +1106,50 @@ network_peer_write_keepalive(struct peer *p)
 	memset(msg, 0, sizeof(len));
 
 	network_peer_write(p, msg, sizeof(len));
+}
+
+/*
+ * network_peer_write_haveall()
+ *
+ * Send a HAVEALL message to remote peer.
+ */
+void
+network_peer_write_haveall(struct peer *p)
+{
+	u_int32_t len;
+	u_int8_t *msg, id;
+
+	trace("network_peer_write_haveall() to peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+	len = htonl(sizeof(id));
+	id = PEER_MSG_ID_HAVEALL;
+
+	msg = xmalloc(sizeof(len) + sizeof(id));
+	memcpy(msg, &len, sizeof(len));
+	memcpy(msg+sizeof(len), &id, sizeof(id));
+
+	network_peer_write(p, msg, sizeof(len) + sizeof(id));
+}
+
+/*
+ * network_peer_write_havenone()
+ *
+ * Send a HAVENONE message to remote peer.
+ */
+void
+network_peer_write_havenone(struct peer *p)
+{
+	u_int32_t len;
+	u_int8_t *msg, id;
+
+	trace("network_peer_write_havenone() to peer %s:%d", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+	len = htonl(sizeof(id));
+	id = PEER_MSG_ID_HAVENONE;
+
+	msg = xmalloc(sizeof(len) + sizeof(id));
+	memcpy(msg, &len, sizeof(len));
+	memcpy(msg+sizeof(len), &id, sizeof(id));
+
+	network_peer_write(p, msg, sizeof(len) + sizeof(id));
 }
 
 /*
