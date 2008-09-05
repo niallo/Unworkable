@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.208 2008-09-05 21:50:50 niallo Exp $ */
+/* $Id: network.c,v 1.209 2008-09-05 23:12:39 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -638,12 +638,12 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				trace("REQUEST offset out of bounds (%u)"), off;
 				break;
 			}
+			memcpy(&blocklen, p->rxmsg+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
+			blocklen = ntohl(blocklen);
 			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
 				trace("REQUEST for data we don't have from peer %s:%d idx=%u off=%u len=%u", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx, off, blocklen);
 				break;
 			}
-			memcpy(&blocklen, p->rxmsg+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
-			blocklen = ntohl(blocklen);
 			trace("REQUEST message from peer %s:%d idx=%u off=%u len=%u", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx, off, blocklen);
 			network_peer_write_piece(p, idx, off, blocklen);
 			break;
@@ -820,12 +820,18 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				trace("ALLOWEDFAST index out of bounds");
 				break;
 			}
-			pd = network_piece_dl_find(p->sc, p, idx, off);
-			if (pd != NULL
-			    && p->rxmsglen-(sizeof(id)+sizeof(off)+sizeof(idx)) != pd->len) {
-				trace("PIECE len incorrect, should be %u", pd->len);
+			/* ignore these for now */
+
+		case PEER_MSG_ID_SUGGEST:
+			memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
+			idx = ntohl(idx);
+			trace("SUGGEST message (idx=%u) from peer %s:%d", idx,
+			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			if (idx > p->sc->tp->num_pieces - 1) {
+				trace("SUGGEST index out of bounds");
 				break;
 			}
+			/* ignore these for now */
 
 		default:
 			trace("Unknown message from peer %s:%d",
