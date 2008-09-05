@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.48 2008-09-05 18:26:38 niallo Exp $ */
+/* $Id: includes.h,v 1.49 2008-09-05 18:27:36 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -68,6 +68,7 @@
 #define PEER_MSG_ID_PIECE		0x07
 #define PEER_MSG_ID_CANCEL		0x08
 #define PEER_MSG_ID_PORT		0x09
+/* Fast extension - see BEP 6 http://bittorrent.org/beps/bep_0006.html */
 #define PEER_MSG_ID_REJECT		0x10
 #define PEER_MSG_ID_ALLOWEDFAST		0x11
 #define PEER_MSG_ID_SUGGEST		0x0D
