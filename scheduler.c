@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.6 2008-01-01 21:48:17 niallo Exp $ */
+/* $Id: scheduler.c,v 1.7 2008-09-05 00:21:25 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -484,9 +484,9 @@ scheduler(int fd, short type, void *arg)
 						p2 = TAILQ_NEXT(p2, peer_list);
 						continue;
 					}
-					trace("opportunistic unchoke");
-					network_peer_write_unchoke(p2);
 				}
+				trace("opportunistic unchoke");
+				network_peer_write_unchoke(p2);
 			}
 		}
 		/* choke any peers except for three fastest, and the one randomly selected */
