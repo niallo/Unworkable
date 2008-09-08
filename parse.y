@@ -1,6 +1,6 @@
-/* $Id: parse.y,v 1.56 2008-06-25 16:48:47 niallo Exp $ */
+/* $Id: parse.y,v 1.57 2008-09-08 05:35:52 niallo Exp $ */
 /*
- * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
+ * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above

@@ -1,6 +1,6 @@
-/* $Id: scheduler.c,v 1.9 2008-09-08 05:24:42 niallo Exp $ */
+/* $Id: scheduler.c,v 1.10 2008-09-08 05:35:52 niallo Exp $ */
 /*
- * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
+ * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above

@@ -1,7 +1,7 @@
-/* $Id: buf.c,v 1.10 2007-12-25 15:13:41 niallo Exp $ */
+/* $Id: buf.c,v 1.11 2008-09-08 05:35:52 niallo Exp $ */
 /*
  * Copyright (c) 2003 Jean-Francois Brousseau <jfb@openbsd.org>
- * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
+ * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

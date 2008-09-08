@@ -1,6 +1,6 @@
-/* $Id: ctl_server.c,v 1.5 2007-12-28 08:11:12 niallo Exp $ */
+/* $Id: ctl_server.c,v 1.6 2008-09-08 05:35:52 niallo Exp $ */
 /*
- * Copyright (c) 2007 Niall O'Higgins <niallo@unworkable.org>
+ * Copyright (c) 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2006 Niall O'Higgins <niallo@unworkable.org>
+# Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: BSDmakefile,v 1.5 2008-05-21 00:27:59 niallo Exp $
+# $Id: BSDmakefile,v 1.6 2008-09-08 05:35:52 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
