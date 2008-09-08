@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.51 2008-09-08 01:59:40 niallo Exp $ */
+/* $Id: includes.h,v 1.52 2008-09-08 05:24:42 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -253,6 +253,7 @@ struct peer {
 	TAILQ_ENTRY(peer) peer_list;
 	RB_ENTRY(peer_idxnode) entry;
 	TAILQ_HEAD(peer_piece_dls, piece_dl) peer_piece_dls;
+	TAILQ_HEAD(peer_piece_uls, piece_ul) peer_piece_uls;
 	struct sockaddr_in sa;
 	int connfd;
 	int state;
@@ -277,7 +278,9 @@ struct peer {
 	/* how many bytes have we rx'd from the peer since it was connected */
 	u_int64_t totalrx;
 	/* block request queue length*/
-	u_int32_t queue_len;
+	u_int32_t dl_queue_len;
+	/* block upload queue length*/
+	u_int32_t ul_queue_len;
 	/* keep alive timer event */
 	struct event keepalive_event;
 };
@@ -286,6 +289,16 @@ struct peer {
 struct piece_dl {
 	TAILQ_ENTRY(piece_dl) peer_piece_dl_list;
 	TAILQ_ENTRY(piece_dl) idxnode_piece_dl_list;
+	struct peer *pc; /* peer we're requesting from */
+	u_int32_t idx; /* piece index */
+	u_int32_t off; /* offset within this piece */
+	u_int32_t len; /* length of this request */
+	u_int32_t bytes; /* how many bytes have we read so far */
+};
+
+/* piece upload request */
+struct piece_ul {
+	TAILQ_ENTRY(piece_ul) peer_piece_ul_list;
 	struct peer *pc; /* peer we're requesting from */
 	u_int32_t idx; /* piece index */
 	u_int32_t off; /* offset within this piece */
@@ -515,6 +528,8 @@ struct piece_dl * network_piece_dl_create(struct peer *, u_int32_t,
     u_int32_t, u_int32_t);
 void	network_piece_dl_free(struct session *, struct piece_dl *);
 int	piece_dl_idxnode_cmp(struct piece_dl_idxnode *, struct piece_dl_idxnode *);
+struct piece_ul *network_piece_ul_enqueue(struct peer *, u_int32_t, u_int32_t, u_int32_t);
+struct piece_ul *network_piece_ul_dequeue(struct peer *);
 /* index of piece dls by block index and offset */
 RB_PROTOTYPE(piece_dl_by_idxoff, piece_dl_idxnode, entry, piece_dl_idxnode_cmp)
 

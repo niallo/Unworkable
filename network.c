@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.210 2008-09-08 01:59:40 niallo Exp $ */
+/* $Id: network.c,v 1.211 2008-09-08 05:24:42 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -544,6 +544,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 	struct torrent_piece *tpp;
 	struct peer *tp;
 	struct piece_dl *pd, *nxtpd;
+	struct piece_ul *pu, *nxtpu;
 	int res = 0;
 	int found = 0;
 	u_int32_t bitfieldlen, idx, blocklen, off;
@@ -559,7 +560,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 					nxtpd = TAILQ_NEXT(pd, peer_piece_dl_list);
 					pd->pc = NULL;
 					TAILQ_REMOVE(&p->peer_piece_dls, pd, peer_piece_dl_list);
-					p->queue_len--;
+					p->dl_queue_len--;
 				}
 			}
 			break;
@@ -647,7 +648,8 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				break;
 			}
 			trace("REQUEST message from peer %s:%d idx=%u off=%u len=%u", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx, off, blocklen);
-			network_peer_write_piece(p, idx, off, blocklen);
+			/* network_peer_write_piece(p, idx, off, blocklen); */
+			network_piece_ul_enqueue(p, idx, off, blocklen);
 			break;
 		case PEER_MSG_ID_PIECE:
 			memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
@@ -679,7 +681,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			}
 			/* Only read if we don't already have it */
 			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
-				p->queue_len--;
+				p->dl_queue_len--;
 				if (!(tpp->flags & TORRENT_PIECE_MAPPED))
 					torrent_piece_map(tpp);
 				network_peer_read_piece(p, idx, off,
@@ -740,16 +742,34 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				/* clean up this piece dl, although its not fully the correct thing to do */
 				if ((pd = network_piece_dl_find(p->sc, idx, off)) != NULL) {
 					pd->pc = NULL;
-					p->queue_len--;
+					p->dl_queue_len--;
 				}
 				#endif
 			}
 			p->lastrecv = time(NULL);
 			break;
 		case PEER_MSG_ID_CANCEL:
-			/* XXX: not sure how to cancel a write */
-			trace("CANCEL message from peer %s:%d",
+			memcpy(&idx, p->rxmsg+sizeof(id), sizeof(idx));
+			idx = ntohl(idx);
+			if (idx > p->sc->tp->num_pieces - 1) {
+				trace("CANCEL index out of bounds (%u)", idx);
+				break;
+			}
+			memcpy(&off, p->rxmsg+sizeof(id)+sizeof(idx), sizeof(off));
+			off = ntohl(off);
+			memcpy(&blocklen, p->rxmsg+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
+			blocklen = ntohl(blocklen);
+			trace("CANCEL message idx=%u off=%u len=%u from peer %s:%d",
 			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			for (pu = TAILQ_FIRST(&p->peer_piece_uls); pu; pu = nxtpu) {
+				nxtpu = TAILQ_NEXT(pu, peer_piece_ul_list);
+				if (pu->idx == idx
+				    && pu->off == off
+				    && pu->len == blocklen) {
+					TAILQ_REMOVE(&p->peer_piece_uls, pu, peer_piece_ul_list);
+					xfree(pu);
+				}
+			}
 			break;
 		case PEER_MSG_ID_REJECT:
 			trace("REJECT message from peer %s:%d",
@@ -777,7 +797,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				break;
 			}
 			network_piece_dl_free(p->sc, pd);
-			p->queue_len--;
+			p->dl_queue_len--;
 			break;
 		case PEER_MSG_ID_HAVENONE:
 			trace("HAVENONE message from peer %s:%d",
@@ -941,6 +961,10 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, u_int32_t offset, u_int3
 	u_int32_t msglen, msglen2;
 	u_int8_t *data, *msg, id;
 	int hint = 0;
+
+	trace("network_peer_write_piece() idx=%u off=%u len=%u for peer %s:%d",
+	    idx, offset, len, inet_ntoa(p->sa.sin_addr),
+	    ntohs(p->sa.sin_port));
 
 	if (p == NULL)
 		errx(1, "network_peer_write_piece: NULL peer");
@@ -1626,6 +1650,7 @@ network_peer_create(void)
 	p = xmalloc(sizeof(*p));
 	memset(p, 0, sizeof(*p));
 	TAILQ_INIT(&p->peer_piece_dls);
+	TAILQ_INIT(&p->peer_piece_uls);
 	/* peers start in choked state */
 	p->state |= PEER_STATE_CHOKED;
 	p->state |= PEER_STATE_AMCHOKING;
@@ -1643,6 +1668,7 @@ void
 network_peer_free(struct peer *p)
 {
 	struct piece_dl *pd, *nxtpd;
+	struct piece_ul *pu, *nxtpu;
 	/* search the piece dl list for any dls associated with this peer */
 	for (pd = TAILQ_FIRST(&p->peer_piece_dls); pd; pd = nxtpd) {
 		nxtpd = TAILQ_NEXT(pd, peer_piece_dl_list);
@@ -1651,6 +1677,13 @@ network_peer_free(struct peer *p)
 		/* unless this is completed, remove it from the btree */
 		if (pd->len != pd->bytes)
 			network_piece_dl_free(p->sc, pd);
+	}
+	/* search the piece ul list for any uls associated with this peer */
+	for (pu = TAILQ_FIRST(&p->peer_piece_uls); pu; pu = nxtpu) {
+		nxtpu = TAILQ_NEXT(pu, peer_piece_ul_list);
+		pu->pc = NULL;
+		TAILQ_REMOVE(&p->peer_piece_uls, pu, peer_piece_ul_list);
+		xfree(pu);
 	}
 	if (p->bufev != NULL && p->bufev->enabled & EV_WRITE) {
 		bufferevent_disable(p->bufev, EV_WRITE|EV_READ);
@@ -1671,3 +1704,42 @@ network_peer_free(struct peer *p)
 	p = NULL;
 }
 
+/*
+ * network_peer_piece_ul_enqueue()
+ *
+ * This function creates an enqueues a piece request for a peer.
+ */
+struct piece_ul *
+network_piece_ul_enqueue(struct peer *p, u_int32_t idx, u_int32_t off,
+    u_int32_t len)
+{
+	struct piece_ul *pu;
+
+	pu = xmalloc(sizeof(*pu));
+	memset(pu, 0, sizeof(*pu));
+	pu->pc = p;
+	pu->idx = idx;
+	pu->off = off;
+	pu->len = len;
+
+	TAILQ_INSERT_TAIL(&p->peer_piece_uls, pu, peer_piece_ul_list);
+
+	return (pu);
+}
+
+/*
+ * network_peer_piece_ul_dequeue()
+ *
+ * This function dequeues and removes a piece request from a peer.
+ */
+struct piece_ul *
+network_piece_ul_dequeue(struct peer *p)
+{
+	struct piece_ul *pu;
+
+	if ((pu = TAILQ_FIRST(&p->peer_piece_uls)) != NULL) {
+		TAILQ_REMOVE(&p->peer_piece_uls, pu, peer_piece_ul_list);
+		return (pu);
+	}
+	return (NULL);
+}

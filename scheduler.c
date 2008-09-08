@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.8 2008-09-08 01:59:40 niallo Exp $ */
+/* $Id: scheduler.c,v 1.9 2008-09-08 05:24:42 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -374,6 +374,7 @@ scheduler(int fd, short type, void *arg)
 	struct timeval tv;
 	/* piece rarity array */
 	struct piece_dl *pd;
+	struct piece_ul *pu;
 	struct piece_dl_idxnode *pdin;
 	struct peercounter *pc;
 	struct torrent_piece *tpp;
@@ -419,6 +420,14 @@ scheduler(int fd, short type, void *arg)
 				p->state |= PEER_STATE_DEAD;
 				continue;
 			}
+			/* honour one upload */
+			if ((pu = network_piece_ul_dequeue(p)) != NULL) {
+				trace("dequeuing piece to peer %s:%d",
+				    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+				network_peer_write_piece(p, pu->idx, pu->off, pu->len);
+				xfree(pu);
+				pu = NULL;
+			}
 			/* if peer is not choked, make sure it has enough requests in its queue */
 			if (!(p->state & PEER_STATE_CHOKED)
 			    && pieces_left > 0) {
@@ -432,11 +441,11 @@ scheduler(int fd, short type, void *arg)
 					queue_len = MAX_REQUESTS;
 				}
 				/* test for overflow */
-				if (queue_len < p->queue_len) {
+				if (queue_len < p->dl_queue_len) {
 					queue_len = 0;
 				} else {
 					/* queue_len is what the peer's queue length should be */
-					queue_len -= p->queue_len;
+					queue_len -= p->dl_queue_len;
 				}
 
 				for (i = 0; i < queue_len; i++) {
@@ -446,7 +455,7 @@ scheduler(int fd, short type, void *arg)
 						continue;
 					network_peer_request_block(pd->pc, pd->idx, pd->off,
 					    pd->len);
-					p->queue_len++;
+					p->dl_queue_len++;
 				}
 			}
 		}
@@ -547,7 +556,7 @@ scheduler(int fd, short type, void *arg)
 								pd = network_piece_dl_create(p, j, off, len);
 								trace("choosing endgame dl (tpp->len %u) len %u idx %u off %u", tpp->len, len, j, off);
 								network_peer_request_block(pd->pc, pd->idx, pd->off, pd->len);
-								p->queue_len++;
+								p->dl_queue_len++;
 							}
 						}
 					}
