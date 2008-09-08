@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.7 2008-09-05 00:21:25 niallo Exp $ */
+/* $Id: scheduler.c,v 1.8 2008-09-08 01:59:40 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -172,7 +172,7 @@ scheduler_piece_rarityarray(struct session *sc)
 			if (!(p->state & PEER_STATE_ESTABLISHED))
 				continue;
 			if (p->bitfield != NULL
-			    && BIT_ISSET(p->bitfield, i))
+			    && util_getbit(p->bitfield, i))
 				count++;
 		}
 		if (pos > len)
@@ -219,7 +219,7 @@ scheduler_piece_find_rarest(struct peer *p, int flag, int *res)
 	for (i = 0; i < p->sc->tp->num_pieces; i++) {
 		/* if this peer doesn't have this piece, skip it */
 		if (p->bitfield != NULL
-		    && !BIT_ISSET(p->bitfield, i))
+		    && !util_getbit(p->bitfield, i))
 			continue;
 		tpp = torrent_piece_find(p->sc->tp, pieces[i].idx);
 		/* if we have this piece, skip it */
@@ -273,7 +273,7 @@ scheduler_piece_gimme(struct peer *peer, int flags, int *hint)
 			 * and this peer actually has this piece */
 			if (!scheduler_piece_assigned(peer->sc, tpp)
 			    && peer->bitfield != NULL
-			    && BIT_ISSET(peer->bitfield, pdin->idx)) {
+			    && util_getbit(peer->bitfield, pdin->idx)) {
 				idx = pdin->idx;
 				goto get_block;
 			}
@@ -285,7 +285,7 @@ scheduler_piece_gimme(struct peer *peer, int flags, int *hint)
 		peerpieces = 0;
 		for (i = 0; i < peer->sc->tp->num_pieces; i++) {
 			if (peer->bitfield != NULL
-			    && BIT_ISSET(peer->bitfield, i)) {
+			    && util_getbit(peer->bitfield, i)) {
 				tpp = torrent_piece_find(peer->sc->tp, i);
 				/* do we already have this piece? */
 				if (tpp->flags & TORRENT_PIECE_CKSUMOK)
@@ -304,7 +304,7 @@ scheduler_piece_gimme(struct peer *peer, int flags, int *hint)
 		j = 0;
 		for (i = 0; i < peer->sc->tp->num_pieces; i++) {
 			if (peer->bitfield != NULL
-			    && BIT_ISSET(peer->bitfield, i)) {
+			    && util_getbit(peer->bitfield, i)) {
 				tpp = torrent_piece_find(peer->sc->tp, i);
 				/* do we already have this piece? */
 				if (tpp->flags & TORRENT_PIECE_CKSUMOK)
@@ -519,7 +519,7 @@ scheduler(int fd, short type, void *arg)
 				trace("we still need piece idx %u", j);
 				TAILQ_FOREACH(p, &sc->peers, peer_list) {
 					if (p->bitfield != NULL
-					    && BIT_SET(p->bitfield, j)) {
+					    && util_getbit(p->bitfield, j)) {
 						if (p->state & PEER_STATE_CHOKED) {
 							trace("    (choked) peer %s:%d has it",
 							    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));

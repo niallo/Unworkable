@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.50 2008-09-05 19:53:30 niallo Exp $ */
+/* $Id: includes.h,v 1.51 2008-09-08 01:59:40 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -373,6 +373,9 @@ void		 buf_ungetc(BUF *);
 size_t		 buf_pos(BUF *);
 
 int		 mkpath(const char *, mode_t);
+void		 util_setbit(u_int8_t *, u_int32_t);
+int		 util_getbit(u_int8_t *, u_int32_t);
+
 void		 network_init(void);
 int		 network_start_torrent(struct torrent *, rlim_t);
 int				yyerror(const char *, ...);
@@ -476,11 +479,6 @@ void     vwarnx(const char *, __va_list);
 #include <err.h>
 #endif
 
-#define BIT_SET(a,i)	((a)[(i)>>3] |= 1<<((i)&(8-1)))
-#define BIT_CLR(a,i)	((a)[(i)>>3] &= ~(1<<((i)&(8-1))))
-#define BIT_ISSET(a,i)	((a)[(i)>>3] & (1<<((i)&(8-1))))
-#define BIT_ISCLR(a,i)	(((a)[(i)>>3] & (1<<((i)&(8-1)))) == 0)
-
 /* solaris 10 specific */
 #if defined(__SVR4) && defined(__sun)
 char *__progname;
@@ -508,6 +506,8 @@ void	network_peer_write_have(struct peer *, u_int32_t);
 void	network_peer_write_keepalive(struct peer *);
 void	network_peer_write_havenone(struct peer *);
 void	network_peer_write_haveall(struct peer *);
+void	network_peer_reject_block(struct peer *, u_int32_t, u_int32_t, u_int32_t);
+void	network_peer_write_choke(struct peer *);
 DH	*network_crypto_dh(void);
 long	network_peer_lastcomms(struct peer *);
 u_int64_t network_peer_rate(struct peer *);

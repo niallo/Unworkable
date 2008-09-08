@@ -1,4 +1,4 @@
-/* $Id: util.c,v 1.3 2007-12-04 07:05:15 niallo Exp $ */
+/* $Id: util.c,v 1.4 2008-09-08 01:59:40 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -124,4 +124,27 @@ atomicio(ssize_t (*f) (int, void *, size_t), int fd, void *_s, size_t n)
 		}
 	}
 	return (pos);
+}
+
+void
+util_setbit(u_int8_t *bitfield, u_int32_t bit)
+{
+	u_int32_t byte;
+
+	/* which byte is this bit in (divide by 8) */
+	byte = bit >> 3u;
+
+	bitfield[byte] |= 1 << (7u - (bit & 7u));
+
+}
+
+int
+util_getbit(u_int8_t *bitfield, u_int32_t bit)
+{
+	u_int32_t byte;
+
+	/* which byte is this bit in (divide by 8) */
+	byte = bit >> 3u;
+
+	return (bitfield[byte] & (1u << (7u - (bit & 7u))));
 }

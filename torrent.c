@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.103 2007-12-27 12:23:38 niallo Exp $ */
+/* $Id: torrent.c,v 1.104 2008-09-08 01:59:40 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -830,14 +830,15 @@ torrent_bitfield_get(struct torrent *tp)
 	u_int32_t i, len;
 	u_int8_t *bitfield;
 
-	len = (tp->num_pieces + 7) / 8;
+	len = (tp->num_pieces + 7u) / 8u;
 	bitfield = xmalloc(len);
 	memset(bitfield, 0, len);
 	for (i = 0; i < tp->num_pieces; i++) {
 		tpp = torrent_piece_find(tp, i);
 		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
-			BIT_SET(bitfield, i);
+			util_setbit(bitfield, i);
 	}
+
 	return (bitfield);
 }
 

@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.209 2008-09-05 23:12:39 niallo Exp $ */
+/* $Id: network.c,v 1.210 2008-09-08 01:59:40 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -594,7 +594,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 				p->state &= ~PEER_STATE_BITFIELD;
 				p->state |= PEER_STATE_ESTABLISHED;
 			}
-			BIT_SET(p->bitfield, idx);
+			util_setbit(p->bitfield, idx);
 			/* does this peer have anything we want? */
 			scheduler_piece_gimme(p, PIECE_GIMME_NOCREATE, &res);
 			if (res && !(p->state & PEER_STATE_AMINTERESTED))
@@ -642,6 +642,8 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			blocklen = ntohl(blocklen);
 			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
 				trace("REQUEST for data we don't have from peer %s:%d idx=%u off=%u len=%u", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx, off, blocklen);
+				if (p->state & PEER_STATE_FAST)
+					network_peer_reject_block(p, idx, off, blocklen);
 				break;
 			}
 			trace("REQUEST message from peer %s:%d idx=%u off=%u len=%u", inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port), idx, off, blocklen);
@@ -1222,6 +1224,36 @@ network_peer_write_havenone(struct peer *p)
 	memcpy(msg+sizeof(len), &id, sizeof(id));
 
 	network_peer_write(p, msg, sizeof(len) + sizeof(id));
+}
+
+/* network_peer_reject_block()
+ *
+ * Send a REJECT message to remote peer.
+ */
+void
+network_peer_reject_block(struct peer *p, u_int32_t idx, u_int32_t off, u_int32_t len)
+{
+	u_int32_t msglen, msglen2, blocklen;
+	u_int8_t  *msg, id;
+
+	trace("network_peer_reject_block, index: %u offset: %u len: %u to peer %s:%d", idx, off, len,
+	    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx) + sizeof(off) + sizeof(blocklen);
+	msg = xmalloc(msglen);
+
+	msglen2 = htonl(msglen - sizeof(msglen));
+	id = PEER_MSG_ID_REJECT;
+	idx = htonl(idx);
+	off = htonl(off);
+	blocklen = htonl(len);
+
+	memcpy(msg, &msglen2, sizeof(msglen2));
+	memcpy(msg+sizeof(msglen2), &id, sizeof(id));
+	memcpy(msg+sizeof(msglen2)+sizeof(id), &idx, sizeof(idx));
+	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx), &off, sizeof(off));
+	memcpy(msg+sizeof(msglen2)+sizeof(id)+sizeof(idx)+sizeof(off), &blocklen, sizeof(blocklen));
+
+	network_peer_write(p, msg, msglen);
 }
 
 /*
