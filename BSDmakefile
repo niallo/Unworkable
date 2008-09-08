@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: BSDmakefile,v 1.6 2008-09-08 05:35:52 niallo Exp $
+# $Id: BSDmakefile,v 1.7 2008-09-08 17:46:30 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
@@ -24,7 +24,7 @@ CFLAGS+= -Wsign-compare -g -ggdb
 
 #
 # Uncomment if you like to use Boehm's garbage collector (/usr/ports/devel/boehm-gc).
-#LDFLAGS+=                -L/usr/local/lib -lgc
+#LDFLAGS+=                -L/usr/local/lib -lgc -lpthread
 #DPADD+=                /usr/local/lib/libgc.a
 #CFLAGS+=               -DUSE_BOEHM_GC -DGC_DEBUG -DFIND_LEAK -I/usr/local/include/gc
 # You can also use Boehm's garbage collector as a means to find leaks.
