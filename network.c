@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.213 2008-09-09 07:01:21 niallo Exp $ */
+/* $Id: network.c,v 1.214 2008-09-09 22:24:20 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -775,7 +775,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			trace("REJECT message from peer %s:%d",
 			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			if (!(p->state & PEER_STATE_FAST)) {
-				trace("peer %s:%d does not support fast extension, closing %s:%d",
+				trace("peer %s:%d does not support fast extension, closing",
 				    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 				p->state = 0;
 				p->state |= PEER_STATE_DEAD;
