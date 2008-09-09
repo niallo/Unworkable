@@ -1,4 +1,4 @@
-/* $Id: parse.y,v 1.57 2008-09-08 05:35:52 niallo Exp $ */
+/* $Id: parse.y,v 1.58 2008-09-09 03:12:20 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -33,6 +33,13 @@
 #include <string.h>
 
 #include "includes.h"
+
+#ifndef LLONG_MAX
+ #define LLONG_MAX 9223372036854775807LL
+#endif
+#ifndef LLONG_MIN
+ #define LLONG_MIN (-LLONG_MAX - 1LL)
+#endif
 
 /* Assume no more than 16 nested dictionaries/lists. */
 #define  BENC_STACK_SIZE	16
