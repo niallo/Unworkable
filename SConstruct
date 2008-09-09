@@ -1,6 +1,6 @@
 # scons (http://www.scons.org) build for non-OpenBSD systems
 # on OpenBSD, just type 'make'.
-# $Id: SConstruct,v 1.16 2007-12-12 05:28:09 niallo Exp $
+# $Id: SConstruct,v 1.17 2008-09-09 05:42:13 niallo Exp $
 
 import sys
 
@@ -34,6 +34,10 @@ if sys.platform.startswith('sunos'):
 elif sys.platform.startswith('darwin'):
 	LIBPATH.append('/opt/local/lib')
 	CPPPATH.append('/opt/local/include')
+
+# Explicitly make off_t 64bit on Linux
+elif sys.platform.startswith('linux'):
+	CCFLAGS.append('-D_FILE_OFFSET_BITS=64')
 
 env = Environment(LIBPATH=LIBPATH, CPPPATH=CPPPATH)
 conf = Configure(env)
