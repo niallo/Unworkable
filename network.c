@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.212 2008-09-08 05:35:52 niallo Exp $ */
+/* $Id: network.c,v 1.213 2008-09-09 07:01:21 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -759,7 +759,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			off = ntohl(off);
 			memcpy(&blocklen, p->rxmsg+sizeof(id)+sizeof(idx)+sizeof(off), sizeof(blocklen));
 			blocklen = ntohl(blocklen);
-			trace("CANCEL message idx=%u off=%u len=%u from peer %s:%d",
+			trace("CANCEL message idx=%u off=%u len=%u from peer %s:%d", idx, off, blocklen, 
 			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			for (pu = TAILQ_FIRST(&p->peer_piece_uls); pu; pu = nxtpu) {
 				nxtpu = TAILQ_NEXT(pu, peer_piece_ul_list);
