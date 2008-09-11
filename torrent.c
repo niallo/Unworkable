@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.104 2008-09-08 01:59:40 niallo Exp $ */
+/* $Id: torrent.c,v 1.105 2008-09-11 00:38:12 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -479,7 +479,7 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	struct torrent_mmap *tmmp;
 	struct stat sb;
 	char buf[MAXPATHLEN], *buf2, zero = 0x00, *basedir;
-	int fd = 0, l;
+	int openflags, mmapflags, fd = 0, l;
 	long pagesize;
 	u_int8_t *nearest_page = NULL;
 	off_t page_off = 0;
@@ -505,7 +505,8 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 			xfree(buf2);
 			basedir = NULL;
 		}
-		if ((fd = open(buf, O_RDWR|O_CREAT, 0600)) == -1)
+		openflags = (tp->good_pieces == tp->num_pieces ? O_RDONLY : O_RDWR|O_CREAT);
+		if ((fd = open(buf, openflags, 0600)) == -1)
 			err(1, "torrent_mmap_create: open `%s'", buf);
 
 		if (flock(fd, LOCK_EX | LOCK_NB) == -1)
@@ -543,7 +544,8 @@ torrent_mmap_create(struct torrent *tp, struct torrent_file *tfp, off_t off,
 	/* trace("mmap: len: %u off: %u sbsiz: %u fd: %d aligned off: %u pagesize: %d", len, off, sb.st_size, tfp->fd, page_off, pagesize); */
 
 	tmmp->tfp = tfp;
-	tmmp->aligned_addr = mmap(0, len, PROT_READ|PROT_WRITE, MAP_SHARED, tfp->fd, page_off);
+	mmapflags = (tp->good_pieces == tp->num_pieces ? PROT_READ : PROT_READ|PROT_WRITE);
+	tmmp->aligned_addr = mmap(0, len, mmapflags, MAP_SHARED, tfp->fd, page_off);
 	if (tmmp->aligned_addr == MAP_FAILED)
 		err(1, "torrent_mmap_create: mmap");
 /* cygwin doesn't provide madvise() */
