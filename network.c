@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.215 2008-09-11 02:15:43 niallo Exp $ */
+/* $Id: network.c,v 1.216 2008-09-11 04:02:37 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -1558,6 +1558,7 @@ network_handle_peer_connect(struct bufferevent *bufev, short error, void *data)
 	sc->num_peers++;
 	network_peer_handshake(sc, p);
 
+	bufferevent_enable(bufev, EV_READ);
 }
 
 /*
