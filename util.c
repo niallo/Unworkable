@@ -1,4 +1,4 @@
-/* $Id: util.c,v 1.5 2008-09-08 05:35:52 niallo Exp $ */
+/* $Id: util.c,v 1.6 2008-09-11 00:14:18 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -27,7 +27,7 @@
 
 int
 mkpath(const char *s, mode_t mode){
-	char *q, *path = NULL, *up = NULL;
+	char *q, *r = NULL, *path = NULL, *up = NULL;
 	int rv;
 
 	rv = -1;
@@ -35,9 +35,10 @@ mkpath(const char *s, mode_t mode){
 		return 0;
 
 	path = xstrdup(s);
-	if ((q = dirname(s)) == NULL)
+	q = xstrdup(s);
+	if ((r = dirname(q)) == NULL)
 		goto out;
-	up = xstrdup(q);
+	up = xstrdup(r);
 
 	if ((mkpath(up, mode) == -1) && (errno != EEXIST))
 		goto out;
@@ -50,6 +51,7 @@ mkpath(const char *s, mode_t mode){
 out:
 	if (up != NULL)
 		xfree(up);
+	xfree(q);
 	xfree(path);
 	return (rv);
 }
