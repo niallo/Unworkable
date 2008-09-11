@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.53 2008-09-08 05:35:52 niallo Exp $ */
+/* $Id: includes.h,v 1.54 2008-09-11 02:15:43 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -499,7 +499,9 @@ char *__progname;
 
 int	announce(struct session *, const char *);
 int	network_listen(char *, char *);
+void 	network_peerlist_add_peer(struct session *, struct peer *);
 void	network_peerlist_update(struct session *, struct benc_node *);
+void 	network_peerlist_connect(struct session *);
 struct piece_dl *network_piece_dl_find(struct session *, struct peer *, u_int32_t, u_int32_t);
 int	network_connect_tracker(const char *, const char *);
 void	network_peer_write_piece(struct peer *, u_int32_t, u_int32_t, u_int32_t);

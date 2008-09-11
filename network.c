@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.214 2008-09-09 22:24:20 niallo Exp $ */
+/* $Id: network.c,v 1.215 2008-09-11 02:15:43 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -44,7 +44,6 @@ char *user_port = NULL;
 int   seed = 0;
 
 static void network_peer_write(struct peer *, u_int8_t *, u_int32_t);
-static void network_peerlist_connect(struct session *);
 static void network_peerlist_update_dict(struct session *, struct benc_node *);
 static void network_peerlist_update_string(struct session *, struct benc_node *);
 static char *network_peer_id_create(void);
@@ -158,7 +157,7 @@ network_connect_peer(struct peer *p)
  *
  * Connect any new peers in our peer list.
  */
-static void
+void
 network_peerlist_connect(struct session *sc)
 {
 	struct peer *ep, *nxt;
@@ -208,6 +207,34 @@ network_peerlist_connect(struct session *sc)
 }
 
 /*
+ * Adds a prepared struct peer to the peer list if it isn't already there
+ *
+ */
+void
+network_peerlist_add_peer(struct session *sc, struct peer *p)
+{
+	struct peer *ep;
+
+	/* Is this peer already in the list? */
+	int found = 0;
+	TAILQ_FOREACH(ep, &sc->peers, peer_list) {
+		if (memcmp(&ep->sa.sin_addr, &p->sa.sin_addr, sizeof(ep->sa.sin_addr)) == 0
+		    && memcmp(&ep->sa.sin_port, &p->sa.sin_port, sizeof(ep->sa.sin_port)) == 0) {
+			found = 1;
+			break;
+		}
+	}
+	if (found == 0) {
+		trace("network_peerlist_add_peer() adding peer to list: %s:%d",
+		    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+		TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
+		sc->num_peers++;
+	} else {
+		network_peer_free(p);
+	}
+}
+
+/*
  * network_peerlist_update_string()
  *
  * Handle string format peerlist parsing.
@@ -218,8 +245,7 @@ network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 {
 	char *peerlist;
 	size_t len, i;
-	struct peer *p, *ep;
-	int found = 0;
+	struct peer *p;
 
 	len = peers->body.string.len;
 	peerlist = peers->body.string.value;
@@ -236,23 +262,7 @@ network_peerlist_update_string(struct session *sc, struct benc_node *peers)
 			p->sa.sin_family = AF_INET;
 			memcpy(&p->sa.sin_addr, peerlist + i, 4);
 			memcpy(&p->sa.sin_port, peerlist + i + 4, 2);
-			/* Is this peer already in the list? */
-			found = 0;
-			TAILQ_FOREACH(ep, &sc->peers, peer_list) {
-				if (memcmp(&ep->sa.sin_addr, &p->sa.sin_addr, sizeof(ep->sa.sin_addr)) == 0
-				    && memcmp(&ep->sa.sin_port, &p->sa.sin_port, sizeof(ep->sa.sin_port)) == 0) {
-					found = 1;
-					break;
-				}
-			}
-			if (found == 0) {
-				trace("network_peerlist_update_string() adding peer to list: %s:%d",
-				    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
-				sc->num_peers++;
-			} else {
-				network_peer_free(p);
-			}
+			network_peerlist_add_peer(sc, p);
 			continue;
 		}
 	}
@@ -270,7 +280,7 @@ network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
 {
 
 	struct benc_node *dict, *n;
-	struct peer *ep, *p = NULL;
+	struct peer *p = NULL;
 	struct addrinfo hints, *res;
 	struct sockaddr_in sa;
 	int port, error, l;
@@ -280,7 +290,6 @@ network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
 		errx(1, "peers object is not a list");
 	/* iterate over a blist of bdicts each with three keys */
 	TAILQ_FOREACH(dict, &peers->children, benc_nodes) {
-		int found;
 		p = network_peer_create();
 		p->sc = sc;
 
@@ -316,25 +325,8 @@ network_peerlist_update_dict(struct session *sc, struct benc_node *peers)
 		memcpy(&p->sa.sin_addr, &sa.sin_addr, 4);
 		memcpy(&p->sa.sin_port, &sa.sin_port, 2);
 		freeaddrinfo(res);
-		/* Is this peer already in the list? */
-		found = 0;
-		TAILQ_FOREACH(ep, &sc->peers, peer_list) {
-			if (memcmp(&ep->sa.sin_addr, &p->sa.sin_addr, sizeof(ep->sa.sin_addr)) == 0
-			    && memcmp(&ep->sa.sin_port, &p->sa.sin_port, sizeof(ep->sa.sin_port)) == 0) {
-				found = 1;
-				break;
-			}
-		}
-		if (found == 0) {
-			trace("network_peerlist_update_dict() adding peer to list: %s:%d",
-			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-			TAILQ_INSERT_TAIL(&sc->peers, p, peer_list);
-			sc->num_peers++;
-		} else {
-			trace("network_peerlist_update_dict() we already have a peer: %s:%d",
-			    inet_ntoa(ep->sa.sin_addr), ntohs(ep->sa.sin_port));
-			network_peer_free(p);
-		}
+
+		network_peerlist_add_peer(sc, p);
 	}
 
 	network_peerlist_connect(sc);
