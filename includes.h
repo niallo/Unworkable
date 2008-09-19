@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.55 2008-09-19 04:25:22 niallo Exp $ */
+/* $Id: includes.h,v 1.56 2008-09-19 04:28:10 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -36,7 +36,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#define UNWORKABLE_VERSION "0.4"
+#define UNWORKABLE_VERSION "0.5"
 
 #define BSTRING		(1 << 0)
 #define BINT		(1 << 1)
