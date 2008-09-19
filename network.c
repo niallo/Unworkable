@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.216 2008-09-11 04:02:37 niallo Exp $ */
+/* $Id: network.c,v 1.217 2008-09-19 04:24:16 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -977,6 +977,7 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, u_int32_t offset, u_int3
 	msglen = sizeof(msglen) + sizeof(id) + sizeof(idx) + sizeof(offset) + len;
 	msglen2 = htonl((msglen - sizeof(msglen)));
 	msg = xmalloc(msglen);
+	memset(msg, 0, msglen);
 	id = PEER_MSG_ID_PIECE;
 	idx = htonl(idx);
 	offset = htonl(offset);
