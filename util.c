@@ -1,4 +1,4 @@
-/* $Id: util.c,v 1.6 2008-09-11 00:14:18 niallo Exp $ */
+/* $Id: util.c,v 1.7 2008-09-19 23:22:32 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -148,5 +148,5 @@ util_getbit(u_int8_t *bitfield, u_int32_t bit)
 	/* which byte is this bit in (divide by 8) */
 	byte = bit >> 3u;
 
-	return (bitfield[byte] & (1u << (7u - (bit & 7u))));
+	return ((bitfield[byte] & (1u << (7u - (bit & 7u)))) != 0);
 }
