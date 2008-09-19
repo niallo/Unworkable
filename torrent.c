@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.105 2008-09-11 00:38:12 niallo Exp $ */
+/* $Id: torrent.c,v 1.106 2008-09-19 04:25:22 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -394,7 +394,7 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hin
 	u_int8_t *aptr, *bptr;
 	struct torrent_mmap *tmmp;
 	off_t cntlen = 0, cntbase = 0;
-	u_int32_t tlen = len;
+	u_int32_t tlen = len, ilen;
 
 	*hint = 0;
 	block = NULL;
@@ -415,22 +415,25 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hin
 			/* our offset is within this mapping, but we still
 			   might need to bring the pointer up to it */
 			aptr = tmmp->addr;
+			ilen = tmmp->len - off - cntbase;
+			if (ilen > tmmp->len)
+				errx(1, "overflow: tlen > len");
 			for(; cntbase < off; cntbase++)
 				aptr++;
 
 			/* this mapping might not contain as many bytes as
 			   we requested.  in that case, copy as many as
 			   possible and continue to next mapping */
-			if (tmmp->len  < tlen) {
+			if (ilen < tlen) {
 				/* make sure we only malloc once */
 				if (*hint == 0) {
 					block = xmalloc(len);
 					bptr = block;
 					*hint = 1;
 				}
-				memcpy(bptr, aptr, tmmp->len);
-				bptr += tmmp->len;
-				tlen -= tmmp->len;
+				memcpy(bptr, aptr, ilen);
+				bptr += ilen;
+				tlen -= ilen;
 			} else {
 				/* if possible, do not do a buffer copy,
 				 * but return the mmaped base address directly
@@ -438,7 +441,7 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hin
 				if (*hint == 0) {
 					return (aptr);
 				}
-				memcpy(bptr, aptr, tlen);
+				memcpy(bptr, aptr, tlen - ilen);
 				return (block);
 			}
 		}
@@ -861,4 +864,86 @@ torrent_empty(struct torrent *tp)
 			return (0);
 	}
 	return (1);
+}
+
+/*
+ * torrent_fastresume_dump()
+ *
+ * Write out the bitfield and some other metadata to a file in the same
+ * dir as the torrent file, named <torrent_file>.funresume.
+ */
+void
+torrent_fastresume_dump(struct torrent *tp)
+{
+	char resumename[MAXPATHLEN];
+	FILE *fp;
+	u_int32_t bitfieldlen;
+	u_int8_t *bitfield;
+	size_t bytes;
+	int l;
+
+	bitfieldlen = (tp->num_pieces + 7u) / 8u;
+	bitfield = torrent_bitfield_get(tp);
+
+	l = snprintf(resumename, sizeof(resumename), "%s.funresume", tp->name);
+	if (l == -1 || l >= (int)sizeof(resumename))
+		errx(1, "torrent_fastresume_dump: snprintf truncation");
+
+	if ((fp = fopen(resumename, "w")) == NULL)
+		err(1, "torrent_fastresume_dump: fopen");
+
+	bytes = fwrite(bitfield, bitfieldlen, 1, fp);
+	if (bytes != bitfieldlen
+	    && ferror(fp))
+		errx(1, "torrent_fastresume_dump: fwrite failure");
+	fclose(fp);
+	xfree(bitfield);
+}
+
+/*
+ * torrent_fastresume_load()
+ *
+ * Load the fast resume data produced by torrent_fastresume_dump().
+ * Returns -1 if it could not load the fast resume data, 0 otherwise.
+ */
+int
+torrent_fastresume_load(struct torrent *tp)
+{
+	struct torrent_piece *tpp;
+	char resumename[MAXPATHLEN];
+	FILE *fp;
+	u_int32_t i, bitfieldlen;
+	u_int8_t *bitfield;
+	size_t bytes;
+	int l;
+
+	bitfieldlen = (tp->num_pieces + 7u) / 8u;
+
+	l = snprintf(resumename, sizeof(resumename), "%s.funresume", tp->name);
+	if (l == -1 || l >= (int)sizeof(resumename))
+		errx(1, "torrent_fastresume_load: snprintf truncation");
+
+	if ((fp = fopen(resumename, "r")) == NULL)
+		return (-1);
+
+	bitfield = xmalloc(bitfieldlen);
+	memset(bitfield, 0, bitfieldlen);
+
+	bytes = fread(bitfield, bitfieldlen, 1, fp);
+	if (bytes != bitfieldlen
+	    && ferror(fp))
+		errx(1, "torrent_fastresume_load: fread failure");
+	fclose(fp);
+	/* there are faster ways to do this, but this is pretty readable */
+	for (i = 0; i < tp->num_pieces; i++) {
+		tpp = torrent_piece_find(tp, i);
+		if (util_getbit(bitfield, i) == 1) {
+			tpp->flags |= TORRENT_PIECE_CKSUMOK;
+			tp->good_pieces++;
+			tp->downloaded += tpp->len;
+		}
+	}
+	xfree(bitfield);
+
+	return (0);
 }

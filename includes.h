@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.54 2008-09-11 02:15:43 niallo Exp $ */
+/* $Id: includes.h,v 1.55 2008-09-19 04:25:22 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -415,6 +415,8 @@ void			 torrent_print(struct torrent *);
 u_int8_t		*torrent_bitfield_get(struct torrent *);
 int			 torrent_empty(struct torrent *);
 void			 torrent_piece_sync(struct torrent *, u_int32_t);
+void			 torrent_fastresume_dump(struct torrent *);
+int			 torrent_fastresume_load(struct torrent *);
 /*
  * Support for Boehm's garbage collector, useful for finding leaks.
  */
