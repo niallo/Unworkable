@@ -1,4 +1,4 @@
-/* $Id: trace.c,v 1.6 2008-09-08 05:35:52 niallo Exp $ */
+/* $Id: trace.c,v 1.7 2008-09-19 23:30:33 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -24,6 +24,7 @@
 
 char *unworkable_trace = NULL;
 FILE *out = NULL;
+struct torrent *mytorrent = NULL;
 
 static void vtrace(const char *, va_list);
 
@@ -63,7 +64,10 @@ vtrace(const char *fmt, va_list vap)
 void
 sighandler(int sig)
 {
+	if (mytorrent != NULL)
+		torrent_fastresume_dump(mytorrent);
 	if (out != NULL)
 		fclose(out);
+
 	exit(1);
 }

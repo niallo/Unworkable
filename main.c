@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.55 2008-09-08 05:35:52 niallo Exp $ */
+/* $Id: main.c,v 1.56 2008-09-19 23:30:33 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -55,8 +55,8 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	struct torrent *torrent;
 	struct rlimit rlp;
+	struct torrent *torrent;
 	struct torrent_piece *tpp;
 	struct winsize winsize;
 	u_int32_t i;
@@ -116,27 +116,30 @@ main(int argc, char **argv)
 		win_size = DEFAULT_WINSIZE;
 	win_size += 1;					/* trailing \0 */
 	torrent = torrent_parse_file(argv[0]);
+	mytorrent = torrent;
 	torrent_pieces_create(torrent);
 	/* a little extra info? torrent_print(torrent); */
 	memset(&blurb, '\0', sizeof(blurb));
 	snprintf(blurb, sizeof(blurb), "%s ", MESSAGE);
 	atomicio(vwrite, STDOUT_FILENO, blurb, win_size - 1);
-	for (i = 0; i < torrent->num_pieces; i++) {
-		tpp = torrent_piece_find(torrent, i);
-		if (tpp->index != i)
-			errx(1, "main: something went wrong, index is %u, should be %u", tpp->index, i);
-		torrent_piece_map(tpp);
-		if (!torrent->isnew) {
-			j = torrent_piece_checkhash(torrent, tpp);
-			if (j == 0) {
-				torrent->good_pieces++;
-				torrent->downloaded += tpp->len;
+	if (torrent_fastresume_load(torrent) == -1) {
+		for (i = 0; i < torrent->num_pieces; i++) {
+			tpp = torrent_piece_find(torrent, i);
+			if (tpp->index != i)
+				errx(1, "main: something went wrong, index is %u, should be %u", tpp->index, i);
+			torrent_piece_map(tpp);
+			if (!torrent->isnew) {
+				j = torrent_piece_checkhash(torrent, tpp);
+				if (j == 0) {
+					torrent->good_pieces++;
+					torrent->downloaded += tpp->len;
+				}
 			}
+			torrent_piece_unmap(tpp);
+			percent = (float)i / torrent->num_pieces * 100;
+			snprintf(blurb, sizeof(blurb), "\r%s [%3d%%] %c", MESSAGE, percent, METER[i % 3]);
+			atomicio(vwrite, STDOUT_FILENO, blurb, win_size - 1);
 		}
-		torrent_piece_unmap(tpp);
-		percent = (float)i / torrent->num_pieces * 100;
-		snprintf(blurb, sizeof(blurb), "\r%s [%3d%%] %c", MESSAGE, percent, METER[i % 3]);
-		atomicio(vwrite, STDOUT_FILENO, blurb, win_size - 1);
 	}
 	/* do we already have everything? */
 	if (!seed && torrent->good_pieces == torrent->num_pieces) {

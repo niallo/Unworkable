@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.56 2008-09-19 04:28:10 niallo Exp $ */
+/* $Id: includes.h,v 1.57 2008-09-19 23:30:33 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -544,3 +544,5 @@ void ctl_server_start(struct session *, char *, off_t);
 void ctl_server_notify_bytes(struct session *, off_t);
 void ctl_server_notify_pieces(struct session *);
 void ctl_server_notify_peers(struct session *);
+/* global needs to change when we have multi-torrent support */
+extern struct torrent *mytorrent;
