@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.56 2008-09-19 23:30:33 niallo Exp $ */
+/* $Id: main.c,v 1.57 2008-09-19 23:54:39 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -40,16 +40,25 @@
 #define MESSAGE "hash check"
 #define METER "|/-\\"
 
+static void sighandler(int);
 void usage(void);
 
 extern char *optarg;
 extern int  optind;
+extern int event_gotsig;
+extern int (*event_sigcb)(void);
 
 void
 usage(void)
 {
 	fprintf(stderr, "usage: unworkable [-s] [-g port] [-p port] [-t tracefile] torrent\n");
 	exit(1);
+}
+
+static void
+sighandler(int sig)
+{
+	event_gotsig = 1;
 }
 
 int
@@ -149,6 +158,7 @@ main(int argc, char **argv)
 
 	srandom(time(NULL));
 	network_init();
+	event_sigcb = terminate_handler;
 	network_start_torrent(torrent, rlp.rlim_cur);
 
 	exit(0);

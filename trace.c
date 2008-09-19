@@ -1,4 +1,4 @@
-/* $Id: trace.c,v 1.7 2008-09-19 23:30:33 niallo Exp $ */
+/* $Id: trace.c,v 1.8 2008-09-19 23:54:39 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -61,8 +61,8 @@ vtrace(const char *fmt, va_list vap)
 	fflush(out);
 }
 
-void
-sighandler(int sig)
+int
+terminate_handler(void)
 {
 	if (mytorrent != NULL)
 		torrent_fastresume_dump(mytorrent);

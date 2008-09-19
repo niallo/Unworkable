@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.57 2008-09-19 23:30:33 niallo Exp $ */
+/* $Id: includes.h,v 1.58 2008-09-19 23:54:39 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -449,7 +449,7 @@ void	stop_progress_meter(void);
 
 void	trace(const char *, ...);
 
-void	sighandler(int);
+int terminate_handler(void);
 void	print_len(void *, size_t);
 
 
