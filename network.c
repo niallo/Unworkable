@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.218 2008-09-20 19:56:08 niallo Exp $ */
+/* $Id: network.c,v 1.219 2008-09-20 23:55:08 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -696,6 +696,8 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 					torrent_piece_unmap(tpp);
 					if (res == 0) {
 						trace("hash check success for piece %d", idx);
+						/* dump fastresume data  */
+						torrent_fastresume_dump(p->sc->tp);
 						p->sc->tp->good_pieces++;
 						p->sc->tp->left -= tpp->len;
 						if (p->sc->tp->good_pieces == p->sc->tp->num_pieces) {
@@ -718,8 +720,6 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 								network_piece_dl_free(p->sc, pd);
 							}
 						}
-						/* dump fastresume data  */
-						torrent_fastresume_dump(p->sc->tp);
 					} else {
 						trace("hash check failure for piece %d", idx);
 						for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
