@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.10 2008-09-08 05:35:52 niallo Exp $ */
+/* $Id: scheduler.c,v 1.11 2008-09-27 20:38:57 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -71,12 +71,15 @@ scheduler_piece_assigned(struct session *sc, struct torrent_piece *tpp)
 	u_int32_t off;
 	struct piece_dl *pd;
 
-	/* if this piece and all its blocks are already in our download queue, skip it */
+	/* if this piece and all its blocks are already in our download queue,
+	 * skip it */
 	for (off = 0; ; off += BLOCK_SIZE) {
 		if (off >= tpp->len)
 			return (1);
 		pd = network_piece_dl_find(sc, NULL, tpp->index, off);
-		/* if a piece doesn't exist, or has been orphaned, then its not done */
+
+		/* if a piece doesn't exist, or has been orphaned, then its not
+		 * done */
 		if (pd == NULL || (pd->bytes != pd->len && pd->pc == NULL))
 			return (0);
 	}
@@ -227,8 +230,8 @@ scheduler_piece_find_rarest(struct peer *p, int flag, int *res)
 			continue;
 		}
 		if (flag == FIND_RAREST_IGNORE_ASSIGNED) {
-			/* if this piece and all its blocks are already assigned to a peer and worked on
-			 * skip it */
+			/* if this piece and all its blocks are already
+			 * assigned to a peer and worked on skip it */
 			if (scheduler_piece_assigned(p->sc, tpp)) {
 				continue;
 			} else {
@@ -269,8 +272,8 @@ scheduler_piece_gimme(struct peer *peer, int flags, int *hint)
 	RB_FOREACH(pdin, piece_dl_by_idxoff, &peer->sc->piece_dl_by_idxoff) {
 		tpp = torrent_piece_find(peer->sc->tp, pdin->idx);
 		if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
-			/* if not all this piece's blocks are in the download queue
-			 * and this peer actually has this piece */
+			/* if not all this piece's blocks are in the download
+			 * queue and this peer actually has this piece */
 			if (!scheduler_piece_assigned(peer->sc, tpp)
 			    && peer->bitfield != NULL
 			    && util_getbit(peer->bitfield, pdin->idx)) {
@@ -321,7 +324,8 @@ scheduler_piece_gimme(struct peer *peer, int flags, int *hint)
 		xfree(pieces);
 		tpp = torrent_piece_find(peer->sc->tp, idx);
 	} else {
-		/* find the rarest piece that does not have all its blocks already in the download queue */
+		/* find the rarest piece that does not have all its blocks
+		 * already in the download queue */
 		idx = scheduler_piece_find_rarest(peer, FIND_RAREST_IGNORE_ASSIGNED, &res);
 		/* there are no more pieces right now */
 		if (!res)
@@ -333,7 +337,8 @@ get_block:
 		*hint = 1;
 		return (NULL);
 	}
-	/* find the next block (by offset) in the piece, which is not already assigned to a peer */
+	/* find the next block (by offset) in the piece, which is not already
+	 * assigned to a peer */
 	for (off = 0; ; off += BLOCK_SIZE) {
 		if (off >= tpp->len)
 			errx(1, "gone to a bad offset %u in idx %u, len %u", off, idx, tpp->len);
@@ -342,7 +347,8 @@ get_block:
 		if (pd == NULL) {
 			break;
 		} else if (pd->pc == NULL && pd->bytes != pd->len) {
-			/* piece dl exists, but it has been orphaned -> recycle it */
+			/* piece dl exists, but it has been orphaned -> recycle
+			 * it */
 			trace("recycling dl (tpp->len %u) len %u idx %u off %u", tpp->len, pd->len, pd->idx, pd->off);
 			pd->pc = peer;
 			/* put it in this peer's list */

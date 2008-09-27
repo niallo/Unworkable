@@ -1,4 +1,4 @@
-/* $Id: announce.c,v 1.10 2008-09-08 05:35:52 niallo Exp $ */
+/* $Id: announce.c,v 1.11 2008-09-27 20:37:17 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -79,7 +79,8 @@ announce(struct session *sc, const char *event)
 
 	/* convert binary info hash to url encoded format */
 	for (i = 0; i < SHA1_DIGEST_LENGTH; i++) {
-		l = snprintf(&tbuf[3*i], sizeof(tbuf), "%%%02x", sc->tp->info_hash[i]);
+		l = snprintf(&tbuf[3*i], sizeof(tbuf), "%%%02x",
+		    sc->tp->info_hash[i]);
 		if (l == -1 || l >= (int)sizeof(tbuf))
 			goto trunc;
 	}
@@ -146,8 +147,10 @@ announce(struct session *sc, const char *event)
 		if (l == -1 || l >= GETSTRINGLEN)
 			goto trunc;
 	}
-	/* while OpenBSD's snprintf doesn't mind snprintf(X, len, "%sblah", X) others
-	 * don't like this, so I do the strlcpy and use the temporary buffer tparams. */
+
+	/* While OpenBSD's snprintf doesn't mind snprintf(X, len, "%sblah", X)
+	 * others don't like this, so I do the strlcpy and use the temporary
+	 * buffer tparams. */
 	if (sc->ip != NULL) {
 		strlcpy(tparams, params, GETSTRINGLEN);
 		l = snprintf(params, GETSTRINGLEN, "%s&ip=%s", tparams,

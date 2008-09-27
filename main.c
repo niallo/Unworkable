@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.57 2008-09-19 23:54:39 niallo Exp $ */
+/* $Id: main.c,v 1.58 2008-09-27 20:35:43 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -135,7 +135,8 @@ main(int argc, char **argv)
 		for (i = 0; i < torrent->num_pieces; i++) {
 			tpp = torrent_piece_find(torrent, i);
 			if (tpp->index != i)
-				errx(1, "main: something went wrong, index is %u, should be %u", tpp->index, i);
+				errx(1,
+				     "main: something went wrong, index is %u, should be %u", tpp->index, i);
 			torrent_piece_map(tpp);
 			if (!torrent->isnew) {
 				j = torrent_piece_checkhash(torrent, tpp);
@@ -146,7 +147,8 @@ main(int argc, char **argv)
 			}
 			torrent_piece_unmap(tpp);
 			percent = (float)i / torrent->num_pieces * 100;
-			snprintf(blurb, sizeof(blurb), "\r%s [%3d%%] %c", MESSAGE, percent, METER[i % 3]);
+			snprintf(blurb, sizeof(blurb), "\r%s [%3d%%] %c",
+			    MESSAGE, percent, METER[i % 3]);
 			atomicio(vwrite, STDOUT_FILENO, blurb, win_size - 1);
 		}
 	}
