@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.219 2008-09-20 23:55:08 niallo Exp $ */
+/* $Id: network.c,v 1.220 2008-10-01 18:20:44 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -649,7 +649,7 @@ network_peer_process_message(u_int8_t id, struct peer *p)
 			memcpy(&off, p->rxmsg+sizeof(id)+sizeof(idx), sizeof(off));
 			off = ntohl(off);
 			trace("PIECE message (idx=%u off=%u len=%u) from peer %s:%d", idx,
-			    off, p->rxmsglen, inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			    off, p->rxmsglen - (sizeof(id)+sizeof(off)+sizeof(idx)), inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
 			if (idx > p->sc->tp->num_pieces - 1) {
 				trace("PIECE index out of bounds");
 				break;
@@ -1581,8 +1581,8 @@ network_connect_tracker(const char *host, const char *port)
 	 * should be very fast. */
 	hints.ai_family = PF_INET;
 	hints.ai_socktype = SOCK_STREAM;
-	trace("network_connect_tracker() calling getaddrinfo()");
-	/* XXX cache this, or perhaps use evdns */
+	trace("network_connect_tracker() calling getaddrinfo() for host: %s port: %s", host, port);
+	/* XXX cache thiS, OR PERhaps use evdns */
 	error = getaddrinfo(host, port, &hints, &res0);
 	if (error) {
 		trace("network_connect_tracker(): %s", gai_strerror(error));
