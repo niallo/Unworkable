@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.106 2008-09-19 04:25:22 niallo Exp $ */
+/* $Id: torrent.c,v 1.107 2008-10-01 18:24:18 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -340,6 +340,7 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d
 	u_int8_t *aptr;
 	u_int32_t tlen, bytesleft = len, diff = 0;
 
+	trace("torrent_block_write tpp->idx: %u off: %u len: %u", tpp->index, off, len);
 	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps) {
 		if (bytesleft < len) {
 			diff = len - bytesleft;
@@ -375,6 +376,7 @@ torrent_block_write(struct torrent_piece *tpp, off_t off, u_int32_t len, void *d
 				continue;
 			}
 			memcpy(aptr, d, len);
+			return;
 		}
 	}
 }
@@ -400,6 +402,7 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hin
 	block = NULL;
 	bptr = NULL;
 
+	trace("torrent_block_read tpp->idx: %u off: %u len: %u", tpp->index, off, len);
 	TAILQ_FOREACH(tmmp, &tpp->mmaps, mmaps) {
 		/* sum the lengths of the mappings we visit. if the offset is
 		   greater than the current sum, then the requested data is
@@ -415,12 +418,18 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hin
 			/* our offset is within this mapping, but we still
 			   might need to bring the pointer up to it */
 			aptr = tmmp->addr;
-			ilen = tmmp->len - off - cntbase;
+			/* (off - cntbase) is the distance from the start of
+			 * mapping that we need to traverse to get to the
+			 * offset. */
+			/* ilen is the length remaining in the mapping, after
+			 * the walk */
+			ilen = tmmp->len - (off - cntbase);
 			if (ilen > tmmp->len)
-				errx(1, "overflow: tlen > len");
+				errx(1, "overflow: ilen > tmmp->len");
 			for(; cntbase < off; cntbase++)
 				aptr++;
 
+			trace("torrent_block_read: off: %jd len: %u ilen: %u (off - cntbase): %jd tmmp->len: %u tlen: %u file: %s md5sum: %s", off, len, ilen, off - cntbase, tmmp->len, tlen, tmmp->tfp->path, tmmp->tfp->md5sum);
 			/* this mapping might not contain as many bytes as
 			   we requested.  in that case, copy as many as
 			   possible and continue to next mapping */
@@ -441,7 +450,7 @@ torrent_block_read(struct torrent_piece *tpp, off_t off, u_int32_t len, int *hin
 				if (*hint == 0) {
 					return (aptr);
 				}
-				memcpy(bptr, aptr, tlen - ilen);
+				memcpy(bptr, aptr, tlen);
 				return (block);
 			}
 		}
@@ -751,8 +760,6 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 	SHA1Update(&sha, d, tpp->len);
 	SHA1Final(results, &sha);
 
-	if (hint == 1)
-		xfree(d);
 	if (tp->type == MULTIFILE) {
 		s = tp->body.multifile.pieces
 		    + (SHA1_DIGEST_LENGTH * tpp->index);
@@ -765,6 +772,8 @@ torrent_piece_checkhash(struct torrent *tp, struct torrent_piece *tpp)
 	if (res == 0) {
 		tpp->flags |= TORRENT_PIECE_CKSUMOK;
 	}
+	if (hint == 1)
+		xfree(d);
 
 	return (res);
 }
