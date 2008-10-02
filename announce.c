@@ -1,4 +1,4 @@
-/* $Id: announce.c,v 1.11 2008-09-27 20:37:17 niallo Exp $ */
+/* $Id: announce.c,v 1.12 2008-10-02 17:19:56 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -92,7 +92,8 @@ announce(struct session *sc, const char *event)
 	}
 	/* XXX: need support for announce-list */
 	/* separate out hostname, port and path */
-	c = strstr(sc->tp->announce, "http://");
+	if ((c = strstr(sc->tp->announce, "http://")) == NULL)
+		errx(1, "unsupported announce protocol: %s", sc->tp->announce);
 	c += HTTPLEN;
 	n = strcspn(c, ":/");
 	if (n > sizeof(host) - 1)
