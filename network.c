@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.221 2008-10-03 22:58:15 niallo Exp $ */
+/* $Id: network.c,v 1.222 2008-10-03 23:05:08 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -992,6 +992,7 @@ network_peer_write_piece(struct peer *p, u_int32_t idx, u_int32_t offset, u_int3
 	network_peer_write(p, msg, msglen);
 	if (hint == 1)
 		xfree(data);
+	p->totaltx += msglen;
 }
 
 /*

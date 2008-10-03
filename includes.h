@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.58 2008-09-19 23:54:39 niallo Exp $ */
+/* $Id: includes.h,v 1.59 2008-10-03 23:05:08 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -277,6 +277,8 @@ struct peer {
 	time_t lastsend;
 	/* how many bytes have we rx'd from the peer since it was connected */
 	u_int64_t totalrx;
+	/* how many bytes have we tx'd to the peer since it was connected */
+	u_int64_t totaltx;
 	/* block request queue length*/
 	u_int32_t dl_queue_len;
 	/* block upload queue length*/
