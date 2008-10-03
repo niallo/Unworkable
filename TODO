@@ -1,0 +1,15 @@
+- Better progress guage handling of the situation where we have received
+  more bytes than are in the torrent, but hash check failures mean
+  we aren't actually as far along as we wish.  In other words, raw data
+  rx vs. checksummed pieces.
+
+- UDP tracker support (BEP 15).
+
+- Multi-tracker support.
+
+- Multiple torrents per unworkable process support, along with hooks
+  to load new torrents etc in the control server.
+
+- Encryption.
+
+- DHT/Kadamalia overlay network support.
