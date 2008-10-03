@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.12 2008-10-03 19:09:46 niallo Exp $ */
+/* $Id: scheduler.c,v 1.13 2008-10-03 19:12:20 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -613,21 +613,19 @@ get_block:
 void
 scheduler(int fd, short type, void *arg)
 {
-	struct peer *p, *p2, *nxt;
+	struct peer *p, *nxt;
 	struct session *sc = arg;
 	struct timeval tv;
 	/* piece rarity array */
 	struct piece_dl *pd;
 	struct piece_dl_idxnode *pdin;
-	struct peercounter *pc;
 	u_int32_t pieces_left, reqs_outstanding, reqs_completed, reqs_orphaned;
 	u_int32_t choked, unchoked;
 	char tbuf[64];
 	time_t now;
 
 	reqs_outstanding = reqs_completed = reqs_orphaned = choked = unchoked = 0;
-	p = p2 = NULL;
-	pc = NULL;
+	p = NULL;
 	pd = NULL;
 	timerclear(&tv);
 	tv.tv_sec = 1;
