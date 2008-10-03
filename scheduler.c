@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.13 2008-10-03 19:12:20 niallo Exp $ */
+/* $Id: scheduler.c,v 1.14 2008-10-03 19:13:53 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -440,7 +440,6 @@ scheduler_endgame_algorithm(struct session *sc)
 	struct peer *p;
 	struct piece_dl *pd;
 	u_int32_t i, off, len;
-	int hint = 0;
 
 	/* find incomplete pieces */
 	for (i = 0; i < sc->tp->num_pieces; i++) {
@@ -461,7 +460,6 @@ scheduler_endgame_algorithm(struct session *sc)
 			}
 			trace("    (unchoked) peer %s:%d has it",
 			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-			hint = 0;
 			/* find the un-queued pieces */
 			for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
 				int found = 0;
