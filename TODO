@@ -13,3 +13,5 @@
 - Encryption.
 
 - DHT/Kadamalia overlay network support.
+
+- Rate limiting.
