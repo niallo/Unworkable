@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.59 2008-10-03 23:05:08 niallo Exp $ */
+/* $Id: includes.h,v 1.60 2008-10-03 23:16:59 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -529,7 +529,8 @@ void	network_peer_reject_block(struct peer *, u_int32_t, u_int32_t, u_int32_t);
 void	network_peer_write_choke(struct peer *);
 DH	*network_crypto_dh(void);
 long	network_peer_lastcomms(struct peer *);
-u_int64_t network_peer_rate(struct peer *);
+u_int64_t network_peer_rxrate(struct peer *);
+u_int64_t network_peer_txrate(struct peer *);
 struct piece_dl * network_piece_dl_create(struct peer *, u_int32_t,
     u_int32_t, u_int32_t);
 void	network_piece_dl_free(struct session *, struct piece_dl *);

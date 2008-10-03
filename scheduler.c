@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.15 2008-10-03 19:15:36 niallo Exp $ */
+/* $Id: scheduler.c,v 1.16 2008-10-03 23:16:59 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -141,7 +141,7 @@ scheduler_peer_speedrank(struct session *sc)
 	TAILQ_FOREACH(p, &sc->peers, peer_list) {
 		peers[i].peer = p;
 		if (p->state & PEER_STATE_INTERESTED) {
-			peers[i].rate = network_peer_rate(p);
+			peers[i].rate = network_peer_rxrate(p);
 			/* kind of a hack so we don't unchoke
 			 * un-interested peers */
 			if (peers[i].rate == 0)
@@ -331,7 +331,7 @@ scheduler_fill_requests(struct session *sc, struct peer *p)
 
 	if (!(p->state & PEER_STATE_CHOKED)
 	    && pieces_left > 0) {
-		peer_rate = network_peer_rate(p);
+		peer_rate = network_peer_rxrate(p);
 		/* for each 10k/sec on this peer, add a request. */
 		/* minimum queue length is 2, max is MAX_REQUESTS */
 		queue_len = (u_int32_t) peer_rate / 10240;
