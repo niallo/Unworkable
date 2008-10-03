@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.11 2008-09-27 20:38:57 niallo Exp $ */
+/* $Id: scheduler.c,v 1.12 2008-10-03 19:09:46 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -27,9 +27,15 @@
 
 #include "includes.h"
 
-static int	scheduler_piece_assigned(struct session *, struct torrent_piece *);
+static int	 scheduler_piece_assigned(struct session *, struct torrent_piece *);
 static u_int32_t scheduler_piece_find_rarest(struct peer *, int, int *);
-static int	scheduler_is_endgame(struct session *);
+static int	 scheduler_is_endgame(struct session *);
+static int	 scheduler_threshold_kill(struct peer *);
+static void	 scheduler_dequeue_uploads(struct peer *);
+static int	 scheduler_reap_dead(struct session *, struct peer *);
+static void	 scheduler_fill_requests(struct session *, struct peer *);
+static void	 scheduler_choke_algorithm(struct session *, time_t *);
+static void	 scheduler_endgame_algorithm(struct session *);
 
 /*
  * scheduler_is_endgame()
@@ -251,6 +257,238 @@ scheduler_piece_find_rarest(struct peer *p, int flag, int *res)
 }
 
 /*
+ * scheduler_threshold_kill()
+ *
+ * If we have not received data in PEER_COMMS_THRESHOLD,
+ * remove the block requests from our list and kill the peer.
+ */
+static int
+scheduler_threshold_kill(struct peer *p)
+{
+	if ((p->state & PEER_STATE_BITFIELD || p->state & PEER_STATE_ESTABLISHED)
+	    && network_peer_lastcomms(p) >= PEER_COMMS_THRESHOLD) {
+		trace("comms threshold exceeded for peer %s:%d",
+		    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+		p->state = 0;
+		p->state |= PEER_STATE_DEAD;
+		return (0);
+	}
+
+	return (-1);
+}
+
+/*
+ * scheduler_dequeue_uploads()
+ *
+ * Dequeue a piece to peer, if there is one waiting.
+ */
+static void
+scheduler_dequeue_uploads(struct peer *p)
+{
+	struct piece_ul *pu;
+	/* honour one upload */
+	if ((pu = network_piece_ul_dequeue(p)) != NULL) {
+		trace("dequeuing piece to peer %s:%d",
+		    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+		network_peer_write_piece(p, pu->idx, pu->off, pu->len);
+		xfree(pu);
+		pu = NULL;
+	}
+}
+
+/*
+ * scheduler_reap_dead()
+ *
+ * Reap peer if it is marked dead.
+ */
+static int
+scheduler_reap_dead(struct session *sc, struct peer *p)
+{
+	/* if peer is marked dead, free it */
+	if (p->state & PEER_STATE_DEAD) {
+		TAILQ_REMOVE(&sc->peers, p, peer_list);
+		network_peer_free(p);
+		sc->num_peers--;
+		return (0);
+	}
+	return (-1);
+}
+
+/*
+ * scheduler_fill_requests()
+ *
+ * If peer is not choked, make sure it has enough requests in its queue.
+ */
+static void
+scheduler_fill_requests(struct session *sc, struct peer *p)
+{
+	struct piece_dl *pd;
+	u_int64_t peer_rate;
+	u_int32_t pieces_left, queue_len, i;
+	int hint = 0;
+
+	pieces_left = sc->tp->num_pieces - sc->tp->good_pieces;
+
+	if (!(p->state & PEER_STATE_CHOKED)
+	    && pieces_left > 0) {
+		peer_rate = network_peer_rate(p);
+		/* for each 10k/sec on this peer, add a request. */
+		/* minimum queue length is 2, max is MAX_REQUESTS */
+		queue_len = (u_int32_t) peer_rate / 10240;
+		if (queue_len < 2) {
+			queue_len = 2;
+		} else if (queue_len > MAX_REQUESTS) {
+			queue_len = MAX_REQUESTS;
+		}
+		/* test for overflow */
+		if (queue_len < p->dl_queue_len) {
+			queue_len = 0;
+		} else {
+			/* queue_len is what the peer's queue length should be */
+			queue_len -= p->dl_queue_len;
+		}
+
+		for (i = 0; i < queue_len; i++) {
+			pd = scheduler_piece_gimme(p, 0, &hint);
+			/* probably means no bitfield from this peer yet, or all requests are in transit. give it some time. */
+			if (pd == NULL)
+				continue;
+			network_peer_request_block(pd->pc, pd->idx, pd->off, pd->len);
+			p->dl_queue_len++;
+		}
+	}
+}
+
+/*
+ * scheduler_choke_algorithm()
+ *
+ * Every 10 seconds, sort peers by speed and unchoke the 3 fastest.
+ */
+static void
+scheduler_choke_algorithm(struct session *sc, time_t *now)
+{
+	struct peer *p, *p2;
+	struct peercounter *pc;
+	u_int32_t i;
+	int j, k, num_interested;
+
+	p = p2 = NULL;
+
+	if ((*now % 10) != 0)
+		return;
+	pc = scheduler_peer_speedrank(sc);
+	for (i = 0; i < MIN(3, sc->num_peers); i++) {
+		/* if this peer is already unchoked, leave it */
+		if (!(pc[i].peer->state & PEER_STATE_AMCHOKING))
+			continue;
+		/* don't unchoke peers who have not expressed interest */
+		if (!(pc[i].peer->state & PEER_STATE_INTERESTED))
+			continue;
+		/* now we can unchoke this one */
+		trace("fastest unchoke");
+		network_peer_write_unchoke(pc[i].peer);
+	}
+	if ((*now % 30) == 0 ) {
+		num_interested = 0;
+		TAILQ_FOREACH(p2, &sc->peers, peer_list) {
+			if (p2->state & PEER_STATE_INTERESTED)
+				num_interested++;
+		}
+		if (num_interested > 0) {
+			j = random() % num_interested;
+			p2 = TAILQ_FIRST(&sc->peers);
+			for (k = 0; k < j; k++) {
+				if (p2 == NULL)
+					errx(1, "NULL peer");
+				if (!(pc->peer->state & PEER_STATE_INTERESTED)) {
+					p2 = TAILQ_NEXT(p2, peer_list);
+					continue;
+				}
+			}
+			trace("opportunistic unchoke");
+			network_peer_write_unchoke(p2);
+		}
+	}
+	/* choke any peers except for three fastest, and the one randomly selected */
+	TAILQ_FOREACH(p, &sc->peers, peer_list) {
+		int c = 0;
+		/* don't try to choke any of the peers
+		 * we just unchoked above */
+		for (i = 0; i < MIN(3, sc->num_peers); i++) {
+			if (p == pc[i].peer || p == p2) {
+				c = 1;
+				break;
+			}
+		}
+		if (c)
+			continue;
+		if (!(p->state & PEER_STATE_AMCHOKING))
+			network_peer_write_choke(p);
+	}
+	xfree(pc);
+}
+
+/*
+ * scheduler_endgame_algorithm()
+ *
+ * Endgame handling.
+ */
+static void
+scheduler_endgame_algorithm(struct session *sc)
+{
+	struct torrent_piece *tpp;
+	struct peer *p;
+	struct piece_dl *pd;
+	u_int32_t i, off, len;
+	int hint = 0;
+
+	/* find incomplete pieces */
+	for (i = 0; i < sc->tp->num_pieces; i++) {
+		if ((tpp = torrent_piece_find(sc->tp, i)) == NULL)
+			errx(1, "scheduler(): torrent_piece_find");
+		if (tpp->flags & TORRENT_PIECE_CKSUMOK)
+			continue;
+		/* which peers have it? */
+		trace("we still need piece idx %u", i);
+		TAILQ_FOREACH(p, &sc->peers, peer_list) {
+			if (p->bitfield == NULL
+			    || util_getbit(p->bitfield, i))
+				continue;
+			if (p->state & PEER_STATE_CHOKED) {
+				trace("    (choked) peer %s:%d has it",
+				    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+				continue;
+			}
+			trace("    (unchoked) peer %s:%d has it",
+			    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
+			hint = 0;
+			/* find the un-queued pieces */
+			for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
+				int found = 0;
+				/* is this block offset already queued on this peer? */
+				TAILQ_FOREACH(pd, &p->peer_piece_dls, peer_piece_dl_list) {
+					if (pd->idx == i && pd->off == off) {
+						found = 1;
+						break;
+					}
+				}
+				if (found)
+					continue;
+				if (BLOCK_SIZE > tpp->len - off) {
+					len = tpp->len - off;
+				} else {
+					len = BLOCK_SIZE;
+				}
+				pd = network_piece_dl_create(p, i, off, len);
+				trace("choosing endgame dl (tpp->len %u) len %u idx %u off %u", tpp->len, len, i, off);
+				network_peer_request_block(pd->pc, pd->idx, pd->off, pd->len);
+				p->dl_queue_len++;
+			}
+		}
+	}
+}
+
+/*
  * scheduler_piece_gimme()
  *
  * According to various selection strategies, hand me something to download.
@@ -380,16 +618,12 @@ scheduler(int fd, short type, void *arg)
 	struct timeval tv;
 	/* piece rarity array */
 	struct piece_dl *pd;
-	struct piece_ul *pu;
 	struct piece_dl_idxnode *pdin;
 	struct peercounter *pc;
-	struct torrent_piece *tpp;
-	u_int32_t pieces_left, reqs_outstanding, reqs_completed, reqs_orphaned, j, k, off, len, queue_len;
-	u_int64_t peer_rate;
-	u_int32_t i, choked, unchoked;
+	u_int32_t pieces_left, reqs_outstanding, reqs_completed, reqs_orphaned;
+	u_int32_t choked, unchoked;
 	char tbuf[64];
 	time_t now;
-	int hint = 0, num_interested;
 
 	reqs_outstanding = reqs_completed = reqs_orphaned = choked = unchoked = 0;
 	p = p2 = NULL;
@@ -409,167 +643,20 @@ scheduler(int fd, short type, void *arg)
 			} else {
 				unchoked++;
 			}
-			/* if peer is marked dead, free it */
-			if (p->state & PEER_STATE_DEAD) {
-				TAILQ_REMOVE(&sc->peers, p, peer_list);
-				network_peer_free(p);
-				sc->num_peers--;
+			if (scheduler_reap_dead(sc, p) == 0)
 				continue;
-			}
-			/* if we have not received data in PEER_COMMS_THRESHOLD,
-			 * remove the block requests from our list and kill the peer */
-			if ((p->state & PEER_STATE_BITFIELD || p->state & PEER_STATE_ESTABLISHED)
-			    && network_peer_lastcomms(p) >= PEER_COMMS_THRESHOLD) {
-				trace("comms threshold exceeded for peer %s:%d",
-				    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				p->state = 0;
-				p->state |= PEER_STATE_DEAD;
+			if (scheduler_threshold_kill(p) == 0)
 				continue;
-			}
-			/* honour one upload */
-			if ((pu = network_piece_ul_dequeue(p)) != NULL) {
-				trace("dequeuing piece to peer %s:%d",
-				    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-				network_peer_write_piece(p, pu->idx, pu->off, pu->len);
-				xfree(pu);
-				pu = NULL;
-			}
-			/* if peer is not choked, make sure it has enough requests in its queue */
-			if (!(p->state & PEER_STATE_CHOKED)
-			    && pieces_left > 0) {
-				peer_rate = network_peer_rate(p);
-				/* for each 10k/sec on this peer, add a request. */
-				/* minimum queue length is 2, max is MAX_REQUESTS */
-				queue_len = (u_int32_t) peer_rate / 10240;
-				if (queue_len < 2) {
-					queue_len = 2;
-				} else if (queue_len > MAX_REQUESTS) {
-					queue_len = MAX_REQUESTS;
-				}
-				/* test for overflow */
-				if (queue_len < p->dl_queue_len) {
-					queue_len = 0;
-				} else {
-					/* queue_len is what the peer's queue length should be */
-					queue_len -= p->dl_queue_len;
-				}
-
-				for (i = 0; i < queue_len; i++) {
-					pd = scheduler_piece_gimme(p, 0, &hint);
-					/* probably means no bitfield from this peer yet, or all requests are in transit. give it some time. */
-					if (pd == NULL)
-						continue;
-					network_peer_request_block(pd->pc, pd->idx, pd->off,
-					    pd->len);
-					p->dl_queue_len++;
-				}
-			}
+			scheduler_dequeue_uploads(p);
+			scheduler_fill_requests(sc, p);
 		}
 	}
 	now = time(NULL);
 
-	/* choke algorithm */
-	/* every 10 seconds, sort peers by speed and unchoke the 3 fastest */
-	if ((now % 10) == 0) {
-		pc = scheduler_peer_speedrank(sc);
-		for (i = 0; i < MIN(3, sc->num_peers); i++) {
-			/* if this peer is already unchoked, leave it */
-			if (!(pc[i].peer->state & PEER_STATE_AMCHOKING))
-				continue;
-			/* don't unchoke peers who have not expressed interest */
-			if (!(pc[i].peer->state & PEER_STATE_INTERESTED))
-				continue;
-			/* now we can unchoke this one */
-			trace("fastest unchoke");
-			network_peer_write_unchoke(pc[i].peer);
-		}
-		if ((now % 30) == 0 ) {
-			num_interested = 0;
-			TAILQ_FOREACH(p2, &sc->peers, peer_list) {
-				if (p2->state & PEER_STATE_INTERESTED)
-					num_interested++;
-			}
-			if (num_interested > 0) {
-				j = random() % num_interested;
-				p2 = TAILQ_FIRST(&sc->peers);
-				for (k = 0; k < j; k++) {
-					if (p2 == NULL)
-						errx(1, "NULL peer");
-					if (!(pc->peer->state & PEER_STATE_INTERESTED)) {
-						p2 = TAILQ_NEXT(p2, peer_list);
-						continue;
-					}
-				}
-				trace("opportunistic unchoke");
-				network_peer_write_unchoke(p2);
-			}
-		}
-		/* choke any peers except for three fastest, and the one randomly selected */
-		TAILQ_FOREACH(p, &sc->peers, peer_list) {
-			int c = 0;
-			/* don't try to choke any of the peers
-			 * we just unchoked above */
-			for (i = 0; i < MIN(3, sc->num_peers); i++) {
-				if (p == pc[i].peer || p == p2) {
-					c = 1;
-					break;
-				}
-			}
-			if (c)
-				continue;
-			if (!(p->state & PEER_STATE_AMCHOKING))
-				network_peer_write_choke(p);
-		}
-		xfree(pc);
-	}
-	/* endgame handling */
-	/* are all pieces already requested? */
-	if (scheduler_is_endgame(sc)) {
-		/* find incomplete pieces */
-		for (j = 0; j < sc->tp->num_pieces; j++) {
-			if ((tpp = torrent_piece_find(sc->tp, j)) == NULL)
-				errx(1, "scheduler(): torrent_piece_find");
-			if (!(tpp->flags & TORRENT_PIECE_CKSUMOK)) {
-				/* which peers have it? */
-				trace("we still need piece idx %u", j);
-				TAILQ_FOREACH(p, &sc->peers, peer_list) {
-					if (p->bitfield != NULL
-					    && util_getbit(p->bitfield, j)) {
-						if (p->state & PEER_STATE_CHOKED) {
-							trace("    (choked) peer %s:%d has it",
-							    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-						} else {
-							trace("    (unchoked) peer %s:%d has it",
-							    inet_ntoa(p->sa.sin_addr), ntohs(p->sa.sin_port));
-							hint = 0;
-							/* find the  */
-							for (off = 0; off < tpp->len; off += BLOCK_SIZE) {
-								int found = 0;
-								/* is this block offset already queued on this peer? */
-								TAILQ_FOREACH(pd, &p->peer_piece_dls, peer_piece_dl_list) {
-									if (pd->idx == j && pd->off == off) {
-										found = 1;
-										break;
-									}
-								}
-								if (found)
-									continue;
-								if (BLOCK_SIZE > tpp->len - off) {
-									len = tpp->len - off;
-								} else {
-									len = BLOCK_SIZE;
-								}
-								pd = network_piece_dl_create(p, j, off, len);
-								trace("choosing endgame dl (tpp->len %u) len %u idx %u off %u", tpp->len, len, j, off);
-								network_peer_request_block(pd->pc, pd->idx, pd->off, pd->len);
-								p->dl_queue_len++;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	scheduler_choke_algorithm(sc, &now);
+
+	if (scheduler_is_endgame(sc))
+		scheduler_endgame_algorithm(sc);
 
 	/* try to get some more peers */
 	if (sc->num_peers < PEERS_WANTED
@@ -581,6 +668,9 @@ scheduler(int fd, short type, void *arg)
 		 * This should be fixed */
 		announce(sc, NULL);
 	}
+	/* print some trace info, if trace is enabled */
+	if (unworkable_trace == NULL)
+		return;
 	RB_FOREACH(pdin, piece_dl_by_idxoff, &sc->piece_dl_by_idxoff) {
 		pd = TAILQ_FIRST(&pdin->idxnode_piece_dls);
 		if (pd->pc == NULL) {
