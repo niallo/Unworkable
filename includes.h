@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.60 2008-10-03 23:16:59 niallo Exp $ */
+/* $Id: includes.h,v 1.61 2008-10-03 23:22:27 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -356,6 +356,8 @@ struct session {
 	struct piececounter *rarity_array;
 	time_t last_rarity;
 	struct ctl_server *ctl_server;
+	u_int32_t txlimit;
+	u_int32_t rxlimit;
 };
 
 void			 benc_node_add(struct benc_node *, struct benc_node *);
