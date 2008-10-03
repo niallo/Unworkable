@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.220 2008-10-01 18:20:44 niallo Exp $ */
+/* $Id: network.c,v 1.221 2008-10-03 22:58:15 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -1298,7 +1298,7 @@ network_crypto_dh()
 }
 
 /*
- * network_peer_rate()
+ * network_peer_lastcomms()
  *
  * Return how long in seconds since last communication on this peer.
  */
