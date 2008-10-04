@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: BSDmakefile,v 1.8 2008-10-04 02:34:38 niallo Exp $
+# $Id: BSDmakefile,v 1.9 2008-10-04 02:45:20 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
@@ -21,6 +21,8 @@ CFLAGS+= -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS+= -Wmissing-declarations
 CFLAGS+= -Wshadow -Wpointer-arith -Wcast-qual
 CFLAGS+= -Wsign-compare -g -ggdb
+# Uncomment when building shared library
+#CFLAGS+= -fPIC
 LDFLAGS+= -L.
 
 #
@@ -44,6 +46,11 @@ ${PROG}: libunworkable.a main.o
 
 libunworkable.a: ${OBJS}
 	ar rcs libunworkable.a ${OBJS}
+
+# shared library not built by default, but it can be produced.
+libunworkable.so.1: ${OBJS}
+	gcc -shared -Wl,-soname,libunworkable.so.1 \
+	    -o libunworkable.so.0.5.1 $(OBJS)
 
 unworkable.cat1: ${MAN}
 	nroff -Tascii -mandoc $(MAN) > unworkable.cat1
