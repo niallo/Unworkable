@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: BSDmakefile,v 1.7 2008-09-08 17:46:30 niallo Exp $
+# $Id: BSDmakefile,v 1.8 2008-10-04 02:34:38 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
@@ -21,6 +21,7 @@ CFLAGS+= -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS+= -Wmissing-declarations
 CFLAGS+= -Wshadow -Wpointer-arith -Wcast-qual
 CFLAGS+= -Wsign-compare -g -ggdb
+LDFLAGS+= -L.
 
 #
 # Uncomment if you like to use Boehm's garbage collector (/usr/ports/devel/boehm-gc).
@@ -32,14 +33,17 @@ CFLAGS+= -Wsign-compare -g -ggdb
 
 PROG= unworkable
 
-SRCS= announce.c bencode.c buf.c ctl_server.c main.c network.c parse.y progressmeter.c scheduler.c torrent.c trace.c util.c xmalloc.c
+SRCS= announce.c bencode.c buf.c ctl_server.c network.c parse.y progressmeter.c scheduler.c torrent.c trace.c util.c xmalloc.c
 OBJS= ${SRCS:N*.h:N*.sh:R:S/$/.o/g}
 MAN= unworkable.1
 
 all: ${PROG} unworkable.cat1
 
-${PROG}: ${OBJS}
-	${CC} -o ${.TARGET} ${LDFLAGS} -levent -lcrypto ${OBJS}
+${PROG}: libunworkable.a main.o
+	${CC} -o ${.TARGET} ${LDFLAGS} -levent -lcrypto main.o -lunworkable
+
+libunworkable.a: ${OBJS}
+	ar rcs libunworkable.a ${OBJS}
 
 unworkable.cat1: ${MAN}
 	nroff -Tascii -mandoc $(MAN) > unworkable.cat1
