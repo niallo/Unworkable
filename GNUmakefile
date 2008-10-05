@@ -69,7 +69,7 @@ ${PROG}: ${OBJS}
 	${CC} -o $@ ${LDFLAGS} ${OBJS} ${LIBS}
 
 clean:
-	rm -rf *.o openbsd-compat/*.o ${PROG} y.tab.h
+	rm -rf *.o openbsd-compat/*.o *.so ${PROG} y.tab.h
 
 distclean: clean
 	rm -rf unworkable
