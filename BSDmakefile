@@ -13,7 +13,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# $Id: BSDmakefile,v 1.9 2008-10-04 02:45:20 niallo Exp $
+# $Id: BSDmakefile,v 1.10 2008-10-05 23:51:16 niallo Exp $
 
 CC?= cc
 CFLAGS+= -Wall
@@ -56,4 +56,4 @@ unworkable.cat1: ${MAN}
 	nroff -Tascii -mandoc $(MAN) > unworkable.cat1
 
 clean:
-	rm -rf *.o ${PROG} y.tab.h unworkable.cat1
+	rm -rf *.o *.a *.so.1 ${PROG} y.tab.h unworkable.cat1
