@@ -1,4 +1,4 @@
-/* $Id: network.c,v 1.223 2008-10-03 23:16:59 niallo Exp $ */
+/* $Id: network.c,v 1.224 2008-10-06 04:06:10 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -1312,7 +1312,7 @@ network_peer_lastcomms(struct peer *p)
 /*
  * network_peer_rxrate()
  *
- * Return the instantaneous rx transfer rate of a given peer.
+ * Return the average rx transfer rate of a given peer.
  */
 u_int64_t
 network_peer_rxrate(struct peer *p)
@@ -1330,7 +1330,7 @@ network_peer_rxrate(struct peer *p)
 /*
  * network_peer_txrate()
  *
- * Return the instantaneous tx transfer rate of a given peer.
+ * Return the average tx transfer rate of a given peer.
  */
 u_int64_t
 network_peer_txrate(struct peer *p)
