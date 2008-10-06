@@ -1,4 +1,4 @@
-/* $Id: torrent.c,v 1.107 2008-10-01 18:24:18 niallo Exp $ */
+/* $Id: torrent.c,v 1.108 2008-10-06 18:47:11 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007 Niall O'Higgins <niallo@unworkable.org>
  *
@@ -58,6 +58,8 @@ torrent_parse_infohash(const char *file, size_t infoend)
 	BUF *b;
 	size_t len;
 
+	if (infoend == 0)
+		errx(1, "torrent_parse_infohash: infoend is zero - error parsing torrent file");
 	if ((b = buf_load(file, BUF_AUTOEXT)) == NULL)
 		exit(1);
 
