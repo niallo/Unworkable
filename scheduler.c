@@ -1,4 +1,4 @@
-/* $Id: scheduler.c,v 1.16 2008-10-03 23:16:59 niallo Exp $ */
+/* $Id: scheduler.c,v 1.17 2008-10-06 01:57:07 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -334,7 +334,9 @@ scheduler_fill_requests(struct session *sc, struct peer *p)
 		peer_rate = network_peer_rxrate(p);
 		/* for each 10k/sec on this peer, add a request. */
 		/* minimum queue length is 2, max is MAX_REQUESTS */
-		queue_len = (u_int32_t) peer_rate / 10240;
+
+		/* right shift by 13 is the same as div by 10240 */
+		queue_len = (u_int32_t) peer_rate >> 13;
 		if (queue_len < 2) {
 			queue_len = 2;
 		} else if (queue_len > MAX_REQUESTS) {
@@ -607,7 +609,8 @@ get_block:
 /*
  * scheduler()
  *
- * Bulk of decision making happens here.  Runs every second, once announce is complete.
+ * Bulk of decision making happens here.  Runs every second, once announce is
+ * complete.
  */
 void
 scheduler(int fd, short type, void *arg)
