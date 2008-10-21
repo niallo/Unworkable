@@ -1,4 +1,4 @@
-/* $Id: bencode.c,v 1.40 2008-10-04 02:10:39 niallo Exp $ */
+/* $Id: bencode.c,v 1.41 2008-10-21 19:01:15 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -114,7 +114,7 @@ benc_node_print(struct benc_node *node, int level)
 		printf("key: %s", node->body.dict_entry.key);
 		benc_node_print(node->body.dict_entry.value, level);
 	} else if (node->flags & BSTRING) {
-		printf("string len: %zd value: %s\n", node->body.string.len,
+		printf("string len: %zu value: %s\n", node->body.string.len,
 		    node->body.string.value);
 	} else if (node->flags & BINT) {
 		printf("int value: %lld\n", node->body.number);
@@ -125,7 +125,7 @@ benc_node_print(struct benc_node *node, int level)
 			benc_node_print(childnode, level + 1);
 	}
 	if (node->flags & BDICT) {
-		printf("bdict, end: %zd\n", node->end);
+		printf("bdict, end: %zu\n", node->end);
 		TAILQ_FOREACH(childnode, &node->children, benc_nodes)
 			benc_node_print(childnode, level + 1);
 	}
