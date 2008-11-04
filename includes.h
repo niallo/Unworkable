@@ -1,4 +1,4 @@
-/* $Id: includes.h,v 1.61 2008-10-03 23:22:27 niallo Exp $ */
+/* $Id: includes.h,v 1.62 2008-11-04 21:12:20 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -20,9 +20,9 @@
 
 #include <sys/queue.h>
 #include <sys/tree.h>
-#include <sys/resource.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/resource.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
