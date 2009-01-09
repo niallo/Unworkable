@@ -1,4 +1,4 @@
-/* $Id: util.c,v 1.7 2008-09-19 23:22:32 niallo Exp $ */
+/* $Id: util.c,v 1.8 2009-01-09 01:07:59 niallo Exp $ */
 /*
  * Copyright (c) 2006, 2007, 2008 Niall O'Higgins <niallo@p2presearch.com>
  *
@@ -31,7 +31,7 @@ mkpath(const char *s, mode_t mode){
 	int rv;
 
 	rv = -1;
-	if (strcmp(s, ".") == 0)
+	if (strcmp(s, ".") == 0 || strcmp(s, "/") == 0)
 		return 0;
 
 	path = xstrdup(s);
