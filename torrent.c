@@ -15,15 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#if defined(__linux__) || defined(__CYGWIN__)
-#include <sys/file.h>
-#endif
-
-/* solaris 10 */
-#if defined(__SVR4) && defined(__sun)
-#include "/usr/ucbinclude/sys/file.h"
-#endif
-
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/param.h>
@@ -40,6 +31,16 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+
+#if defined(__linux__) || defined(__CYGWIN__) || defined(__GLIBC__)
+#include <sys/file.h>
+#endif
+
+/* solaris 10 */
+#if defined(__SVR4) && defined(__sun)
+#include "/usr/ucbinclude/sys/file.h"
+#endif
+
 
 #include "includes.h"
 

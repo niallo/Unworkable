@@ -28,7 +28,7 @@ SRCS=announce.c bencode.c buf.c ctl_server.c main.c network.c \
      parse.y progressmeter.c scheduler.c torrent.c trace.c util.c xmalloc.c
 LIBS=-levent -lcrypto -lpthread
 UNAME=$(shell uname)
-ifeq ($(UNAME),Linux)
+ifneq (, $(filter Linux GNU GNU/%, $(UNAME)))
 SRCS+=openbsd-compat/strlcpy.c
 SRCS+=openbsd-compat/strlcat.c
 SRCS+=openbsd-compat/sha1.c
