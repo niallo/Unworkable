@@ -40,7 +40,7 @@
 #define MESSAGE "hash check"
 #define METER "|/-\\"
 
-static void sighandler(int);
+static void sighandler(int, short, void *);
 void usage(void);
 
 extern char *optarg;
@@ -53,9 +53,15 @@ usage(void)
 	exit(1);
 }
 
-static void
-sighandler(int sig)
+void
+sighandler(int sig, short event, void *arg)
 {
+	switch (sig) {
+	case SIGTERM:
+	case SIGINT:
+		(void)event_loopexit(NULL);
+        terminate_handler();
+	}
 }
 
 int
@@ -65,6 +71,8 @@ main(int argc, char **argv)
 	struct torrent *torrent;
 	struct torrent_piece *tpp;
 	struct winsize winsize;
+	struct event	 ev_sigint;
+	struct event	 ev_sigterm;
 	u_int32_t i;
 	int ch, j, win_size, percent;
 	char blurb[MAX_WINSIZE+1];
@@ -73,10 +81,11 @@ main(int argc, char **argv)
 	GC_INIT();
 	#endif
 
-	signal(SIGHUP, sighandler);
-	signal(SIGABRT, sighandler);
-	signal(SIGINT, sighandler);
-	signal(SIGQUIT, sighandler);
+	network_init();
+	signal_set(&ev_sigint, SIGINT, sighandler, NULL);
+	signal_set(&ev_sigterm, SIGTERM, sighandler, NULL);
+	signal_add(&ev_sigint, NULL);
+	signal_add(&ev_sigterm, NULL);
 	/* don't die on sigpipe */
 	signal(SIGPIPE, SIG_IGN);
 	#if defined(__SVR4) && defined(__sun)
@@ -156,7 +165,6 @@ main(int argc, char **argv)
 	}
 
 	srandom(time(NULL));
-	network_init();
 	network_start_torrent(torrent, rlp.rlim_cur);
 
 	exit(0);
