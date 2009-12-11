@@ -45,8 +45,6 @@ void usage(void);
 
 extern char *optarg;
 extern int  optind;
-extern int event_gotsig;
-extern int (*event_sigcb)(void);
 
 void
 usage(void)
@@ -58,7 +56,6 @@ usage(void)
 static void
 sighandler(int sig)
 {
-	event_gotsig = 1;
 }
 
 int
@@ -160,7 +157,6 @@ main(int argc, char **argv)
 
 	srandom(time(NULL));
 	network_init();
-	event_sigcb = terminate_handler;
 	network_start_torrent(torrent, rlp.rlim_cur);
 
 	exit(0);
