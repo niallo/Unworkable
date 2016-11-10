@@ -285,7 +285,7 @@ handle_announce_error(struct bufferevent *bufev, short error, void *data)
 	tp = sc->tp;
 
 	if (error & EVBUFFER_TIMEOUT)
-		errx(1, "handle_announce_error() TIMOUT (unexpected)");
+		errx(1, "handle_announce_error() TIMEOUT (unexpected)");
 
 	c = sc->res->rxmsg;
 	/* XXX: need HTTP/1.1 support - tricky part is chunked encoding I think */
